@@ -1,4 +1,15 @@
 node_modules/
+__pycache__/
+*.pyc
+venv/
+desktop/
+electron/
+dist-electron/
+dist-desktop/
+release/
+_trash_*/
+_removed_*/
+scripts/_admin-screen-django.tsx
 .next/
 dist-server/
 dist-web/

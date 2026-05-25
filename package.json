@@ -4,9 +4,11 @@
   "description": "XAUUSD Oltin Trader — Web terminal",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:web\"",
+    "dev": "concurrently -k \"npm run dev:django\" \"npm run dev:server\" \"npm run dev:web\"",
     "dev:web": "vite --config web/vite.config.ts",
     "dev:server": "tsx watch server/index.ts",
+    "dev:django": "node scripts/run-django.mjs",
+    "setup:django": "node scripts/setup-django.mjs",
     "build:server": "node scripts/build-server.mjs",
     "build:web": "vite build --config web/vite.config.ts",
     "build": "npm run build:web && npm run build:server",

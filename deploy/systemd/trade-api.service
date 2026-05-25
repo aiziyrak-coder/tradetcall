@@ -1,0 +1,17 @@
+[Unit]
+Description=XAUUSD Trade API (Node)
+After=network.target trade-django.service
+Wants=trade-django.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/trade
+EnvironmentFile=/opt/trade/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/trade/dist-server/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

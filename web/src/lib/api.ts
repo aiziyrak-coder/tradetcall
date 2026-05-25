@@ -5,10 +5,22 @@ import type {
   NewsMarketAnalysis,
   Session,
   UserPublic,
-  UserRole,
 } from "../../../shared/types";
 
-const base = "";
+const base = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "";
+
+function wsEndpoint(): string {
+  if (!base) {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}/ws`;
+  }
+  const u = new URL(base);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  u.pathname = "/ws";
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base}${path}`, {
@@ -44,18 +56,7 @@ export const api = {
   admin: {
     listUsers: () =>
       request<{ ok: boolean; users?: UserPublic[]; error?: string }>("/api/admin/users"),
-    createUser: (username: string, password: string, role: UserRole) =>
-      request<{ ok: boolean; user?: UserPublic; error?: string }>("/api/admin/users", {
-        method: "POST",
-        body: JSON.stringify({ username, password, role }),
-      }),
-    updateUser: (id: string, patch: { password?: string; role?: UserRole; active?: boolean }) =>
-      request<{ ok: boolean; error?: string }>(`/api/admin/users/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      }),
-    deleteUser: (id: string) =>
-      request<{ ok: boolean; error?: string }>(`/api/admin/users/${id}`, { method: "DELETE" }),
+    getDjangoUrl: () => request<{ url: string }>("/api/admin/django-url"),
   },
 
   settings: {
@@ -98,8 +99,7 @@ export function connectMonitor(handlers: {
   onTranslating: (v: boolean) => void;
   onAnalyzingNews: (v: boolean) => void;
 }): () => void {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+  const ws = new WebSocket(wsEndpoint());
 
   ws.onmessage = (ev) => {
     try {

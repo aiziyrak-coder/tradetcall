@@ -1,0 +1,15 @@
+[Unit]
+Description=XAUUSD Trade Auth (Django)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/trade/django_auth
+EnvironmentFile=/opt/trade/.env
+ExecStart=/opt/trade/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8010 --workers 2 --timeout 120
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
