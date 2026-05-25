@@ -69,13 +69,26 @@ const FRONTEND_ORIGINS = (
   .filter(Boolean);
 
 function cookieOpts() {
-  return {
+  const opts: {
+    httpOnly: boolean;
+    path: string;
+    secure: boolean;
+    maxAge: number;
+    sameSite: "lax" | "none";
+    domain?: string;
+  } = {
     httpOnly: true,
     path: "/",
-    sameSite: "lax" as const,
     secure: isProd,
     maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: "lax",
   };
+  if (isProd) {
+    const domain = process.env.COOKIE_DOMAIN || ".ziyrak.org";
+    opts.domain = domain;
+    opts.sameSite = "none";
+  }
+  return opts;
 }
 
 function parseSessionCookie(cookieHeader: string | undefined): string | undefined {

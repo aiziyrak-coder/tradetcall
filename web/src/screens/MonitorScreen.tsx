@@ -36,6 +36,7 @@ export function MonitorScreen({
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
   const [wsLive, setWsLive] = useState(false);
+  const [lastStreamAt, setLastStreamAt] = useState(0);
 
   useEffect(() => {
     void api.status().then((r) => setHasApiKey(r.hasKey));
@@ -61,6 +62,7 @@ export function MonitorScreen({
         setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
         setOnline(s.online);
         setWsLive(true);
+        setLastStreamAt(Date.now());
         setTickFlash((n) => n + 1);
         setTranslating(!!s.translating);
         setAnalyzingNews(!!s.analyzingNews);
@@ -71,10 +73,27 @@ export function MonitorScreen({
       onTranslating: setTranslating,
       onAnalyzingNews: setAnalyzingNews,
       onConnection: setWsLive,
+      onPing: () => setLastStreamAt(Date.now()),
     });
 
     return disconnect;
   }, []);
+
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (Date.now() - lastStreamAt < 3000) return;
+      void api.monitor
+        .getSnapshot()
+        .then((s) => {
+          setData(s);
+          setLastStreamAt(Date.now());
+          setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
+          setOnline(s.online);
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [lastStreamAt]);
 
   const handleIntervalChange = async (iv: "1m" | "5m" | "15m" | "1h") => {
     setChartInterval(iv);

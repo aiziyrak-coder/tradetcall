@@ -100,6 +100,7 @@ export function connectMonitor(handlers: {
   onTranslating: (v: boolean) => void;
   onAnalyzingNews: (v: boolean) => void;
   onConnection?: (live: boolean) => void;
+  onPing?: (data: { t: number }) => void;
 }): () => void {
   let ws: WebSocket | null = null;
   let closed = false;
@@ -125,11 +126,14 @@ export function connectMonitor(handlers: {
           case "monitor:translating":
             handlers.onTranslating(!!msg.data);
             break;
-          case "monitor:analyzingNews":
-            handlers.onAnalyzingNews(!!msg.data);
-            break;
-          default:
-            break;
+        case "monitor:analyzingNews":
+          handlers.onAnalyzingNews(!!msg.data);
+          break;
+        case "monitor:ping":
+          handlers.onPing?.(msg.data as { t: number });
+          break;
+        default:
+          break;
         }
       } catch {
         /* ignore */

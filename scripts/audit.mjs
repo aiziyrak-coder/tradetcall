@@ -49,12 +49,10 @@ for (const f of mustExist) {
 }
 
 const indexTs = readFileSync(resolve(root, "server/index.ts"), "utf8");
-if (indexTs.includes('sameSite: (isProd && FRONTEND_ORIGINS.length > 0 ? "none"')) {
-  fail("security: cookie SameSite", 'Should use "lax" for same-site subdomains');
-} else if (indexTs.includes('"lax"')) {
-  ok("security: cookie SameSite lax");
+if (indexTs.includes("COOKIE_DOMAIN") || indexTs.includes(".ziyrak.org")) {
+  ok("security: cookie cross-subdomain");
 } else {
-  fail("security: cookie SameSite", "unexpected cookie config");
+  fail("security: cookie cross-subdomain", "missing COOKIE_DOMAIN for live stream auth");
 }
 
 if (/\.split\("="\)\[1\]/.test(indexTs) && !indexTs.includes("indexOf(\"=\")")) {
@@ -80,6 +78,12 @@ if (monitorTs.includes("marketFlow")) {
   ok("monitor: marketFlow");
 } else {
   fail("monitor: marketFlow", "missing");
+}
+
+if (monitorTs.includes("refreshPriceLive") && monitorTs.includes("HEARTBEAT_MS")) {
+  ok("monitor: split price/strategy stream");
+} else {
+  fail("monitor: split price/strategy stream", "price tick blocked by strategy");
 }
 
 const strategyTs = readFileSync(resolve(root, "shared/strategy.ts"), "utf8");

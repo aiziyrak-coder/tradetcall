@@ -35,6 +35,7 @@ export function GoldChart({ candles, interval, onIntervalChange }: Props) {
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const lastLenRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
+  const lastCloseRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -135,15 +136,18 @@ export function GoldChart({ candles, interval, onIntervalChange }: Props) {
 
     if (sameBar) {
       series.update(bar);
+      lastCloseRef.current = last.close;
     } else if (newBarAppended) {
       series.update(bar);
       lastLenRef.current = candles.length;
       lastTimeRef.current = last.time;
+      lastCloseRef.current = last.close;
     } else {
       series.setData(candles.map(toBar));
       chart?.timeScale().fitContent();
       lastLenRef.current = candles.length;
       lastTimeRef.current = last.time;
+      lastCloseRef.current = last.close;
     }
   }, [candles]);
 

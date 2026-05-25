@@ -4,7 +4,7 @@ import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
-import { getXAUUSDPrice } from "../shared/price";
+import { getXAUUSDPrice, getXAUUSDPriceLive } from "../shared/price";
 import { extractJSON } from "../shared/parse-json";
 import { computeMarketFlow } from "../shared/market-flow";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
@@ -37,9 +37,12 @@ import {
   setTranslationCache,
 } from "./store";
 
-const FAST_TICK_MS = 1000;
-const STRATEGY_TICK_MS = 12_000;
-const CHART_TICK_MS = 6000;
+const PRICE_TICK_MS = 500;
+const STRATEGY_TICK_MS = 8_000;
+const FULL_GOLD_MS = 25_000;
+const CHART_TICK_MS = 5000;
+const HEARTBEAT_MS = 2000;
+const INTERNET_CHECK_MS = 25_000;
 
 const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 const DRIVERS_TICK_MS = 20000;
@@ -50,6 +53,9 @@ const TRANSLATE_TICK_MS = 45000;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
 
+let priceInterval: ReturnType<typeof setInterval> | null = null;
+let strategyInterval: ReturnType<typeof setInterval> | null = null;
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 let fastInterval: ReturnType<typeof setInterval> | null = null;
 let chartIntervalTimer: ReturnType<typeof setInterval> | null = null;
 let driversInterval: ReturnType<typeof setInterval> | null = null;
@@ -58,7 +64,12 @@ let newsAnalysisInterval: ReturnType<typeof setInterval> | null = null;
 let newsAiInterval: ReturnType<typeof setInterval> | null = null;
 let translateInterval: ReturnType<typeof setInterval> | null = null;
 
+let priceBusy = false;
+let strategyBusy = false;
 let fastBusy = false;
+let lastInternetOk = true;
+let lastInternetCheckAt = 0;
+let lastFullGoldAt = 0;
 let chartBusy = false;
 let driversBusy = false;
 let translating = false;
@@ -228,30 +239,50 @@ function markPriceFail(message: string) {
     broadcast("monitor:update", lastSnapshot);
 }
 
-async function refreshFastLive() {
-  if (fastBusy) return;
-  fastBusy = true;
+async function ensureOnline(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastInternetCheckAt < INTERNET_CHECK_MS) return lastInternetOk;
+  lastInternetOk = await checkInternet();
+  lastInternetCheckAt = now;
+  return lastInternetOk;
+}
+
+/** Har 0.5s — faqat narx, grafik, order flow (bloklanmaydi) */
+async function refreshPriceLive() {
+  if (priceBusy) return;
+  priceBusy = true;
   try {
-    const online = await checkInternet();
-    if (!online) {
+    if (!(await ensureOnline())) {
       publishSnapshot({ online: false, feedError: "Internet yo'q" });
       return;
     }
 
-    ensureApiKey();
-    const gold = await getXAUUSDPrice().catch((e) => {
+    const prevGold = lastSnapshot?.gold ?? null;
+    const now = Date.now();
+    const needFullGold = !prevGold || now - lastFullGoldAt >= FULL_GOLD_MS;
+
+    const gold = await (
+      needFullGold
+        ? getXAUUSDPrice()
+        : getXAUUSDPriceLive(prevGold)
+    ).catch((e) => {
       markPriceFail(e instanceof Error ? e.message : "Narx xatosi");
       return null;
     });
     if (!gold) return;
 
+    if (needFullGold) lastFullGoldAt = now;
     markPriceOk();
 
     const baseCandles = lastSnapshot?.chart?.candles ?? [];
-    const candles =
-      baseCandles.length > 0
-        ? patchLastCandle(baseCandles, gold.price)
-        : await fetchXAUUSDCandles(chartInterval, gold.price);
+    let candles = baseCandles;
+    if (baseCandles.length > 0) {
+      candles = patchLastCandle(baseCandles, gold.price);
+      const m5 = multiTfCandles["5m"];
+      if (m5?.length) multiTfCandles["5m"] = patchLastCandle(m5, gold.price);
+    } else {
+      candles = await fetchXAUUSDCandles(chartInterval, gold.price);
+    }
 
     const flowCandles =
       multiTfCandles["5m"]?.length && multiTfCandles["5m"]!.length > 5
@@ -259,32 +290,12 @@ async function refreshFastLive() {
         : candles;
     const marketFlow = computeMarketFlow(flowCandles, 24, "5m");
 
-    const now = Date.now();
-    const rebuildStrategies = now - lastStrategyRebuildAt >= STRATEGY_TICK_MS;
-    let strategy = lastSnapshot?.strategy ?? null;
-    let shortStrategy = lastSnapshot?.shortStrategy ?? null;
-    let newsAnalysis = lastSnapshot?.newsAnalysis ?? null;
-
-    if (rebuildStrategies) {
-      const allNews = getTranslatedNews();
-      refreshNewsAnalysisLocal();
-      await refreshMultiTimeframes(gold.price);
-      const built = buildStrategies(gold, candles, lastSnapshot?.drivers ?? [], allNews);
-      strategy = built.strategy;
-      shortStrategy = built.shortStrategy;
-      newsAnalysis = built.newsAnalysis;
-      lastStrategyRebuildAt = now;
-    }
-
     mergeSnapshot({
       online: true,
       priceStale: false,
       feedError: null,
       gold,
       chart: { interval: chartInterval, candles },
-      newsAnalysis,
-      strategy,
-      shortStrategy,
       marketFlow,
     });
     broadcast("monitor:update", lastSnapshot);
@@ -293,8 +304,44 @@ async function refreshFastLive() {
     broadcast("monitor:error", { message: msg });
     markPriceFail(msg);
   } finally {
-    fastBusy = false;
+    priceBusy = false;
   }
+}
+
+/** Alohida — og'ir TF/strategiya (narx oqimini to'xtatmaydi) */
+async function refreshStrategyLive() {
+  if (strategyBusy || !lastSnapshot?.gold) return;
+  strategyBusy = true;
+  try {
+    ensureApiKey();
+    const gold = lastSnapshot.gold;
+    const candles = lastSnapshot.chart?.candles ?? [];
+    if (!candles.length) return;
+
+    refreshNewsAnalysisLocal();
+    await refreshMultiTimeframes(gold.price);
+    const built = buildStrategies(
+      gold,
+      patchLastCandle(candles, gold.price),
+      lastSnapshot.drivers ?? [],
+      getTranslatedNews()
+    );
+    lastStrategyRebuildAt = Date.now();
+    publishSnapshot({
+      newsAnalysis: built.newsAnalysis,
+      strategy: built.strategy,
+      shortStrategy: built.shortStrategy,
+    });
+  } catch {
+    /* strategiya keyingi tsiklda */
+  } finally {
+    strategyBusy = false;
+  }
+}
+
+/** @deprecated alias */
+async function refreshFastLive() {
+  await refreshPriceLive();
 }
 
 async function refreshChart() {
@@ -468,8 +515,13 @@ async function bootstrapSnapshot(): Promise<void> {
 }
 
 function startIntervals() {
-  fastInterval = setInterval(refreshFastLive, FAST_TICK_MS);
-  chartIntervalTimer = setInterval(refreshChart, CHART_TICK_MS);
+  priceInterval = setInterval(() => void refreshPriceLive(), PRICE_TICK_MS);
+  strategyInterval = setInterval(() => void refreshStrategyLive(), STRATEGY_TICK_MS);
+  fastInterval = priceInterval;
+  chartIntervalTimer = setInterval(() => void refreshChart(), CHART_TICK_MS);
+  heartbeatInterval = setInterval(() => {
+    broadcast("monitor:ping", { t: Date.now() });
+  }, HEARTBEAT_MS);
   driversInterval = setInterval(refreshDrivers, DRIVERS_TICK_MS);
   newsInterval = setInterval(refreshNews, NEWS_TICK_MS);
   newsAnalysisInterval = setInterval(() => {
@@ -499,6 +551,7 @@ export function startMonitorService(): void {
   void boot
     .then(() => {
       startIntervals();
+      void refreshStrategyLive();
       void refreshTranslations();
       void refreshNewsDeepAnalysis();
     })
@@ -604,6 +657,9 @@ export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
 }
 
 export function stopMonitorService(): void {
+  if (priceInterval) clearInterval(priceInterval);
+  if (strategyInterval) clearInterval(strategyInterval);
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
   if (fastInterval) clearInterval(fastInterval);
   if (chartIntervalTimer) clearInterval(chartIntervalTimer);
   if (driversInterval) clearInterval(driversInterval);
@@ -611,8 +667,13 @@ export function stopMonitorService(): void {
   if (newsAnalysisInterval) clearInterval(newsAnalysisInterval);
   if (newsAiInterval) clearInterval(newsAiInterval);
   if (translateInterval) clearInterval(translateInterval);
+  priceInterval = null;
+  strategyInterval = null;
+  heartbeatInterval = null;
   fastInterval = null;
   chartIntervalTimer = null;
+  priceBusy = false;
+  strategyBusy = false;
   driversInterval = null;
   newsInterval = null;
   newsAnalysisInterval = null;

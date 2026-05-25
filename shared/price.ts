@@ -44,6 +44,26 @@ async function fetchYahooMeta(symbol: string): Promise<{
   };
 }
 
+/** Tez tick — faqat spot narx (grafik/stream uchun, ~300–800ms) */
+export async function getXAUUSDPriceLive(prev: PriceData | null): Promise<PriceData> {
+  const spot = await fetchSpotGoldApi();
+  if (spot && prev) {
+    const prevClose = prev.price - prev.change;
+    const change = Math.round((spot - prevClose) * 100) / 100;
+    const changePercent =
+      prevClose !== 0 ? Math.round((change / prevClose) * 10000) / 100 : 0;
+    return {
+      ...prev,
+      price: spot,
+      change,
+      changePercent,
+      timestamp: new Date().toISOString(),
+      source: prev.source,
+    };
+  }
+  return getXAUUSDPrice();
+}
+
 export async function getXAUUSDPrice(): Promise<PriceData> {
   const [spot, yahoo] = await Promise.all([
     fetchSpotGoldApi(),
