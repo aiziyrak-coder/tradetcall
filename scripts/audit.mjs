@@ -34,6 +34,9 @@ const mustExist = [
   "shared/strategy.ts",
   "shared/short-strategy.ts",
   "shared/trade-gate.ts",
+  "shared/technical.ts",
+  "shared/market-regime.ts",
+  "shared/economic-calendar.ts",
   "django_auth/manage.py",
   "deploy/remote-setup.sh",
   "deploy/nginx-trade.ziyrak.org.conf",
@@ -90,6 +93,20 @@ if (strategyTs.includes("waitTradeLevels")) {
   ok("strategy: wait levels after gate");
 } else {
   fail("strategy: wait levels after gate", "SL/TP may show when gated wait");
+}
+
+const technicalTs = readFileSync(resolve(root, "shared/technical.ts"), "utf8");
+if (technicalTs.includes("wilderAtr") && technicalTs.includes("wilderAdx")) {
+  ok("technical: wilder atr/adx");
+} else {
+  fail("technical: wilder atr/adx", "missing pro indicators");
+}
+
+const gateTs = readFileSync(resolve(root, "shared/trade-gate.ts"), "utf8");
+if (gateTs.includes("inHighImpactWindow") && gateTs.includes("goldLongAdjust")) {
+  ok("gate: calendar + regime");
+} else {
+  fail("gate: calendar + regime", "missing macro filters");
 }
 
 run("tsc server+web", "npx tsc --noEmit -p tsconfig.audit.json");

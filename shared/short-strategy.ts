@@ -9,6 +9,9 @@ import type {
   TimeframeSignal,
 } from "./types";
 import { buildSignalDetail } from "./signal-detail";
+import { getCalendarStatus } from "./economic-calendar";
+import { evaluateMarketRegime } from "./market-regime";
+import { getMarketSession } from "./market-session";
 import { analyzeTechnicals } from "./technical";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
@@ -24,12 +27,6 @@ const TF_META: Record<string, { labelUz: string; weight: number }> = {
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
-}
-
-function atr(candles: Candle[], period = 10): number {
-  if (candles.length < 2) return 0;
-  const slice = candles.slice(-period);
-  return slice.reduce((s, c) => s + (c.high - c.low), 0) / slice.length;
 }
 
 function tfBias(tech: ReturnType<typeof analyzeTechnicals>): TimeframeSignal["bias"] {
@@ -69,8 +66,14 @@ export function computeShortTermStrategy(
   const tech5 = analyzeTechnicals(
     primary.length ? primary : [{ time: 0, open: price, high: price, low: price, close: price }]
   );
-  const atr5 = atr(primary) || price * 0.0012;
-  const atr1 = atr(multiCandles["1m"] ?? primary) || atr5 * 0.6;
+  const regime = evaluateMarketRegime(drivers);
+  const calendar = getCalendarStatus();
+  const session = getMarketSession();
+  const atr5 = tech5.atr || price * 0.0012;
+  const tech1 = multiCandles["1m"]?.length
+    ? analyzeTechnicals(multiCandles["1m"]!)
+    : tech5;
+  const atr1 = tech1.atr || atr5 * 0.6;
   const na = newsAnalysis ?? null;
 
   const timeframes: TimeframeSignal[] = [];
@@ -103,6 +106,8 @@ export function computeShortTermStrategy(
   const dollar = drivers.find((d) => d.name.toLowerCase().includes("dollar"));
   if (dollar && dollar.changePercent > 0.2) score -= 1;
   if (dollar && dollar.changePercent < -0.2) score += 1;
+  score += regime.goldLongAdjust * 0.8;
+  if (!session.primeWindow && session.volatility === "past") score *= 0.65;
   score += newsScoreShort(na);
 
   const longVotes = timeframes.filter((t) => t.bias === "long").length;
@@ -127,8 +132,8 @@ export function computeShortTermStrategy(
   let situationUz: string;
 
   if (bias === "long") {
-    const entryFrom = round2(price - atr5 * 0.5);
-    const entryTo = round2(price - atr1 * 0.05);
+    const entryFrom = round2(price - atr5 * 0.4);
+    const entryTo = round2(price + atr1 * 0.12);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
       title: "KIRISH (long)",
@@ -139,7 +144,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.min(sup - atr5 * 0.4, price - atr5 * 1.05));
     takeProfit = round2(price + Math.max(atr5 * 1.25, atr1 * 2));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 1.8);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 2);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy} (30 daqiqa)`,
@@ -149,8 +154,8 @@ export function computeShortTermStrategy(
     };
     situationUz = `Scalp LONG: ${longVotes}/${activeTf} TF, yangiliklar tekshirildi. $${price}.`;
   } else if (bias === "short") {
-    const entryFrom = round2(price + atr1 * 0.05);
-    const entryTo = round2(price + atr5 * 0.5);
+    const entryFrom = round2(price - atr1 * 0.12);
+    const entryTo = round2(price + atr5 * 0.4);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
       title: "KIRISH (short)",
@@ -161,7 +166,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.max(res + atr5 * 0.4, price + atr5 * 1.05));
     takeProfit = round2(price - Math.max(atr5 * 1.25, atr1 * 2));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 1.8);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 2);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy}`,
@@ -212,6 +217,9 @@ export function computeShortTermStrategy(
     confidence,
     techScore: score,
     mode: "short",
+    regime,
+    calendar,
+    adx: tech5.adx,
   });
 
   const finalBias = gate.effectiveBias;

@@ -30,11 +30,11 @@ export function PriceLevelsVisual({ currentPrice, signal }: Props) {
   ];
 
   return (
-    <div className="rounded-lg border border-[var(--term-border)] bg-black/25 p-2.5">
-      <p className="mb-2 text-[10px] font-bold uppercase text-[var(--term-muted)]">
-        Narx darajalari (grafik)
+    <div className="rounded border border-[var(--term-border)] bg-black/25 p-1.5">
+      <p className="mb-1 text-[8px] font-bold uppercase text-[var(--term-muted)]">
+        Scalp darajalari
       </p>
-      <div className="relative mb-2 h-24 rounded bg-[var(--term-bg)]">
+      <div className="relative mb-1 h-14 rounded bg-[var(--term-bg)]">
         <div
           className="absolute left-0 right-0 border-t border-dashed border-amber-500/40"
           style={{ top: pos(signal.entryTo) }}
@@ -56,9 +56,9 @@ export function PriceLevelsVisual({ currentPrice, signal }: Props) {
           style={{ top: pos(signal.takeProfit) }}
         />
       </div>
-      <div className="space-y-1 font-mono-ui">
+      <div className="grid grid-cols-3 gap-x-2 font-mono-ui">
         {rows.map((r) => (
-          <div key={r.label} className="flex justify-between text-[11px]">
+          <div key={r.label} className="flex justify-between gap-1 text-[8px]">
             <span className={r.color + (r.bold ? " font-bold" : "")}>{r.label}</span>
             <span className={`font-semibold ${r.color}`}>${r.price.toFixed(2)}</span>
           </div>

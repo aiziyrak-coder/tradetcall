@@ -45,7 +45,7 @@ const INTERNET_CHECK_MS = 25_000;
 const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
-const NEWS_ANALYSIS_MS = 15000;
+const NEWS_ANALYSIS_MS = 20000;
 const NEWS_AI_MS = 60000;
 const TRANSLATE_TICK_MS = 25000;
 const PRICE_STALE_MS = 15_000;
@@ -64,7 +64,6 @@ let translateInterval: ReturnType<typeof setInterval> | null = null;
 
 let priceBusy = false;
 let strategyBusy = false;
-let fastBusy = false;
 let lastInternetOk = true;
 let lastInternetCheckAt = 0;
 let tickSeq = 0;
@@ -518,18 +517,20 @@ function startIntervals() {
   newsInterval = setInterval(refreshNews, NEWS_TICK_MS);
   newsAnalysisInterval = setInterval(() => {
     if (!lastSnapshot?.gold) return;
-    refreshNewsAnalysisLocal();
+    const newsAnalysis = refreshNewsAnalysisLocal();
+    if (!newsAnalysis) return;
+    publishSnapshot({ newsAnalysis, analyzingNews: false });
+    if (Date.now() - lastStrategyRebuildAt < STRATEGY_TICK_MS - 1500) return;
     const gold = lastSnapshot.gold;
     const candles = lastSnapshot.chart?.candles ?? [];
     const drivers = lastSnapshot.drivers ?? [];
-    const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
-      gold,
-      candles,
-      drivers,
-      getTranslatedNews()
-    );
+    const built = buildStrategies(gold, candles, drivers, getTranslatedNews());
     lastStrategyRebuildAt = Date.now();
-    publishSnapshot({ newsAnalysis, strategy, shortStrategy });
+    publishSnapshot({
+      newsAnalysis: built.newsAnalysis,
+      strategy: built.strategy,
+      shortStrategy: built.shortStrategy,
+    });
   }, NEWS_ANALYSIS_MS);
   newsAiInterval = setInterval(() => void refreshNewsDeepAnalysis(), NEWS_AI_MS);
   translateInterval = setInterval(refreshTranslations, TRANSLATE_TICK_MS);
@@ -671,7 +672,6 @@ export function stopMonitorService(): void {
   newsAnalysisInterval = null;
   newsAiInterval = null;
   translateInterval = null;
-  fastBusy = false;
   chartBusy = false;
   driversBusy = false;
   translating = false;

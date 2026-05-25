@@ -61,6 +61,10 @@ export interface TechnicalAnalysis {
   support: number[];
   resistance: number[];
   momentum: string;
+  atr: number;
+  adx: number;
+  priorDayHigh?: number;
+  priorDayLow?: number;
 }
 
 /** Uzoq muddatli savdo qadami */

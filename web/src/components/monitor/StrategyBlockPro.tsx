@@ -1,6 +1,8 @@
 import type { LongTermForecast, LongTermStrategy, ShortTermStrategy } from "../../../../shared/types";
 import { buildSignalDetail } from "../../../../shared/signal-detail";
 import { SignalHeroCompact } from "./SignalHeroCompact";
+import { SignalChecklist } from "./SignalChecklist";
+import { RiskCalculatorCompact } from "./RiskCalculatorCompact";
 
 type LongDisplay = LongTermStrategy | LongTermForecast;
 
@@ -55,6 +57,17 @@ export function LongStrategyBlock({ strategy, forecast, price, onForecast, forec
         )}
       </div>
       <SignalHeroCompact signal={signal} bias={display.bias} confidence={display.confidence} />
+      <SignalChecklist items={signal.checklist} />
+      <RiskCalculatorCompact signal={signal} label="Swing" />
+      {pro?.keyLevels && pro.keyLevels.length > 0 && (
+        <div className="flex flex-wrap gap-0.5 font-mono-ui text-[7px]">
+          {pro.keyLevels.map((k) => (
+            <span key={k.label} className="rounded bg-zinc-900/80 px-1 py-0 text-zinc-400">
+              {k.label} <b className="text-amber-200">${k.price}</b>
+            </span>
+          ))}
+        </div>
+      )}
       {fc ? (
         <>
           <p className="text-[8px] font-bold text-amber-300">{fc.summaryUz}</p>
@@ -101,6 +114,15 @@ export function ShortStrategyBlock({ strategy, price }: ShortProps) {
         Qisqa · 30daq · {strategy.tfAligned}/{strategy.tfTotal} TF
       </span>
       <SignalHeroCompact signal={strategy.signal} bias={strategy.bias} confidence={strategy.confidence} label="SCALP" />
+      <SignalChecklist items={strategy.signal.checklist} />
+      <RiskCalculatorCompact signal={strategy.signal} label="Scalp" />
+      <div className="flex flex-wrap gap-0.5 font-mono-ui text-[7px]">
+        {strategy.keyLevels.map((k) => (
+          <span key={k.label} className="rounded bg-zinc-900/80 px-1 py-0 text-zinc-400">
+            {k.label} <b className="text-cyan-200">${k.price}</b>
+          </span>
+        ))}
+      </div>
       <p className="rounded bg-cyan-950/30 px-1.5 py-1 text-[8px] font-semibold leading-snug text-cyan-100">
         {strategy.playbookUz}
       </p>

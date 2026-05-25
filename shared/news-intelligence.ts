@@ -179,7 +179,15 @@ export function computeNewsIntelligence(
   drivers: MarketQuote[],
   multiCandles?: Partial<Record<string, Candle[]>>
 ): NewsMarketAnalysis {
-  const items = news.slice(0, 40);
+  const seen = new Set<string>();
+  const items = news
+    .filter((n) => {
+      const key = (n.titleUz ?? n.title).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 48);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 40);
   const tech = analyzeTechnicals(candles.length ? candles : [{ time: 0, open: price, high: price, low: price, close: price }]);
 
   let totalScore = 0;

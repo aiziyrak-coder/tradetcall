@@ -7,6 +7,9 @@ import type {
   StrategyStep,
 } from "./types";
 import { buildSignalDetail } from "./signal-detail";
+import { getCalendarStatus } from "./economic-calendar";
+import { evaluateMarketRegime } from "./market-regime";
+import { getSwingSessionWindow } from "./market-session";
 import { analyzeTechnicals } from "./technical";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
@@ -35,12 +38,6 @@ function nextTradingDays(count: number): { label: string; date: Date }[] {
     out.push({ label: DAY_UZ[wd], date: x });
   }
   return out;
-}
-
-function atr(candles: Candle[], period = 14): number {
-  if (candles.length < 2) return 0;
-  const slice = candles.slice(-period);
-  return slice.reduce((s, c) => s + (c.high - c.low), 0) / slice.length;
 }
 
 function buildWhenUz(days: { label: string; date: Date }[], session: string): string {
@@ -74,8 +71,10 @@ export function computeLongTermStrategy(
   newsAnalysis?: NewsMarketAnalysis | null
 ): LongTermStrategy {
   const tech = analyzeTechnicals(candles);
+  const regime = evaluateMarketRegime(drivers);
+  const calendar = getCalendarStatus();
   const dollar = drivers.find((d) => d.name.toLowerCase().includes("dollar"));
-  const atrVal = atr(candles) || price * 0.008;
+  const atrVal = tech.atr || price * 0.008;
   const na = newsAnalysis ?? null;
 
   let score = 0;
@@ -87,6 +86,7 @@ export function computeLongTermStrategy(
   else score -= 0.6;
   if (dollar && dollar.changePercent > 0.25) score -= 1.2;
   if (dollar && dollar.changePercent < -0.25) score += 1.2;
+  score += regime.goldLongAdjust;
   score += newsScoreFromAnalysis(na);
 
   let bias: LongTermStrategy["bias"] = "wait";
@@ -96,7 +96,7 @@ export function computeLongTermStrategy(
   const sup = tech.support[0] ?? price - atrVal * 2;
   const res = tech.resistance[0] ?? price + atrVal * 2;
   const days = nextTradingDays(4);
-  const session = "15:00 — 21:00";
+  const session = getSwingSessionWindow();
 
   let entry: StrategyStep;
   let exit: StrategyStep;
@@ -179,10 +179,19 @@ export function computeLongTermStrategy(
   const riskReward = riskPts > 0 ? round2(rewardPts / riskPts) : 0;
 
   const newsConf = na?.confidence ?? 0;
-  const confidence = Math.min(90, Math.round(40 + Math.abs(score) * 9 + newsConf * 0.2));
+  const confidence = Math.min(
+    90,
+    Math.round(40 + Math.abs(score) * 9 + newsConf * 0.2 + (tech.adx >= 22 ? 8 : 0))
+  );
   const confluencePct = Math.min(
     95,
-    Math.round(30 + Math.abs(score) * 11 + (na?.newsCandleAligned ? 22 : 0) + (bias !== "wait" ? 10 : 0))
+    Math.round(
+      30 +
+        Math.abs(score) * 11 +
+        (na?.newsCandleAligned ? 22 : 0) +
+        (bias !== "wait" ? 10 : 0) +
+        (regime.macroBias === (bias === "long" ? "bullish" : bias === "short" ? "bearish" : "neutral") ? 8 : 0)
+    )
   );
 
   const gate = applyTradeGate({
@@ -193,6 +202,9 @@ export function computeLongTermStrategy(
     confidence,
     techScore: score,
     mode: "longterm",
+    regime,
+    calendar,
+    adx: tech.adx,
   });
 
   const finalBias = gate.effectiveBias;
@@ -237,6 +249,8 @@ export function computeLongTermStrategy(
     { label: "TP", price: takeProfit },
     { label: "Past", price: round2(sup) },
     { label: "Yuqori", price: round2(res) },
+    ...(tech.priorDayLow ? [{ label: "Kecha past", price: tech.priorDayLow }] : []),
+    ...(tech.priorDayHigh ? [{ label: "Kecha yuqori", price: tech.priorDayHigh }] : []),
   ];
 
   const newsBlock = na
@@ -277,7 +291,10 @@ export function computeLongTermStrategy(
             "Hozir: NO TRADE — professional kutish.",
             `Kuzatuv: qarshilik $${round2(res)} sinovi, qo'llab $${round2(sup)} ushlanishi.`,
             "Yangiliklar zid bo'lsa 24 soat kutish.",
-            `Konfluens ${confluencePct}% — minimal 65% talab.`,
+            `Konfluens ${confluencePct}% — professional kirish uchun 78%+.`,
+            calendar.eventNameUz
+              ? `Taqvim: ${calendar.eventNameUz}${calendar.minutesUntil != null ? ` (~${calendar.minutesUntil}daq)` : ""}`
+              : regime.summaryUz.slice(0, 70),
             dollarNote || "Makro omillar kutilmoqda.",
             na?.contradictionsUz?.slice(0, 90) ?? "Signal yo'qligi — sabr.",
           ];

@@ -88,15 +88,15 @@ export function buildSignalDetail(
   let statusUz = gate?.reasonUz ?? "Hozir kirmang — yangiliklar/texnik tasdiq yo'q";
 
   if (bias === "long" && tradeOk && gate?.allowed) {
-    actionUz = inEntryZone ? "HOZIR SOTIB OLING (tasdiqlangan)" : "SOTIB OLISH — zona kutilmoqda";
-    status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
+    actionUz = inEntryZone ? "LONG — zona ichida (tasdiqlangan)" : "LONG — kirish zonasini kuting";
+    status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.5 ? "armed" : "wait";
     statusUz = inEntryZone
-      ? "Yangiliklar + TF + R:R OK — lot ochish mumkin"
+      ? "Gate + yangiliklar + R:R OK — SL bilan lot ochish mumkin"
       : status === "armed"
-        ? "Zonaga yaqin — tayyor turing"
+        ? "Zonaga yaqin — limit buy tayyor"
         : `Kutish: $${entryFrom}–$${entryTo}`;
   } else if (bias === "short" && tradeOk && gate?.allowed) {
-    actionUz = inEntryZone ? "HOZIR SOTING (tasdiqlangan)" : "SHORT — zona kutilmoqda";
+    actionUz = inEntryZone ? "SHORT — zona ichida (tasdiqlangan)" : "SHORT — kirish zonasini kuting";
     status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone
       ? "Short tasdiq — SL qat'iy"
@@ -138,19 +138,21 @@ export function buildSignalDetail(
       textUz: bias !== "wait" ? "Yo'nalish aniq" : "Yo'nalish yo'q — kuting",
     },
     {
-      ok: confluencePct >= 60,
+      ok: confluencePct >= 78,
       textUz:
-        confluencePct >= 60
-          ? `TF moslik ${confluencePct}%`
-          : `TF moslik past (${confluencePct}%)`,
+        confluencePct >= 85
+          ? `Konfluens ${confluencePct}% — yuqori`
+          : confluencePct >= 78
+            ? `Konfluens ${confluencePct}% — professional minimum`
+            : `Konfluens ${confluencePct}% — 78%+ kerak`,
     },
     {
-      ok: riskReward >= 1.8,
+      ok: riskReward >= 2,
       textUz:
-        riskReward >= 2
+        riskReward >= 2.2
           ? `Risk/Foyda 1:${riskReward} — professional`
-          : riskReward >= 1.8
-            ? `Risk/Foyda 1:${riskReward} — minimal OK`
+          : riskReward >= 2
+            ? `Risk/Foyda 1:${riskReward} — minimum OK`
             : `R:R past (1:${riskReward}) — KIRMANG`,
     },
     {

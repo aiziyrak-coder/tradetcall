@@ -3,6 +3,8 @@ import type { LongTermForecast, MonitorSnapshot } from "../../../shared/types";
 import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
+import { MarketContextBar } from "../components/monitor/MarketContextBar";
+import { PriceLevelsVisual } from "../components/monitor/PriceLevelsVisual";
 import { NewsColumn } from "../components/monitor/NewsColumn";
 import { StrategiesStackPanel } from "../components/monitor/StrategiesStackPanel";
 import { api, connectMonitor } from "../lib/api";
@@ -132,10 +134,17 @@ export function MonitorScreen({
         priceStale={data?.priceStale}
         feedError={data?.feedError}
         translating={translating || analyzingNews}
+        newsReady={!!data?.newsAnalysis}
         isAdmin={isAdmin}
         onOpenAdmin={onOpenAdmin}
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}
+      />
+      <MarketContextBar
+        gold={data?.gold ?? null}
+        shortStrategy={data?.shortStrategy ?? null}
+        longStrategy={data?.strategy ?? null}
+        newsAnalysis={data?.newsAnalysis ?? null}
       />
 
       {error && (
@@ -180,12 +189,20 @@ export function MonitorScreen({
           />
         </div>
 
-        <div style={{ gridArea: "chart" }} className="min-h-0 overflow-hidden rounded-md border border-[var(--term-border)]">
+        <div
+          style={{ gridArea: "chart" }}
+          className="grid min-h-0 grid-rows-[1fr_auto] gap-1 overflow-hidden rounded-md border border-[var(--term-border)]"
+        >
           <GoldChart
             candles={data?.chart?.candles ?? []}
             interval={chartInterval}
             onIntervalChange={handleIntervalChange}
           />
+          {data?.shortStrategy?.signal && price > 0 && (
+            <div className="shrink-0 px-1 pb-1">
+              <PriceLevelsVisual currentPrice={price} signal={data.shortStrategy.signal} />
+            </div>
+          )}
         </div>
 
         <div style={{ gridArea: "intel" }} className="min-h-0 overflow-hidden">

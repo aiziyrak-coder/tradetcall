@@ -1,4 +1,6 @@
 import type { NewsMarketAnalysis } from "./types";
+import type { CalendarStatus } from "./economic-calendar";
+import type { MarketRegime } from "./market-regime";
 
 export type TradeMode = "longterm" | "short";
 
@@ -10,6 +12,9 @@ export interface TradeGateInput {
   confidence: number;
   techScore: number;
   mode: TradeMode;
+  regime?: MarketRegime | null;
+  calendar?: CalendarStatus | null;
+  adx?: number;
 }
 
 export interface TradeGateResult {
@@ -24,8 +29,8 @@ const MIN_RR: Record<TradeMode, number> = { longterm: 2.2, short: 2 };
 const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 78, short: 85 };
 const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 68, short: 72 };
 const MIN_SCORE: Record<TradeMode, number> = { longterm: 3.2, short: 3.8 };
+const MIN_ADX: Record<TradeMode, number> = { longterm: 16, short: 20 };
 
-/** Yangiliklar savdo uchun ruxsat beradimi — asosiy filter */
 export function evaluateNewsForTrade(
   news: NewsMarketAnalysis | null,
   intendedBias: "long" | "short" | "wait"
@@ -109,7 +114,17 @@ export function evaluateNewsForTrade(
 
 export function applyTradeGate(input: TradeGateInput): TradeGateResult {
   const capitalRuleUz =
-    "PRO QOIDA: Kapitalni himoya qiling — har bir lotda SL majburiy, R:R past bo'lsa KIRMANG, yangiliklar zid bo'lsa KIRMANG.";
+    "PRO QOIDA: Kapitalni himoya qiling — har bir lotda SL majburiy, R:R past bo'lsa KIRMANG, yangiliklar zid bo'lsa KIRMANG, CPI/NFP atrofida KIRMANG.";
+
+  if (input.calendar?.inHighImpactWindow) {
+    return {
+      allowed: false,
+      effectiveBias: "wait",
+      reasonUz: input.calendar.hintUz,
+      capitalRuleUz,
+      newsVerdictUz: input.news?.recommendationUz ?? "Makro voqea oynasi.",
+    };
+  }
 
   if (input.bias === "wait") {
     return {
@@ -118,6 +133,39 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
       reasonUz: "Texnik va yangiliklar hali bir yo'nalish bermadi.",
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? "Kuting.",
+    };
+  }
+
+  const regime = input.regime;
+  if (regime) {
+    if (input.bias === "long" && regime.goldLongAdjust <= -1.2) {
+      return {
+        allowed: false,
+        effectiveBias: "wait",
+        reasonUz: `Makro rejim longga qarshi: ${regime.summaryUz}`,
+        capitalRuleUz,
+        newsVerdictUz: input.news?.recommendationUz ?? regime.summaryUz,
+      };
+    }
+    if (input.bias === "short" && regime.goldLongAdjust >= 1.2) {
+      return {
+        allowed: false,
+        effectiveBias: "wait",
+        reasonUz: `Makro rejim shortga qarshi: ${regime.summaryUz}`,
+        capitalRuleUz,
+        newsVerdictUz: input.news?.recommendationUz ?? regime.summaryUz,
+      };
+    }
+  }
+
+  const adx = input.adx ?? 0;
+  if (adx > 0 && adx < MIN_ADX[input.mode]) {
+    return {
+      allowed: false,
+      effectiveBias: "wait",
+      reasonUz: `Trend kuchi past (ADX ${adx}) — range bozorida signal yolg'on bo'ladi.`,
+      capitalRuleUz,
+      newsVerdictUz: input.news?.recommendationUz ?? "ADX past.",
     };
   }
 
@@ -166,7 +214,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Texnik kuch yetarli emas — haqiqiy trader faqat kuchli signalda kiradi.",
+      reasonUz: "Texnik kuch yetarli emas — faqat kuchli signalda kiradi.",
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -177,14 +225,13 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     effectiveBias: input.bias,
     reasonUz:
       input.mode === "short"
-        ? "Qisqa muddat: yangiliklar + TF + R:R professional mezonlarda — lot ochish mumkin (SL qat'iy)."
-        : "Uzoq muddat: yangiliklar va texnik MOS — swing kirish mumkin (1 haftada 0–1 lot).",
+        ? "Qisqa muddat: yangiliklar + TF + R:R + makro professional mezonlarda."
+        : "Uzoq muddat: yangiliklar, texnik va makro MOS — swing kirish mumkin (SL qat'iy).",
     capitalRuleUz,
     newsVerdictUz: newsCheck.verdictUz,
   };
 }
 
-/** TP ni minimal R:R ga moslashtirish — har lotda mantiqiy foyda */
 export function ensureTakeProfitRR(
   entry: number,
   stopLoss: number,
