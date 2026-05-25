@@ -81,8 +81,14 @@ async function main() {
 
   const setupLocal = path.join(root, "deploy", "remote-setup.sh");
   const setupRemote = "/tmp/trade-remote-setup.sh";
-  await upload(conn, setupLocal, setupRemote);
-  await exec(conn, `chmod +x ${setupRemote} && bash ${setupRemote}`, "Deploy skript");
+  const setupLf = path.join(root, "deploy", ".remote-setup-lf.sh");
+  fs.writeFileSync(setupLf, fs.readFileSync(setupLocal, "utf8").replace(/\r\n/g, "\n"));
+  await upload(conn, setupLf, setupRemote);
+  await exec(
+    conn,
+    `chmod +x ${setupRemote} && sed -i 's/\\r$//' ${setupRemote} && bash ${setupRemote}`,
+    "Deploy skript"
+  );
 
   conn.end();
   console.log("\nTayyor: https://trade.ziyrak.org | https://tradeapi.ziyrak.org");

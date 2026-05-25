@@ -33,7 +33,10 @@ echo "==> Python venv + Django"
 python3 -m venv venv
 ./venv/bin/pip install -q -r django_auth/requirements.txt gunicorn
 export DATA_DIR="$APP_DIR/data"
-node scripts/setup-django.mjs
+cd django_auth
+../venv/bin/python manage.py migrate --noinput
+../venv/bin/python manage.py seed_trade_users
+cd ..
 
 echo "==> Node build"
 npm ci
