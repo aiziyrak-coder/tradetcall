@@ -37,11 +37,11 @@ export function AuthScreen({ onLogin }: Props) {
   };
 
   return (
-    <div className="relative flex h-screen items-center justify-center overflow-hidden bg-[#020408] p-6">
+    <div className="relative flex min-h-screen min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#020408] p-4 sm:p-6">
       <FuturisticBackground variant="login" />
 
       <div className="relative z-10 w-full max-w-md">
-        <div className="fx-border-animated fx-glass rounded-2xl p-8">
+        <div className="fx-border-animated fx-glass rounded-2xl p-6 sm:p-8">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-amber-500/20 to-cyan-500/10 shadow-[0_0_40px_rgba(34,211,238,0.2)]">
               <span className="text-3xl">⚡</span>

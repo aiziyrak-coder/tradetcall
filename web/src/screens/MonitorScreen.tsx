@@ -9,6 +9,8 @@ import { PriceLevelsVisual } from "../components/monitor/PriceLevelsVisual";
 import { NewsColumn } from "../components/monitor/NewsColumn";
 import { StrategiesStackPanel } from "../components/monitor/StrategiesStackPanel";
 import { api, connectMonitor } from "../lib/api";
+import { useSignalNotifications } from "../hooks/useSignalNotifications";
+import { requestNotificationPermission } from "../lib/notifications";
 import { UZ } from "../lib/uz";
 
 interface Props {
@@ -37,6 +39,12 @@ export function MonitorScreen({
   const [online, setOnline] = useState(true);
   const [wsLive, setWsLive] = useState(false);
   const [lastStreamAt, setLastStreamAt] = useState(0);
+
+  useSignalNotifications(data);
+
+  useEffect(() => {
+    void requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     void api.monitor
@@ -157,7 +165,7 @@ export function MonitorScreen({
       )}
 
       <div
-        className="grid min-h-0 flex-1 gap-1.5 p-1.5"
+        className="monitor-layout grid min-h-0 flex-1 gap-1.5 p-1.5 max-md:flex max-md:flex-col"
         style={{
           gridTemplateColumns: "minmax(220px, 26%) minmax(280px, 36%) minmax(260px, 1fr)",
           gridTemplateRows: "minmax(0, 1fr) minmax(130px, 28%)",
@@ -167,7 +175,10 @@ export function MonitorScreen({
           `,
         }}
       >
-        <div style={{ gridArea: "strategies" }} className="min-h-0 overflow-hidden">
+        <div
+          style={{ gridArea: "strategies" }}
+          className="monitor-panel-strategies min-h-0 overflow-hidden"
+        >
           <StrategiesStackPanel
             longStrategy={data?.strategy ?? null}
             shortStrategy={data?.shortStrategy ?? null}
@@ -176,7 +187,7 @@ export function MonitorScreen({
 
         <div
           style={{ gridArea: "chart" }}
-          className="grid min-h-0 grid-rows-[1fr_auto] gap-1 overflow-hidden rounded-md border border-[var(--term-border)]"
+          className="monitor-panel-chart grid min-h-0 grid-rows-[1fr_auto] gap-1 overflow-hidden rounded-md border border-[var(--term-border)]"
         >
           <GoldChart
             candles={data?.chart?.candles ?? []}
@@ -190,13 +201,13 @@ export function MonitorScreen({
           )}
         </div>
 
-        <div style={{ gridArea: "intel" }} className="min-h-0 overflow-hidden">
+        <div style={{ gridArea: "intel" }} className="monitor-panel-intel min-h-0 overflow-hidden">
           <IntelligenceHub analysis={data?.newsAnalysis ?? null} drivers={data?.drivers ?? []} />
         </div>
 
         <div
           style={{ gridArea: "news" }}
-          className="grid min-h-0 grid-cols-3 gap-px overflow-hidden rounded-md border border-[var(--term-border)] bg-[var(--term-panel)]"
+          className="monitor-panel-news monitor-news-cols grid min-h-0 grid-cols-3 gap-px overflow-hidden rounded-md border border-[var(--term-border)] bg-[var(--term-panel)]"
         >
           <NewsColumn
             title={UZ.streams.direct}

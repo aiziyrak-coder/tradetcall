@@ -31,7 +31,7 @@ export function MarketContextBar({
   const adx = longStrategy?.technical.adx ?? shortStrategy?.technical.adx;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
+    <div className="monitor-context-bar flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
       {mt5Bridge && (
         <span className={mt5Bridge.connected ? "font-bold text-emerald-400" : "text-amber-500"}>
           {mt5Bridge.connected

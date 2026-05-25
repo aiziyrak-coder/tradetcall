@@ -243,3 +243,97 @@ body {
     background-position: 200% 50%;
   }
 }
+
+/* Telefon — to'liq scroll, bitta ustun */
+@media (max-width: 900px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100dvh;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .monitor-root {
+    width: 100%;
+    min-height: 100dvh;
+    height: auto;
+    overflow: visible;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .monitor-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    min-height: 0 !important;
+    padding: 8px !important;
+    padding-left: max(8px, env(safe-area-inset-left)) !important;
+    padding-right: max(8px, env(safe-area-inset-right)) !important;
+  }
+
+  .monitor-layout > * {
+    min-height: 0;
+    width: 100% !important;
+  }
+
+  .monitor-panel-strategies {
+    order: 1;
+    min-height: 280px;
+    max-height: none;
+  }
+
+  .monitor-panel-chart {
+    order: 2;
+    min-height: 220px;
+    height: 42vh;
+    max-height: 360px;
+  }
+
+  .monitor-panel-intel {
+    order: 3;
+    min-height: 200px;
+    max-height: 320px;
+  }
+
+  .monitor-panel-news {
+    order: 4;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 200px;
+    max-height: 40vh;
+  }
+
+  .monitor-topbar > div {
+    min-height: 44px;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .monitor-topbar button {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .monitor-context-bar {
+    font-size: 10px !important;
+    line-height: 1.35;
+    padding: 8px !important;
+  }
+
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 900px) {
+  .monitor-news-cols {
+    grid-template-columns: 1fr !important;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+}

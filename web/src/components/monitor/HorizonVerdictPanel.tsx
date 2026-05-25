@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { HorizonVerdict } from "../../../../shared/types";
 import { SignalChecklist } from "./SignalChecklist";
-import { RiskCalculatorCompact } from "./RiskCalculatorCompact";
+import { TradePlanPanel } from "./TradePlanPanel";
 import type { SignalDetail } from "../../../../shared/signal-detail";
 
 const actionStyle: Record<string, string> = {
@@ -14,10 +14,19 @@ interface Props {
   verdict: HorizonVerdict;
   signal: SignalDetail;
   accent: "amber" | "cyan";
+  horizon: "long" | "short";
+  maxHoldMinutes?: number;
   children?: ReactNode;
 }
 
-export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props) {
+export function HorizonVerdictPanel({
+  verdict,
+  signal,
+  accent,
+  horizon,
+  maxHoldMinutes,
+  children,
+}: Props) {
   const border = accent === "amber" ? "border-amber-500/40" : "border-cyan-500/40";
   const labelColor = accent === "amber" ? "text-amber-400" : "text-cyan-400";
   const trusted = verdict.action !== "HOLD" && verdict.gateAllowed;
@@ -90,8 +99,14 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
         </div>
       </section>
 
+      <TradePlanPanel
+        horizon={horizon}
+        horizonLabelUz={verdict.horizonLabelUz}
+        verdict={verdict}
+        signal={signal}
+        maxHoldMinutes={maxHoldMinutes}
+      />
       <SignalChecklist items={verdict.checklist} />
-      {trusted && <RiskCalculatorCompact signal={signal} />}
       {children}
     </div>
   );

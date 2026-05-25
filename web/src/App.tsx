@@ -6,6 +6,7 @@ import { MonitorScreen } from "./screens/MonitorScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { FuturisticBackground } from "./components/ui/FuturisticBackground";
 import { api } from "./lib/api";
+import { requestNotificationPermission } from "./lib/notifications";
 
 type Screen = "auth" | "admin" | "monitor" | "settings";
 
@@ -21,6 +22,7 @@ export default function App() {
     setRole(userRole);
     setBootError(null);
     setScreen(userRole === "admin" ? "admin" : "monitor");
+    void requestNotificationPermission();
   };
 
   useEffect(() => {

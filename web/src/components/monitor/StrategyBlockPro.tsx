@@ -11,7 +11,12 @@ export function LongStrategyBlock({ strategy }: LongProps) {
   }
 
   return (
-    <HorizonVerdictPanel verdict={strategy.verdict} signal={strategy.signal} accent="amber">
+    <HorizonVerdictPanel
+      verdict={strategy.verdict}
+      signal={strategy.signal}
+      accent="amber"
+      horizon="long"
+    >
       <div className="flex flex-wrap gap-0.5 font-mono-ui text-[7px]">
         {strategy.keyLevels.map((k) => (
           <span key={k.label} className="rounded bg-zinc-900/80 px-1 py-0 text-zinc-400">
@@ -33,7 +38,13 @@ export function ShortStrategyBlock({ strategy }: ShortProps) {
   }
 
   return (
-    <HorizonVerdictPanel verdict={strategy.verdict} signal={strategy.signal} accent="cyan">
+    <HorizonVerdictPanel
+      verdict={strategy.verdict}
+      signal={strategy.signal}
+      accent="cyan"
+      horizon="short"
+      maxHoldMinutes={strategy.maxHoldMinutes}
+    >
       <div className="flex flex-wrap gap-0.5">
         {strategy.timeframes.map((tf) => (
           <span
