@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LongTermForecast, MonitorSnapshot } from "../../../shared/types";
 import { GoldChart, type ChartPriceLevels } from "../components/gold/GoldChart";
-import { GoldDriversPanel } from "../components/gold/GoldDriversPanel";
-import { MarketContextBar } from "../components/monitor/MarketContextBar";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
-import { NewsAnalysisPanel } from "../components/monitor/NewsAnalysisPanel";
+import { NewsAnalysisStrip } from "../components/monitor/NewsAnalysisStrip";
 import { NewsColumn } from "../components/monitor/NewsColumn";
-import { ShortStrategyPanel } from "../components/monitor/ShortStrategyPanel";
-import { StrategyPanel } from "../components/monitor/StrategyPanel";
+import { ShortStrategyPanelCompact } from "../components/monitor/ShortStrategyPanelCompact";
+import { StrategyPanelCompact } from "../components/monitor/StrategyPanelCompact";
 import { api, connectMonitor } from "../lib/api";
 import { UZ } from "../lib/uz";
 
@@ -101,18 +99,19 @@ export function MonitorScreen({
 
   if (!ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--term-bg)] text-sm text-[var(--term-muted)]">
+      <div className="flex h-screen items-center justify-center bg-[var(--term-bg)] text-[11px] text-[var(--term-muted)]">
         Terminal yuklanmoqda…
       </div>
     );
   }
 
   return (
-    <div className="monitor-root relative flex flex-col overflow-hidden bg-[var(--term-bg)]">
+    <div className="monitor-root monitor-compact relative flex flex-col overflow-hidden bg-[var(--term-bg)]">
       <MonitorTopBar
         gold={data?.gold ?? null}
         strategy={long ?? null}
         shortStrategy={short ?? null}
+        drivers={data?.drivers ?? []}
         username={username}
         lastUpdate={lastUpdate}
         online={online}
@@ -125,10 +124,8 @@ export function MonitorScreen({
         onLogout={onLogout}
       />
 
-      <MarketContextBar gold={data?.gold ?? null} shortStrategy={short ?? null} longStrategy={long ?? null} />
-
       {error && (
-        <div className="shrink-0 bg-red-950/60 px-3 py-1 text-center text-[11px] text-[var(--term-red)]">
+        <div className="shrink-0 bg-red-950/60 px-2 py-0.5 text-center text-[9px] text-[var(--term-red)]">
           {error}
           <button type="button" className="ml-2 underline" onClick={() => setError(null)}>
             yopish
@@ -137,10 +134,10 @@ export function MonitorScreen({
       )}
 
       <div
-        className="grid min-h-0 flex-1 gap-2 p-2"
+        className="grid min-h-0 flex-1 gap-1 p-1"
         style={{
-          gridTemplateColumns: "minmax(240px, 24%) minmax(0, 1fr) minmax(240px, 24%)",
-          gridTemplateRows: "minmax(0, 1fr) minmax(200px, 28%) minmax(100px, 20%)",
+          gridTemplateColumns: "minmax(200px, 22%) minmax(0, 1fr) minmax(200px, 22%)",
+          gridTemplateRows: "minmax(0, 1fr) 54px 40px",
           gridTemplateAreas: `
             "long chart short"
             "analysis analysis analysis"
@@ -148,8 +145,8 @@ export function MonitorScreen({
           `,
         }}
       >
-        <div style={{ gridArea: "long" }} className="min-h-0">
-          <StrategyPanel
+        <div style={{ gridArea: "long" }} className="min-h-0 overflow-hidden">
+          <StrategyPanelCompact
             strategy={long ?? null}
             forecast={forecast}
             forecastLoading={forecastLoading}
@@ -170,7 +167,7 @@ export function MonitorScreen({
           />
         </div>
 
-        <div style={{ gridArea: "chart" }} className="flex min-h-0 flex-col gap-1.5 overflow-hidden">
+        <div style={{ gridArea: "chart" }} className="min-h-0 overflow-hidden rounded-md border border-[var(--term-border)]">
           <GoldChart
             key={chartInterval}
             candles={data?.chart?.candles ?? []}
@@ -178,21 +175,21 @@ export function MonitorScreen({
             onIntervalChange={handleIntervalChange}
             levels={chartLevels}
           />
-          <div className="max-h-[72px] shrink-0 overflow-hidden rounded-lg border border-[var(--term-border)]">
-            <GoldDriversPanel drivers={data?.drivers ?? []} />
-          </div>
         </div>
 
-        <div style={{ gridArea: "short" }} className="min-h-0">
-          <ShortStrategyPanel
+        <div style={{ gridArea: "short" }} className="min-h-0 overflow-hidden">
+          <ShortStrategyPanelCompact
             strategy={short ?? null}
             currentPrice={price}
             newsAnalysis={data?.newsAnalysis ?? null}
           />
         </div>
 
-        <div style={{ gridArea: "analysis" }} className="min-h-0 overflow-hidden">
-          <NewsAnalysisPanel
+        <div
+          style={{ gridArea: "analysis" }}
+          className="min-h-0 overflow-hidden rounded-md border border-cyan-500/30 bg-[var(--term-panel)]"
+        >
+          <NewsAnalysisStrip
             analysis={data?.newsAnalysis ?? null}
             analyzing={analyzingNews}
             hasApiKey={hasApiKey}
@@ -212,7 +209,7 @@ export function MonitorScreen({
 
         <div
           style={{ gridArea: "news" }}
-          className="grid min-h-0 grid-cols-3 gap-1.5 overflow-hidden rounded-lg border border-[var(--term-border)] bg-[var(--term-panel)]"
+          className="grid min-h-0 grid-cols-3 gap-0 overflow-hidden rounded-md border border-[var(--term-border)] bg-[var(--term-panel)]"
         >
           <NewsColumn
             title={UZ.streams.direct}
@@ -220,20 +217,24 @@ export function MonitorScreen({
             items={news.direct}
             accent="text-[var(--term-gold)]"
             highlight
+            compact
+            maxItems={3}
           />
           <NewsColumn
             title={UZ.streams.macro}
-            subtitle={UZ.streams.macroHint}
             icon="📊"
             items={news.macro}
             accent="text-[var(--term-green)]"
+            compact
+            maxItems={3}
           />
           <NewsColumn
             title={UZ.streams.geopolitics}
-            subtitle={UZ.streams.geoHint}
             icon="🌍"
             items={news.geopolitics}
             accent="text-[var(--term-red)]"
+            compact
+            maxItems={3}
           />
         </div>
       </div>

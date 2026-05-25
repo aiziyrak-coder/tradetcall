@@ -175,18 +175,16 @@ export function GoldChart({ candles, interval, onIntervalChange, levels }: Props
   }, [levels]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col term-panel">
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--term-border)] px-3 py-1.5">
-        <span className="text-[11px] font-bold tracking-wide text-[var(--term-gold)]">
-          {UZ.chart.title}
-        </span>
-        <div className="flex gap-1">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--term-panel)]">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--term-border)] px-2 py-0.5">
+        <span className="text-[9px] font-bold tracking-wide text-[var(--term-gold)]">{UZ.chart.title}</span>
+        <div className="flex gap-0.5">
           {INTERVALS.map((iv) => (
             <button
               key={iv}
               type="button"
               onClick={() => onIntervalChange(iv)}
-              className={`rounded-md px-2.5 py-1 text-[10px] font-bold ${
+              className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${
                 interval === iv
                   ? "bg-[var(--term-gold)] text-black shadow"
                   : "bg-[var(--term-panel-2)] text-[var(--term-muted)] hover:bg-zinc-700 hover:text-white"
@@ -198,7 +196,7 @@ export function GoldChart({ candles, interval, onIntervalChange, levels }: Props
         </div>
       </div>
       {levels && (
-        <div className="flex shrink-0 gap-3 border-b border-[var(--term-border)]/50 bg-black/20 px-3 py-1 font-mono-ui text-[9px]">
+        <div className="flex shrink-0 gap-2 border-b border-[var(--term-border)]/50 bg-black/20 px-2 py-0.5 font-mono-ui text-[8px]">
           {levels.sl != null && (
             <span>
               <span className="text-red-400">SL</span> ${levels.sl}

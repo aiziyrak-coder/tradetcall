@@ -9,6 +9,8 @@ interface Props {
   items: NewsItem[];
   accent?: string;
   highlight?: boolean;
+  compact?: boolean;
+  maxItems?: number;
 }
 
 const sentColor = {
@@ -31,53 +33,61 @@ export function NewsColumn({
   items,
   accent = "text-[var(--term-gold)]",
   highlight,
+  compact,
+  maxItems = 99,
 }: Props) {
+  const shown = items.slice(0, maxItems);
+
   return (
     <div
       className={`flex h-full min-h-0 flex-col border-r border-[var(--term-border)] last:border-r-0 ${
         highlight ? "bg-[var(--term-panel-2)]/40" : ""
       }`}
     >
-      <div className={`shrink-0 border-b border-[var(--term-border)] px-2 py-1.5 ${accent}`}>
+      <div className={`shrink-0 border-b border-[var(--term-border)] ${compact ? "px-1 py-0.5" : "px-2 py-1.5"} ${accent}`}>
         <div className="flex items-center justify-between gap-1">
-          <span className="truncate text-[10px] font-semibold">
+          <span className={`truncate font-semibold ${compact ? "text-[8px]" : "text-[10px]"}`}>
             {icon} {title}
           </span>
-          <span className="shrink-0 text-[9px] font-normal text-[var(--term-muted)]">
-            {items.length}
-          </span>
+          <span className="shrink-0 text-[8px] font-normal text-[var(--term-muted)]">{items.length}</span>
         </div>
-        {subtitle && (
-          <p className="mt-0.5 truncate text-[9px] font-normal text-[var(--term-muted)]">
-            {subtitle}
-          </p>
+        {subtitle && !compact && (
+          <p className="mt-0.5 truncate text-[9px] font-normal text-[var(--term-muted)]">{subtitle}</p>
         )}
       </div>
-      <div className="term-scroll min-h-0 flex-1">
+      <div className={compact ? "min-h-0 flex-1 overflow-hidden" : "term-scroll min-h-0 flex-1"}>
         {items.length === 0 ? (
-          <p className="p-2 text-center text-[10px] text-[var(--term-muted)]">{UZ.news.loading}</p>
+          <p className={`text-center text-[var(--term-muted)] ${compact ? "p-1 text-[8px]" : "p-2 text-[10px]"}`}>
+            {UZ.news.loading}
+          </p>
         ) : (
-          items.map((item) => {
+          shown.map((item) => {
             const sent = quickSentiment(item);
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => openUrl(item.link)}
-                className="block w-full border-b border-[var(--term-border)]/50 px-2 py-2 text-left transition hover:bg-[var(--term-panel-2)]"
+                className={`block w-full border-b border-[var(--term-border)]/50 text-left transition hover:bg-[var(--term-panel-2)] ${
+                  compact ? "px-1 py-0.5" : "px-2 py-2"
+                }`}
               >
                 <div className="flex justify-between gap-1">
-                  <span className="truncate text-[9px] font-medium text-[var(--term-cyan)]">
+                  <span className={`truncate font-medium text-[var(--term-cyan)] ${compact ? "text-[7px]" : "text-[9px]"}`}>
                     {item.source}
                   </span>
-                  <span className={`shrink-0 text-[9px] font-bold ${sentColor[sent]}`}>
+                  <span className={`shrink-0 font-bold ${sentColor[sent]} ${compact ? "text-[7px]" : "text-[9px]"}`}>
                     {sent === "bullish" ? "↑" : sent === "bearish" ? "↓" : "·"}
                   </span>
                 </div>
-                <p className="mt-0.5 line-clamp-2 text-[11px] font-medium leading-snug text-[var(--term-text)]">
+                <p
+                  className={`font-medium leading-snug text-[var(--term-text)] ${
+                    compact ? "line-clamp-1 text-[8px]" : "mt-0.5 line-clamp-2 text-[11px]"
+                  }`}
+                >
                   {item.titleUz ?? item.title}
                 </p>
-                {(item.goldImpactUz || item.summaryUz) && (
+                {!compact && (item.goldImpactUz || item.summaryUz) && (
                   <p className="mt-0.5 line-clamp-2 text-[9px] leading-snug text-[var(--term-muted)]">
                     {item.goldImpactUz ?? item.summaryUz?.slice(0, 120)}
                   </p>

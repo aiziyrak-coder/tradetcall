@@ -15,10 +15,18 @@ body,
 body {
   background: #070b12;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-size: 11px;
   color: #f1f5f9;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.monitor-compact {
+  font-size: 10px;
+}
+
+.monitor-compact .term-panel-header {
+  font-size: 9px;
 }
 
 :root {

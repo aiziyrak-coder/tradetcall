@@ -296,13 +296,37 @@ export function computeNewsIntelligence(
   const recommendationUz =
     contradictions.length > 0
       ? `TAVSIYA: HOZIR KIRMANG. Zid signal: ${contradictions[0]} Professional trader bu paytda kutadi.`
-      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 55
+      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 50
         ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat LONG rejasi, SL majburiy, R:R ≥ 1:2. Kichik lot."
-        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 55
+        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 50
           ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat SHORT yoki kutish. SL qat'iy."
           : items.length < 5
             ? "TAVSIYA: Yangiliklar yetarli emas — savdo OCHMANG, tahlil yangilansin."
             : "TAVSIYA: Aniq yo'nalish yo'q — KUTING. Kapitalni himoya qiling, bekorga lot ochmang.";
+
+  const confidence = Math.min(
+    98,
+    Math.round(
+      biasStrength * 0.65 +
+        (candleAlign.aligned ? 22 : 0) +
+        (contradictions.length === 0 ? 8 : -15) +
+        Math.min(12, Math.abs(totalScore) * 2)
+    )
+  );
+
+  const tradeVerdictUz =
+    contradictions.length > 0
+      ? `HUKM: KUTING — ${contradictions[0].slice(0, 90)}`
+      : overallBias === "bullish" && candleAlign.aligned
+        ? `HUKM: LONG moyil (${biasStrength}%) — kirish $${tech.support[0] ?? price - 15}–${price}, TP $${tech.resistance[0] ?? price + 25}`
+        : overallBias === "bearish" && candleAlign.aligned
+          ? `HUKM: SHORT moyil (${biasStrength}%) — qarshilik $${tech.resistance[0] ?? price + 15} sinovi`
+          : `HUKM: NEYTRAL — aniq signal yo'q, ${items.length} yangilik, ishonch ${confidence}%`;
+
+  const forecastUz =
+    `${overallBias === "bullish" ? "▲" : overallBias === "bearish" ? "▼" : "◆"} 24–72s: ` +
+    trendOutlookUz.slice(0, 100) +
+    (futureFactors[0] ? ` | Omil: ${futureFactors[0].nameUz}` : "");
 
   return {
     updatedAt: new Date().toISOString(),
@@ -322,8 +346,10 @@ export function computeNewsIntelligence(
         .map((i) => (i.titleUz ?? i.title).slice(0, 50))
         .join(" · "),
     itemInsights: itemInsights.slice(0, 25),
-    confidence: Math.min(95, Math.round(biasStrength * 0.7 + (candleAlign.aligned ? 20 : 0))),
+    confidence,
     recommendationUz,
+    tradeVerdictUz,
+    forecastUz,
     newsScore: totalScore,
     bullCount,
     bearCount,

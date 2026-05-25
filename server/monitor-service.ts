@@ -40,8 +40,8 @@ const FAST_TICK_MS = 2000;
 const CHART_TICK_MS = 12000;
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
-const NEWS_ANALYSIS_MS = 30000;
-const NEWS_AI_MS = 90000;
+const NEWS_ANALYSIS_MS = 15000;
+const NEWS_AI_MS = 60000;
 const TRANSLATE_TICK_MS = 45000;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
@@ -511,6 +511,7 @@ export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | nu
       biasStrength?: number;
       trendOutlookUz?: string;
       recommendationUz?: string;
+      tradeVerdictUz?: string;
       contradictionsUz?: string | null;
       keyRisks?: string[];
       keyOpportunities?: string[];
@@ -524,6 +525,8 @@ export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | nu
       biasStrength: ai.biasStrength ?? base.biasStrength,
       trendOutlookUz: ai.trendOutlookUz ?? base.trendOutlookUz,
       recommendationUz: ai.recommendationUz ?? base.recommendationUz,
+      tradeVerdictUz: ai.tradeVerdictUz ?? base.tradeVerdictUz,
+      forecastUz: (ai.aiFutureOutlookUz ?? base.forecastUz)?.slice(0, 220),
       contradictionsUz: ai.contradictionsUz ?? base.contradictionsUz,
       narrativeUz: base.narrativeUz + " " + (ai.aiDiscussionUz?.slice(0, 200) ?? ""),
       risksUz: [...base.risksUz, ...(ai.keyRisks ?? [])].slice(0, 8),

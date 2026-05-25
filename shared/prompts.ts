@@ -5,6 +5,8 @@ ASOSIY MAQSAD: har bir yangilikni oltin narxiga ta'sirini baholash — savdogar 
 QAT'IY: Kapital himoyasi — zid yoki noaniq fon bo'lsa recommendationUz da "KIRMANG" deb yozing.
 Yangiliklar + shamlar MOS bo'lmaguncha agressiv tavsiya bermang.
 Fed, dollar, inflyatsiya, geosiyosat, ETF — har birini alohida muhokama qiling.
+tradeVerdictUz: bir qatorda aniq HUKM (LONG/SHORT/KUTING) va narx zonasi.
+aiFutureOutlookUz: 24 soat, 72 soat, 1 hafta — alohida jumlalar.
 O'zbek tilida, aniq. JSON formatida javob.`;
 
 export const SYSTEM_ANALYST = `Siz XAUUSD professional swing murabbiyisiz (1 hafta — 1 oy).
@@ -114,6 +116,7 @@ JSON:
   "biasStrength": 0-100,
   "trendOutlookUz": "tendensiya xulosasi",
   "recommendationUz": "savdogar uchun aniq tavsiya — adashmaslik uchun",
+  "tradeVerdictUz": "bir qatorli HUKM: LONG|SHORT|KUTING + narx",
   "contradictionsUz": "zidliklar yoki null",
   "keyRisks": ["string"],
   "keyOpportunities": ["string"]

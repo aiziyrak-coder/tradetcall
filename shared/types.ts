@@ -178,6 +178,10 @@ export interface NewsMarketAnalysis {
   itemInsights: NewsItemInsight[];
   confidence: number;
   recommendationUz: string;
+  /** Qisqa savdo hukmi (bashorat paneli) */
+  tradeVerdictUz?: string;
+  /** 24–72 soat prognoz (bir qator) */
+  forecastUz?: string;
   newsScore: number;
   bullCount: number;
   bearCount: number;

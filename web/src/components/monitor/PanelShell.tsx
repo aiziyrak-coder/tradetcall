@@ -7,6 +7,7 @@ interface Props {
   badge?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  compact?: boolean;
 }
 
 const accentBorder = {
@@ -16,21 +17,33 @@ const accentBorder = {
   red: "border-red-500/40",
 };
 
-export function PanelShell({ title, subtitle, accent = "gold", badge, children, footer }: Props) {
+export function PanelShell({ title, subtitle, accent = "gold", badge, children, footer, compact }: Props) {
   return (
     <div
-      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-[var(--term-panel)] ${accentBorder[accent]}`}
+      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-[var(--term-panel)] ${accentBorder[accent]}`}
     >
-      <div className="term-panel-header flex shrink-0 items-center justify-between gap-2 px-3 py-2">
+      <div
+        className={`term-panel-header flex shrink-0 items-center justify-between gap-1 ${compact ? "px-2 py-1" : "px-3 py-2"}`}
+      >
         <div>
-          <h2 className="text-[11px] font-bold uppercase tracking-wider">{title}</h2>
-          {subtitle && <p className="text-[10px] font-normal text-[var(--term-muted)]">{subtitle}</p>}
+          <h2 className={`font-bold uppercase tracking-wider ${compact ? "text-[9px]" : "text-[11px]"}`}>
+            {title}
+          </h2>
+          {subtitle && (
+            <p className={`font-normal text-[var(--term-muted)] ${compact ? "text-[8px]" : "text-[10px]"}`}>
+              {subtitle}
+            </p>
+          )}
         </div>
         {badge}
       </div>
-      <div className="term-scroll min-h-0 flex-1 px-2 py-2">{children}</div>
+      <div className={`min-h-0 flex-1 overflow-hidden ${compact ? "px-1.5 py-1" : "term-scroll px-2 py-2"}`}>
+        {children}
+      </div>
       {footer && (
-        <div className="shrink-0 border-t border-[var(--term-border)] p-2">{footer}</div>
+        <div className={`shrink-0 border-t border-[var(--term-border)] ${compact ? "p-1" : "p-2"}`}>
+          {footer}
+        </div>
       )}
     </div>
   );
