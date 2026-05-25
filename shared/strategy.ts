@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { buildSignalDetail } from "./signal-detail";
 import { analyzeTechnicals } from "./technical";
+import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 
 const DAY_UZ = [
   "yakshanba",
@@ -41,16 +42,6 @@ function atr(candles: Candle[], period = 14): number {
   return slice.reduce((s, c) => s + (c.high - c.low), 0) / slice.length;
 }
 
-function newsBias(news: NewsItem[]): number {
-  let s = 0;
-  for (const n of news.slice(0, 12)) {
-    const t = `${n.title} ${n.summary}`.toLowerCase();
-    if (/surge|rally|rise|bull|safe haven|rate cut|weak dollar|inflation/i.test(t)) s += 1;
-    if (/fall|drop|bear|rate hike|strong dollar|recession/i.test(t)) s -= 1;
-  }
-  return s;
-}
-
 function buildWhenUz(days: { label: string; date: Date }[], session: string): string {
   const names = days.map((d) => d.label).join(", ");
   const from = days[0]?.date;
@@ -59,16 +50,18 @@ function buildWhenUz(days: { label: string; date: Date }[], session: string): st
     from && to
       ? `${from.getDate()}.${from.getMonth() + 1} — ${to.getDate()}.${to.getMonth() + 1}`
       : "keyingi 5–10 ish kuni";
-  return `${range} (${names}). Soat: ${session} (Toshkent vaqti, London/NY sessiyasi)`;
+  return `${range} (${names}). Soat: ${session} (Toshkent, London/NY sessiyasi)`;
 }
 
-function applyNewsToScore(score: number, na: NewsMarketAnalysis | null): number {
-  if (!na) return score;
-  let s = score;
-  if (na.overallBias === "bullish") s += na.biasStrength / 35;
-  if (na.overallBias === "bearish") s -= na.biasStrength / 35;
-  if (na.contradictionsUz) s *= 0.55;
-  else if (!na.newsCandleAligned) s *= 0.75;
+/** Yangiliklar — yagona sentiment manbai (regex takrorlanmaydi) */
+function newsScoreFromAnalysis(na: NewsMarketAnalysis | null): number {
+  if (!na) return 0;
+  let s = 0;
+  if (na.overallBias === "bullish") s += na.biasStrength / 22;
+  if (na.overallBias === "bearish") s -= na.biasStrength / 22;
+  if (na.newsCandleAligned) s *= 1.15;
+  else s *= 0.45;
+  if (na.contradictionsUz) return s * 0.2;
   return s;
 }
 
@@ -76,29 +69,28 @@ export function computeLongTermStrategy(
   price: number,
   candles: Candle[],
   drivers: MarketQuote[],
-  news: NewsItem[],
+  _news: NewsItem[],
   newsAnalysis?: NewsMarketAnalysis | null
 ): LongTermStrategy {
   const tech = analyzeTechnicals(candles);
   const dollar = drivers.find((d) => d.name.toLowerCase().includes("dollar"));
-  const nBias = newsBias(news);
   const atrVal = atr(candles) || price * 0.008;
+  const na = newsAnalysis ?? null;
 
   let score = 0;
   if (tech.trend === "bullish") score += 2;
   if (tech.trend === "bearish") score -= 2;
-  if (tech.rsi < 38) score += 1.2;
-  if (tech.rsi > 62) score -= 1.2;
-  if (price > tech.sma50) score += 0.8;
-  else score -= 0.8;
-  if (dollar && dollar.changePercent > 0.2) score -= 1;
-  if (dollar && dollar.changePercent < -0.2) score += 1;
-  score += nBias * 0.5;
-  score = applyNewsToScore(score, newsAnalysis ?? null);
+  if (tech.rsi < 36) score += 1;
+  if (tech.rsi > 64) score -= 1;
+  if (price > tech.sma50) score += 0.6;
+  else score -= 0.6;
+  if (dollar && dollar.changePercent > 0.25) score -= 1.2;
+  if (dollar && dollar.changePercent < -0.25) score += 1.2;
+  score += newsScoreFromAnalysis(na);
 
   let bias: LongTermStrategy["bias"] = "wait";
-  if (score >= 1.8) bias = "long";
-  else if (score <= -1.8) bias = "short";
+  if (score >= 2.6) bias = "long";
+  else if (score <= -2.6) bias = "short";
 
   const sup = tech.support[0] ?? price - atrVal * 2;
   const res = tech.resistance[0] ?? price + atrVal * 2;
@@ -112,94 +104,101 @@ export function computeLongTermStrategy(
   let situationUz: string;
 
   if (bias === "long") {
-    const entryMid = round2((sup + price) / 2);
-    const entryFrom = round2(sup - atrVal * 0.3);
-    const entryTo = round2(sup + atrVal * 0.5);
+    const entryFrom = round2(sup - atrVal * 0.25);
+    const entryTo = round2(sup + atrVal * 0.45);
+    const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
       title: "KIRISH (sotib olish)",
       whenUz: buildWhenUz(days.slice(0, 3), session),
-      priceHint: `Narx $${entryFrom} — $${entryTo} oralig'iga tushganda (yaqinida $${entryMid})`,
+      priceHint: `Faqat $${entryFrom} — $${entryTo} zonasida (≈$${entryMid})`,
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
+    stopLoss = round2(sup - atrVal * 1.1);
+    takeProfit = round2(res + atrVal * 0.15);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 2);
     exit = {
-      title: "CHIQISH (foyda yopish)",
-      whenUz: `Keyingi 1–4 hafta ichida, ${res > price ? "qarshilik" : "maqsad"} zonasida`,
-      priceHint: `Narx $${round2(res - atrVal * 0.2)} — $${round2(res + atrVal * 0.2)} ga chiqganda qisman/yopiq chiqing`,
-      priceFrom: round2(res - atrVal * 0.3),
-      priceTo: round2(res + atrVal * 0.3),
+      title: "CHIQISH (foyda)",
+      whenUz: "TP yoki qarshilik — qisman yopish mumkin",
+      priceHint: `Maqsad $${takeProfit} (R:R ≥ 1:2)`,
+      priceFrom: round2(takeProfit - atrVal * 0.2),
+      priceTo: round2(takeProfit + atrVal * 0.15),
     };
-    stopLoss = round2(sup - atrVal * 1.2);
-    takeProfit = round2(res + atrVal * 0.2);
     situationUz =
-      `Bozor uzoq muddatda yuqoriga moyil. Hozir $${price}. ` +
-      `Qo'llab-quvvatlash $${sup} atrofida — shu zonada sabr bilan kirish ma'qul. ` +
-      `RSI ${tech.rsi}, trend ${tech.trend}. ${tech.momentum}. ` +
-      `Kunlik/haftalik savdo: bir haftada 0–1 marta kirish yetarli.`;
+      `Swing LONG: $${price}. Qo'llab-quvvatlash $${round2(sup)}. RSI ${tech.rsi}. ` +
+      `Haftada 0–1 lot — yangiliklar tasdiqlanguncha kirmang.`;
   } else if (bias === "short") {
-    const entryMid = round2((res + price) / 2);
-    const entryFrom = round2(res - atrVal * 0.5);
-    const entryTo = round2(res + atrVal * 0.3);
+    const entryFrom = round2(res - atrVal * 0.45);
+    const entryTo = round2(res + atrVal * 0.25);
+    const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (sotish / short)",
+      title: "KIRISH (short)",
       whenUz: buildWhenUz(days.slice(0, 3), session),
-      priceHint: `Narx $${entryFrom} — $${entryTo} oralig'iga ko'tarilganda (yaqinida $${entryMid})`,
+      priceHint: `Faqat $${entryFrom} — $${entryTo} (≈$${entryMid})`,
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
+    stopLoss = round2(res + atrVal * 1.1);
+    takeProfit = round2(sup - atrVal * 0.15);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 2);
     exit = {
       title: "CHIQISH (short yopish)",
-      whenUz: "Keyingi 1–4 hafta ichida, qo'llab-quvvatlash zonasida",
-      priceHint: `Narx $${round2(sup - atrVal * 0.2)} — $${round2(sup + atrVal * 0.2)} ga tushganda yoping`,
-      priceFrom: round2(sup - atrVal * 0.3),
-      priceTo: round2(sup + atrVal * 0.3),
+      whenUz: "TP yoki qo'llab-quvvatlash",
+      priceHint: `Maqsad $${takeProfit}`,
+      priceFrom: round2(takeProfit - atrVal * 0.15),
+      priceTo: round2(takeProfit + atrVal * 0.2),
     };
-    stopLoss = round2(res + atrVal * 1.2);
-    takeProfit = round2(sup - atrVal * 0.2);
     situationUz =
-      `Bozor uzoq muddatda bosim ostida. Hozir $${price}. ` +
-      `Qarshilik $${res} yaqinida sotish zonasi. RSI ${tech.rsi}. ${tech.momentum}. ` +
-      `Tez-tez savdo qilmang — signal tasdiqlanguncha kuting.`;
+      `Swing SHORT: $${price}. Qarshilik $${round2(res)}. RSI ${tech.rsi}. Sabr — signal tasdiq.`;
   } else {
     entry = {
       title: "KIRISH",
-      whenUz: "Hozir kirmang — keyingi aniq zona shakllanishini kuting",
-      priceHint: `Kuzatuv: $${round2(sup)} (past) yoki $${round2(res)} (yuqori) sinovidan keyin`,
+      whenUz: "HOZIR KIRMANG — professional trader kutadi",
+      priceHint: `Kuzatuv: $${round2(sup)} / $${round2(res)}`,
       priceFrom: round2(sup),
       priceTo: round2(res),
     };
-    exit = {
-      title: "CHIQISH",
-      whenUz: "Reja shakllangach AI prognoz bilan yangilanadi",
-      priceHint: "—",
-    };
+    exit = { title: "CHIQISH", whenUz: "—", priceHint: "—" };
     stopLoss = round2(price - atrVal * 2);
     takeProfit = round2(price + atrVal * 2);
     situationUz =
-      `Bozor noaniq (yonoq). Hozir $${price}. RSI ${tech.rsi}, ${tech.momentum}. ` +
-      `1 kun yoki 1 haftada bir marta savdo uchun aniq yo'nalish hali yo'q — ` +
-      `«AI strategiya» tugmasi bilan batafsil reja oling.`;
+      `Bozor noaniq. $${price}. Yangiliklar + texnik bir yo'nalish bermaguncha lot OCHMANG.`;
   }
 
-  const newsConf = newsAnalysis?.confidence ?? 0;
-  const confidence = Math.min(
-    88,
-    Math.round(42 + Math.abs(score) * 10 + newsConf * 0.15)
-  );
   const entryFrom = entry.priceFrom ?? round2(price - atrVal);
   const entryTo = entry.priceTo ?? round2(price + atrVal);
+  const entryMid = round2((entryFrom + entryTo) / 2);
   const exitPrice =
     exit.priceFrom && exit.priceTo
       ? round2((exit.priceFrom + exit.priceTo) / 2)
       : takeProfit;
+
+  const riskPts = Math.abs(entryMid - stopLoss);
+  const rewardPts = Math.abs(takeProfit - entryMid);
+  const riskReward = riskPts > 0 ? round2(rewardPts / riskPts) : 0;
+
+  const newsConf = na?.confidence ?? 0;
+  const confidence = Math.min(90, Math.round(40 + Math.abs(score) * 9 + newsConf * 0.2));
   const confluencePct = Math.min(
     95,
-    Math.round(35 + Math.abs(score) * 12 + (bias !== "wait" ? 15 : 0))
+    Math.round(30 + Math.abs(score) * 11 + (na?.newsCandleAligned ? 22 : 0) + (bias !== "wait" ? 10 : 0))
   );
+
+  const gate = applyTradeGate({
+    bias,
+    news: na,
+    riskReward,
+    confluencePct,
+    confidence,
+    techScore: score,
+    mode: "longterm",
+  });
+
+  const finalBias = gate.effectiveBias;
 
   const signal = buildSignalDetail(
     price,
-    bias,
+    finalBias,
     entryFrom,
     entryTo,
     exitPrice,
@@ -207,7 +206,9 @@ export function computeLongTermStrategy(
     takeProfit,
     confidence,
     confluencePct,
-    atrVal
+    atrVal,
+    [],
+    gate
   );
 
   const keyLevels = [
@@ -218,26 +219,25 @@ export function computeLongTermStrategy(
     { label: "Yuqori", price: round2(res) },
   ];
 
+  const newsBlock = na
+    ? `${na.recommendationUz ?? ""} ${na.trendOutlookUz ?? ""} ${gate.newsVerdictUz}`
+    : "Yangiliklar tahlili kutilmoqda — savdo ochmang.";
+
   return {
-    bias,
-    horizonUz: "1 hafta — 4 hafta (swing / pozitsion)",
+    bias: finalBias,
+    horizonUz: "1 hafta — 4 hafta (swing)",
     confidence,
-    situationUz:
-      (newsAnalysis?.recommendationUz ? newsAnalysis.recommendationUz + " " : "") +
-      (newsAnalysis?.trendOutlookUz ? newsAnalysis.trendOutlookUz + " " : "") +
-      signal.oneLineUz +
-      " " +
-      situationUz,
+    situationUz: `${gate.capitalRuleUz} ${newsBlock} ${signal.oneLineUz} ${situationUz}`,
     entry,
     exit,
     stopLoss,
     takeProfit,
     invalidationUz:
-      bias === "long"
-        ? `Agar narx $${stopLoss} dan past yopilsa (kunlik yopilish) — reja bekor, zarar cheklang.`
-        : bias === "short"
-          ? `Agar narx $${stopLoss} dan yuqori yopilsa — short bekor.`
-          : `Kuchli yangilik yoki Fed qarori bo'lsa — kuting va qayta baholang.`,
+      finalBias === "long"
+        ? `Narx $${stopLoss} dan past kunlik yopilish — STOP, zarar cheklangan.`
+        : finalBias === "short"
+          ? `Narx $${stopLoss} dan yuqori — short bekor.`
+          : gate.reasonUz,
     technical: tech,
     signal,
     keyLevels,

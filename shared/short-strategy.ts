@@ -10,6 +10,7 @@ import type {
 } from "./types";
 import { buildSignalDetail } from "./signal-detail";
 import { analyzeTechnicals } from "./technical";
+import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 
 const SHORT_TFS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 
@@ -30,13 +31,11 @@ function atr(candles: Candle[], period = 10): number {
   return slice.reduce((s, c) => s + (c.high - c.low), 0) / slice.length;
 }
 
-function tfBias(
-  tech: ReturnType<typeof analyzeTechnicals>
-): TimeframeSignal["bias"] {
-  if (tech.trend === "bullish" && tech.rsi < 72) return "long";
-  if (tech.trend === "bearish" && tech.rsi > 28) return "short";
-  if (tech.rsi > 68) return "short";
-  if (tech.rsi < 32) return "long";
+function tfBias(tech: ReturnType<typeof analyzeTechnicals>): TimeframeSignal["bias"] {
+  if (tech.trend === "bullish" && tech.rsi < 70) return "long";
+  if (tech.trend === "bearish" && tech.rsi > 30) return "short";
+  if (tech.rsi > 70) return "short";
+  if (tech.rsi < 30) return "long";
   return "neutral";
 }
 
@@ -46,23 +45,13 @@ function formatClockOffset(minutes: number): string {
   return d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
 }
 
-function newsPulse(news: NewsItem[]): number {
+function newsScoreShort(na: NewsMarketAnalysis | null): number {
+  if (!na) return 0;
   let s = 0;
-  for (const n of news.slice(0, 6)) {
-    const t = `${n.title} ${n.summary}`.toLowerCase();
-    if (/surge|rally|rise|bull|safe haven|rate cut/i.test(t)) s += 0.5;
-    if (/fall|drop|bear|rate hike|strong dollar/i.test(t)) s -= 0.5;
-  }
-  return s;
-}
-
-function applyNewsShort(score: number, na: NewsMarketAnalysis | null): number {
-  if (!na) return score;
-  let s = score;
-  if (na.overallBias === "bullish") s += na.biasStrength / 28;
-  if (na.overallBias === "bearish") s -= na.biasStrength / 28;
-  if (na.contradictionsUz) return s * 0.4;
-  if (!na.newsCandleAligned) s *= 0.65;
+  if (na.overallBias === "bullish") s += na.biasStrength / 20;
+  if (na.overallBias === "bearish") s -= na.biasStrength / 20;
+  if (!na.newsCandleAligned) s *= 0.35;
+  if (na.contradictionsUz) return 0;
   return s;
 }
 
@@ -70,15 +59,18 @@ export function computeShortTermStrategy(
   price: number,
   multiCandles: Partial<Record<ChartInterval, Candle[]>>,
   drivers: MarketQuote[],
-  news: NewsItem[],
+  _news: NewsItem[],
   newsAnalysis?: NewsMarketAnalysis | null
 ): ShortTermStrategy {
   const primary = multiCandles["5m"]?.length
     ? multiCandles["5m"]!
     : multiCandles["1m"] ?? [];
-  const tech5 = analyzeTechnicals(primary.length ? primary : [{ time: 0, open: price, high: price, low: price, close: price }]);
+  const tech5 = analyzeTechnicals(
+    primary.length ? primary : [{ time: 0, open: price, high: price, low: price, close: price }]
+  );
   const atr5 = atr(primary) || price * 0.0012;
   const atr1 = atr(multiCandles["1m"] ?? primary) || atr5 * 0.6;
+  const na = newsAnalysis ?? null;
 
   const timeframes: TimeframeSignal[] = [];
   let score = 0;
@@ -88,46 +80,40 @@ export function computeShortTermStrategy(
     const candles = multiCandles[tf];
     if (!candles?.length) continue;
     const tech = analyzeTechnicals(candles);
-    const bias = tfBias(tech);
+    const tb = tfBias(tech);
     const meta = TF_META[tf];
-    if (bias === "long") {
+    if (tb === "long") {
       score += meta.weight;
       aligned++;
-    } else if (bias === "short") {
+    } else if (tb === "short") {
       score -= meta.weight;
       aligned++;
     }
-    let noteUz = tech.momentum;
-    if (bias === "long") noteUz = "Qisqa muddat: yuqoriga kirish zonasi";
-    if (bias === "short") noteUz = "Qisqa muddat: pastga sotish zonasi";
     timeframes.push({
       interval: tf,
       labelUz: meta.labelUz,
       trend: tech.trend,
       rsi: tech.rsi,
-      bias,
-      noteUz,
+      bias: tb,
+      noteUz: tb === "long" ? "TF long" : tb === "short" ? "TF short" : "TF neytral",
     });
   }
 
   const dollar = drivers.find((d) => d.name.toLowerCase().includes("dollar"));
-  if (dollar && dollar.changePercent > 0.15) score -= 0.8;
-  if (dollar && dollar.changePercent < -0.15) score += 0.8;
-  score += newsPulse(news);
-  score = applyNewsShort(score, newsAnalysis ?? null);
+  if (dollar && dollar.changePercent > 0.2) score -= 1;
+  if (dollar && dollar.changePercent < -0.2) score += 1;
+  score += newsScoreShort(na);
 
-  let bias: ShortTermStrategy["bias"] = "wait";
   const longVotes = timeframes.filter((t) => t.bias === "long").length;
   const shortVotes = timeframes.filter((t) => t.bias === "short").length;
-  if (score >= 2.4 || longVotes >= 3) bias = "long";
-  else if (score <= -2.4 || shortVotes >= 3) bias = "short";
+
+  let bias: ShortTermStrategy["bias"] = "wait";
+  if (score >= 3 && longVotes >= 3) bias = "long";
+  else if (score <= -3 && shortVotes >= 3) bias = "short";
 
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
-  const nowStr = new Date().toLocaleTimeString("uz-UZ", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
   const exitBy = formatClockOffset(30);
 
   let entry: StrategyStep;
@@ -137,96 +123,98 @@ export function computeShortTermStrategy(
   let situationUz: string;
 
   if (bias === "long") {
-    const entryMid = round2(price - atr1 * 0.25);
-    const entryFrom = round2(price - atr5 * 0.55);
-    const entryTo = round2(price - atr1 * 0.08);
+    const entryFrom = round2(price - atr5 * 0.5);
+    const entryTo = round2(price - atr1 * 0.05);
+    const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (sotib olish)",
-      whenUz: `${nowStr} — ${formatClockOffset(15)} oralig'ida (1m/5m/15m/1h mos). Lot 30 daqiqagacha ochiq`,
-      priceHint: `Narx $${entryFrom} — $${entryTo} ga tushganda kirish (optimal ~$${entryMid})`,
+      title: "KIRISH (long)",
+      whenUz: `${nowStr} — 15 daqiqa, max 30 daqiqa lot`,
+      priceHint: `$${entryFrom} — $${entryTo}`,
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
-    takeProfit = round2(price + Math.max(atr5 * 1.1, atr1 * 1.8));
-    stopLoss = round2(Math.min(sup - atr5 * 0.35, price - atr5 * 1.15));
+    stopLoss = round2(Math.min(sup - atr5 * 0.4, price - atr5 * 1.05));
+    takeProfit = round2(price + Math.max(atr5 * 1.25, atr1 * 2));
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 1.8);
     exit = {
-      title: "CHIQISH (foyda / vaqt)",
-      whenUz: `TP ga yetganda yoki ${exitBy} gacha (30 daqiqa — vaqt stop)`,
-      priceHint: `Narx $${round2(takeProfit - atr1 * 0.15)} — $${round2(takeProfit + atr1 * 0.1)} da yoping`,
-      priceFrom: round2(takeProfit - atr1 * 0.2),
-      priceTo: round2(takeProfit + atr1 * 0.15),
-    };
-    situationUz =
-      `Qisqa muddat LONG: ${aligned}/${SHORT_TFS.length} timeframe bir yo'nalishda. ` +
-      `Hozir $${price}. 1m RSI ${multiCandles["1m"] ? analyzeTechnicals(multiCandles["1m"]!).rsi : tech5.rsi}, ` +
-      `5m ${tech5.trend}. Maqsad: 30 daqiqa ichida kichik foyda.`;
-  } else if (bias === "short") {
-    const entryMid = round2(price + atr1 * 0.25);
-    const entryFrom = round2(price + atr1 * 0.08);
-    const entryTo = round2(price + atr5 * 0.55);
-    entry = {
-      title: "KIRISH (sotish)",
-      whenUz: `${nowStr} — ${formatClockOffset(15)} oralig'ida. Lot maksimum 30 daqiqa`,
-      priceHint: `Narx $${entryFrom} — $${entryTo} ga ko'tarilganda short (optimal ~$${entryMid})`,
-      priceFrom: entryFrom,
-      priceTo: entryTo,
-    };
-    takeProfit = round2(price - Math.max(atr5 * 1.1, atr1 * 1.8));
-    stopLoss = round2(Math.max(res + atr5 * 0.35, price + atr5 * 1.15));
-    exit = {
-      title: "CHIQISH (short yopish)",
-      whenUz: `TP yoki ${exitBy} (30 daqiqa tugashi)`,
-      priceHint: `Narx $${round2(takeProfit - atr1 * 0.15)} — $${round2(takeProfit + atr1 * 0.1)}`,
+      title: "CHIQISH",
+      whenUz: `TP yoki ${exitBy} (30 daqiqa)`,
+      priceHint: `TP $${takeProfit}`,
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
     };
-    situationUz =
-      `Qisqa muddat SHORT: timeframe lar pastga moyil. Hozir $${price}. ` +
-      `Tez kirish — tez chiqish. 30 daqiqadan oshirmang.`;
+    situationUz = `Short LONG: ${longVotes}/4 TF, yangiliklar tekshirildi. $${price}.`;
+  } else if (bias === "short") {
+    const entryFrom = round2(price + atr1 * 0.05);
+    const entryTo = round2(price + atr5 * 0.5);
+    const entryMid = round2((entryFrom + entryTo) / 2);
+    entry = {
+      title: "KIRISH (short)",
+      whenUz: `${nowStr} — max 30 daqiqa`,
+      priceHint: `$${entryFrom} — $${entryTo}`,
+      priceFrom: entryFrom,
+      priceTo: entryTo,
+    };
+    stopLoss = round2(Math.max(res + atr5 * 0.4, price + atr5 * 1.05));
+    takeProfit = round2(price - Math.max(atr5 * 1.25, atr1 * 2));
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 1.8);
+    exit = {
+      title: "CHIQISH",
+      whenUz: `TP yoki ${exitBy}`,
+      priceHint: `TP $${takeProfit}`,
+      priceFrom: round2(takeProfit - atr1 * 0.1),
+      priceTo: round2(takeProfit + atr1 * 0.15),
+    };
+    situationUz = `Short SHORT: ${shortVotes}/4 TF. $${price}.`;
   } else {
     entry = {
       title: "KIRISH",
-      whenUz: "TF lar mos kelmaguncha kutmang (1m, 5m, 15m, 1h)",
-      priceHint: `Kuzatuv: $${round2(sup)} past / $${round2(res)} yuqori sinovi`,
+      whenUz: "TF lar mos emas — KUTING",
+      priceHint: `$${round2(sup)} / $${round2(res)}`,
       priceFrom: round2(sup),
       priceTo: round2(res),
     };
-    exit = {
-      title: "CHIQISH",
-      whenUz: "Signal shakllangach yangilanadi",
-      priceHint: "—",
-    };
+    exit = { title: "CHIQISH", whenUz: "—", priceHint: "—" };
     stopLoss = round2(price - atr5 * 1.2);
     takeProfit = round2(price + atr5 * 1.2);
-    situationUz =
-      `Qisqa muddat: timeframe lar aralash (${aligned} ta yo'nalish). ` +
-      `Hozir $${price} — 30 daqiqalik savdo uchun aniq signal yo'q. ` +
-      `Barcha TF bir xil bo'lganda panel yangilanadi.`;
+    situationUz = `30 daqiqalik savdo uchun signal yo'q. Yangiliklar panelini kuzating.`;
   }
-
-  const confidence = Math.min(
-    92,
-    Math.round(38 + Math.abs(score) * 8 + aligned * 4)
-  );
-
-  const tfTotal = SHORT_TFS.length;
-  const tfAligned =
-    bias === "long" ? longVotes : bias === "short" ? shortVotes : 0;
-  const confluencePct = Math.min(
-    100,
-    Math.round((tfAligned / tfTotal) * 100 + (bias !== "wait" ? 10 : 0))
-  );
 
   const entryFrom = entry.priceFrom ?? round2(price - atr5);
   const entryTo = entry.priceTo ?? round2(price + atr5);
+  const entryMid = round2((entryFrom + entryTo) / 2);
   const exitPrice =
     exit.priceFrom && exit.priceTo
       ? round2((exit.priceFrom + exit.priceTo) / 2)
       : takeProfit;
 
+  const riskPts = Math.abs(entryMid - stopLoss);
+  const rewardPts = Math.abs(takeProfit - entryMid);
+  const riskReward = riskPts > 0 ? round2(rewardPts / riskPts) : 0;
+
+  const tfTotal = SHORT_TFS.length;
+  const tfAligned = bias === "long" ? longVotes : bias === "short" ? shortVotes : 0;
+  const confluencePct = Math.min(
+    100,
+    Math.round((tfAligned / tfTotal) * 85 + (na?.newsCandleAligned ? 12 : 0))
+  );
+  const confidence = Math.min(92, Math.round(36 + Math.abs(score) * 7 + tfAligned * 5 + (na?.confidence ?? 0) * 0.15));
+
+  const gate = applyTradeGate({
+    bias,
+    news: na,
+    riskReward,
+    confluencePct,
+    confidence,
+    techScore: score,
+    mode: "short",
+  });
+
+  const finalBias = gate.effectiveBias;
+
   const signal = buildSignalDetail(
     price,
-    bias,
+    finalBias,
     entryFrom,
     entryTo,
     exitPrice,
@@ -237,46 +225,43 @@ export function computeShortTermStrategy(
     atr5,
     [
       {
-        ok: tfAligned >= 3,
+        ok: tfAligned >= 3 && gate.allowed,
         textUz:
           tfAligned >= 3
-            ? `${tfAligned}/${tfTotal} timeframe bir xil`
-            : `TF mos emas (${tfAligned}/${tfTotal})`,
+            ? `${tfAligned}/4 TF + yangiliklar`
+            : `TF yetarli emas (${tfAligned}/4)`,
       },
-    ]
+    ],
+    gate
   );
 
   const keyLevels = [
     { label: "SL", price: stopLoss },
     { label: "Kirish", price: signal.entryPrice },
     { label: "TP", price: takeProfit },
-    { label: "Chiqish", price: exitPrice },
     { label: "5m past", price: round2(sup) },
     { label: "5m yuqori", price: round2(res) },
   ];
 
   return {
-    bias,
-    horizonUz: "Maksimum 30 daqiqa (lot ochiq vaqt)",
+    bias: finalBias,
+    horizonUz: "Maksimum 30 daqiqa",
     confidence,
-    situationUz:
-      (newsAnalysis?.recommendationUz ? newsAnalysis.recommendationUz + " " : "") +
-      signal.oneLineUz +
-      (newsAnalysis?.contradictionsUz ? " DIQQAT: " + newsAnalysis.contradictionsUz : ""),
+    situationUz: `${gate.capitalRuleUz} ${gate.newsVerdictUz} ${signal.oneLineUz} ${situationUz}`,
     entry,
     exit,
     stopLoss,
     takeProfit,
     maxHoldMinutes: 30,
     lotRuleUz:
-      "Lot ochiq turishi: eng ko'pi 30 daqiqa. Vaqt tugasa bozor narxida yoping (foyda yoki zarar). TP yoki SL oldin ishlasa — darhol yoping.",
+      "30 daqiqa qoidasi. SL majburiy. Yangiliklar zid bo'lsa lot OCHMANG. R:R past bo'lsa KIRMANG.",
     timeframes,
     invalidationUz:
-      bias === "long"
-        ? `Narx $${stopLoss} dan past 1m yopilish — LONG bekor, zarar cheklang.`
-        : bias === "short"
-          ? `Narx $${stopLoss} dan yuqori 1m yopilish — SHORT bekor.`
-          : `Kuchli yangilik: 5 daqiqa kuting, qayta baholang.`,
+      finalBias === "long"
+        ? `1m yopilish $${stopLoss} dan past — STOP.`
+        : finalBias === "short"
+          ? `1m yopilish $${stopLoss} dan yuqori — STOP.`
+          : gate.reasonUz,
     technical: tech5,
     signal,
     tfAligned,

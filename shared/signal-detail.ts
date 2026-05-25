@@ -1,4 +1,5 @@
 import { getMarketSession } from "./market-session";
+import type { TradeGateResult } from "./trade-gate";
 
 export interface SignalCheckItem {
   ok: boolean;
@@ -46,7 +47,8 @@ export function buildSignalDetail(
   confidence: number,
   confluencePct: number,
   atr: number,
-  extraChecks: SignalCheckItem[] = []
+  extraChecks: SignalCheckItem[] = [],
+  gate?: TradeGateResult | null
 ): SignalDetail {
   const entryPrice = round2((entryFrom + entryTo) / 2);
   const session = getMarketSession();
@@ -79,26 +81,32 @@ export function buildSignalDetail(
   const rewardPoints = round2(Math.abs(takeProfit - entryPrice));
   const riskReward = riskPoints > 0 ? round2(rewardPoints / riskPoints) : 0;
 
-  let actionUz = "KUTING — SIGNAL YO'Q";
-  let status: SignalDetail["status"] = "wait";
-  let statusUz = "Hozir kirmang";
+  const tradeOk = gate?.allowed ?? bias !== "wait";
 
-  if (bias === "long") {
-    actionUz = inEntryZone ? "HOZIR SOTIB OLING" : "SOTIB OLISH — NARX KUTILMOQDA";
-    status = inEntryZone ? "ready" : distanceToEntry < atr * 0.5 ? "armed" : "wait";
+  let actionUz = "KUTING — PROFESSIONAL SIGNAL YO'Q";
+  let status: SignalDetail["status"] = "wait";
+  let statusUz = gate?.reasonUz ?? "Hozir kirmang — yangiliklar/texnik tasdiq yo'q";
+
+  if (bias === "long" && tradeOk) {
+    actionUz = inEntryZone ? "HOZIR SOTIB OLING (tasdiqlangan)" : "SOTIB OLISH — zona kutilmoqda";
+    status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone
-      ? "Kirish zonasida — lot oching"
+      ? "Yangiliklar + TF + R:R OK — lot ochish mumkin"
       : status === "armed"
-        ? "Narx zonaga yaqin — tayyor turing"
+        ? "Zonaga yaqin — tayyor turing"
         : `Kutish: $${entryFrom}–$${entryTo}`;
-  } else if (bias === "short") {
-    actionUz = inEntryZone ? "HOZIR SOTING (SHORT)" : "SOTISH — NARX KUTILMOQDA";
-    status = inEntryZone ? "ready" : distanceToEntry < atr * 0.5 ? "armed" : "wait";
+  } else if (bias === "short" && tradeOk) {
+    actionUz = inEntryZone ? "HOZIR SOTING (tasdiqlangan)" : "SHORT — zona kutilmoqda";
+    status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone
-      ? "Kirish zonasida — short oching"
+      ? "Short tasdiq — SL qat'iy"
       : status === "armed"
-        ? "Narx zonaga yaqin"
+        ? "Zonaga yaqin"
         : `Kutish: $${entryFrom}–$${entryTo}`;
+  } else if (bias !== "wait" && !tradeOk) {
+    actionUz = "KUTING — YANGILIKLAR/TEXNIK RUXSAT BERMAYDI";
+    status = "wait";
+    statusUz = gate?.reasonUz?.slice(0, 80) ?? "Gate blok";
   }
 
   const signalStrength = Math.min(
@@ -120,6 +128,12 @@ export function buildSignalDetail(
 
   const checklist: SignalCheckItem[] = [
     {
+      ok: tradeOk,
+      textUz: tradeOk
+        ? "Yangiliklar + professional gate: RUXSAT"
+        : gate?.reasonUz?.slice(0, 70) ?? "Savdo bloklangan",
+    },
+    {
       ok: bias !== "wait",
       textUz: bias !== "wait" ? "Yo'nalish aniq" : "Yo'nalish yo'q — kuting",
     },
@@ -131,13 +145,13 @@ export function buildSignalDetail(
           : `TF moslik past (${confluencePct}%)`,
     },
     {
-      ok: riskReward >= 1.2,
+      ok: riskReward >= 1.8,
       textUz:
-        riskReward >= 1.5
-          ? `Risk/Foyda 1:${riskReward} — yaxshi`
-          : riskReward >= 1.2
-            ? `Risk/Foyda 1:${riskReward} — qabul qilinadi`
-            : `Risk/Foyda past 1:${riskReward}`,
+        riskReward >= 2
+          ? `Risk/Foyda 1:${riskReward} — professional`
+          : riskReward >= 1.8
+            ? `Risk/Foyda 1:${riskReward} — minimal OK`
+            : `R:R past (1:${riskReward}) — KIRMANG`,
     },
     {
       ok: session.active,

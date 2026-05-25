@@ -40,8 +40,8 @@ const FAST_TICK_MS = 2000;
 const CHART_TICK_MS = 12000;
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
-const NEWS_ANALYSIS_MS = 60000;
-const NEWS_AI_MS = 180000;
+const NEWS_ANALYSIS_MS = 30000;
+const NEWS_AI_MS = 90000;
 const TRANSLATE_TICK_MS = 45000;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
@@ -242,7 +242,7 @@ async function refreshFastLive() {
         : await fetchXAUUSDCandles(chartInterval, gold.price);
 
     const allNews = getTranslatedNews();
-    if (!lastNewsAnalysis) refreshNewsAnalysisLocal();
+    refreshNewsAnalysisLocal();
     await refreshMultiTimeframes(gold.price);
     const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
       gold,

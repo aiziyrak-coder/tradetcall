@@ -188,7 +188,7 @@ export function computeNewsIntelligence(
   const itemInsights: NewsMarketAnalysis["itemInsights"] = [];
 
   for (const item of items) {
-    const text = `${item.title} ${item.summary}`;
+    const text = `${item.title} ${item.summary} ${item.titleUz ?? ""} ${item.summaryUz ?? ""}`;
     const { sentiment, score, impact } = scoreItem(text);
     totalScore += score * (impact === "high" ? 2 : impact === "medium" ? 1.2 : 0.7);
     if (sentiment === "bullish") bullCount++;
@@ -295,12 +295,14 @@ export function computeNewsIntelligence(
 
   const recommendationUz =
     contradictions.length > 0
-      ? `TAVSIYA: Hozir kirmang yoki lotni 50% kamaytiring. Sabab: ${contradictions[0]}`
-      : overallBias === "bullish" && candleAlign.aligned
-        ? "TAVSIYA: Yangiliklar + shamlar mos — long rejasi bilan ishlash mumkin. SL qat'iy."
-        : overallBias === "bearish" && candleAlign.aligned
-          ? "TAVSIYA: Salbiy fon tasdiqlangan — short yoki uzoq muddatda kutish."
-          : "TAVSIYA: Yangiliklarni kuzating, TF mosligi va kirish zonasini kuting. Adashmaslik uchun checklistni to'ldiring.";
+      ? `TAVSIYA: HOZIR KIRMANG. Zid signal: ${contradictions[0]} Professional trader bu paytda kutadi.`
+      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 55
+        ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat LONG rejasi, SL majburiy, R:R ≥ 1:2. Kichik lot."
+        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 55
+          ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat SHORT yoki kutish. SL qat'iy."
+          : items.length < 5
+            ? "TAVSIYA: Yangiliklar yetarli emas — savdo OCHMANG, tahlil yangilansin."
+            : "TAVSIYA: Aniq yo'nalish yo'q — KUTING. Kapitalni himoya qiling, bekorga lot ochmang.";
 
   return {
     updatedAt: new Date().toISOString(),
