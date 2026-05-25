@@ -41,7 +41,7 @@ export function evaluateNewsForTrade(
   if (!news) {
     return {
       ok: false,
-      verdictUz: "Yangiliklar tahlili tayyor emas — savdo OCHMANG (kapital himoya).",
+      verdictUz: "Yangiliklar tahlili tayyor emas — savdo OCHMANG, kapital himoya.",
     };
   }
 
@@ -70,7 +70,7 @@ export function evaluateNewsForTrade(
     if (news.overallBias !== "bullish" || news.biasStrength < MIN_NEWS_STRENGTH) {
       return {
         ok: false,
-        verdictUz: `Long uchun yangiliklar aniq BULLISH emas (${news.overallBias} ${news.biasStrength}%).`,
+        verdictUz: `Long uchun yangiliklar aniq BULLISH emas: ${news.overallBias} ${news.biasStrength}%.`,
       };
     }
   }
@@ -79,7 +79,7 @@ export function evaluateNewsForTrade(
     if (news.overallBias !== "bearish" || news.biasStrength < MIN_NEWS_STRENGTH) {
       return {
         ok: false,
-        verdictUz: `Short uchun yangiliklar aniq BEARISH emas (${news.overallBias} ${news.biasStrength}%).`,
+        verdictUz: `Short uchun yangiliklar aniq BEARISH emas: ${news.overallBias} ${news.biasStrength}%.`,
       };
     }
   }
@@ -159,7 +159,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Trend kuchi past (ADX ${adx}) — range, signal ishonchsiz.`,
+      reasonUz: `Trend kuchi past, ADX ${adx} — range, signal ishonchsiz.`,
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? "ADX past.",
     };
@@ -221,8 +221,8 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     effectiveBias: input.bias,
     reasonUz:
       input.mode === "short"
-        ? "Barcha filter MOS — qisqa muddat (yangiliklar + TF + R:R + sessiya)."
-        : "Barcha filter MOS — swing (yangiliklar + texnik + makro).",
+        ? "Barcha filter MOS — qisqa muddat: yangiliklar + TF + R:R + sessiya."
+        : "Barcha filter MOS — swing: yangiliklar + texnik + makro.",
     capitalRuleUz,
     newsVerdictUz: newsCheck.verdictUz,
   };

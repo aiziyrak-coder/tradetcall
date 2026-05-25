@@ -1,7 +1,7 @@
 /** Oltin treyder platformasi — o'zbekcha */
 export const UZ = {
   appTitle: "XAUUSD Trader",
-  subtitle: "Chap: uzoq muddat · O'ng: qisqa muddat (30 daq)",
+  subtitle: "Chap: uzoq muddat · O'ng: qisqa muddat 30 daqiqa",
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",
@@ -75,7 +75,7 @@ export const UZ = {
     discussion: "To'liq muhokama",
     trend: "Tendensiya",
     candles: "Shamlar va yangiliklar",
-    future: "Kelajak ta'sir (1–4 hafta)",
+    future: "Kelajak ta'sir 1–4 hafta",
     factors: "Narxga ta'sir qiluvchi omillar",
     risks: "Xavflar",
     opportunities: "Imkoniyatlar",

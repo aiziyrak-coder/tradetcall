@@ -141,8 +141,8 @@ export function analyzeTechnicals(candles: Candle[]): TechnicalAnalysis {
   else if (adxVal < 18) trend = "neutral";
 
   let momentum = "Barqaror";
-  if (rsiVal > 70) momentum = "Haddan tashqari sotib olingan (tuzatish mumkin)";
-  else if (rsiVal < 30) momentum = "Haddan tashqari sotilgan (qaytish mumkin)";
+  if (rsiVal > 70) momentum = "Haddan tashqari sotib olingan — tuzatish mumkin";
+  else if (rsiVal < 30) momentum = "Haddan tashqari sotilgan — qaytish mumkin";
   else if (rsiVal > 58 && trend === "bullish") momentum = "Yuqoriga impuls (ADX " + adxVal + ")";
   else if (rsiVal < 42 && trend === "bearish") momentum = "Pastga bosim (ADX " + adxVal + ")";
   else if (adxVal >= 25) momentum = "Kuchli trend — signal ishonchliligi yuqori";

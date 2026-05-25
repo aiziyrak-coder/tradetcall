@@ -1,6 +1,6 @@
-# MT5 Bridge (ixtiyoriy, bepul)
+# MT5 Bridge
 
-Broker narxini yuborish — pullik API emas.
+Broker narxini serverga yuborish.
 
 ## Server `.env`
 
@@ -15,4 +15,4 @@ MT5_STALE_MS=8000
 2. WebRequest: `https://tradeapi.ziyrak.org`
 3. XAUUSD grafikda EA, secret bir xil
 
-MT5 yo'q bo'lsa — Yahoo+spot ishlaydi (signal baribir qattiq filterdan o'tadi).
+MT5 yo'q bo'lsa — Yahoo+spot ishlaydi.

@@ -15,7 +15,7 @@ export function buildHeuristicCalendarEvents(now = new Date()): EconomicEvent[] 
   events.push({
     id: `heur-nfp-${y}-${m}`,
     name: "Non Farm Payrolls",
-    nameUz: "NFP (ish bozori)",
+    nameUz: "NFP ish bozori",
     country: "US",
     datetime: firstFridayUtc(y, m).toISOString(),
     impact: "high",

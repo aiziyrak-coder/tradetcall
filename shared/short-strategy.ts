@@ -139,7 +139,7 @@ export function computeShortTermStrategy(
     const entryTo = round2(price + atr1 * 0.12);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (long)",
+      title: "KIRISH long",
       whenUz: `${nowStr} — 15 daqiqa, max 30 daqiqa lot`,
       priceHint: `$${entryFrom} — $${entryTo}`,
       priceFrom: entryFrom,
@@ -150,7 +150,7 @@ export function computeShortTermStrategy(
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 2);
     exit = {
       title: "CHIQISH",
-      whenUz: `TP yoki ${exitBy} (30 daqiqa)`,
+      whenUz: `TP yoki ${exitBy} · 30 daqiqa`,
       priceHint: `TP $${takeProfit}`,
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
@@ -161,7 +161,7 @@ export function computeShortTermStrategy(
     const entryTo = round2(price + atr5 * 0.4);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (short)",
+      title: "KIRISH short",
       whenUz: `${nowStr} — max 30 daqiqa`,
       priceHint: `$${entryFrom} — $${entryTo}`,
       priceFrom: entryFrom,
@@ -288,7 +288,7 @@ export function computeShortTermStrategy(
     finalBias === "long"
       ? [
           `1m/5m impuls long — kirish zona $${entry.priceFrom}–$${entry.priceTo}.`,
-          `SL $${stopLoss} (1m yopilish), TP $${takeProfit}, R:R ${riskReward}.`,
+          `SL $${stopLoss} · 1m yopilish, TP $${takeProfit}, R:R ${riskReward}.`,
           `${tfAligned}/4 TF + yangiliklar sinxron.`,
           `RSI 5m: ${tech5.rsi} — ${tech5.rsi > 68 ? "overbought, ehtiyot" : "ishonchli"}.`,
           `Maks ${exitBy} da yoping — vaqt stop muhimroq.`,

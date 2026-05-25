@@ -49,7 +49,7 @@ function buildWhenUz(days: { label: string; date: Date }[], session: string): st
     from && to
       ? `${from.getDate()}.${from.getMonth() + 1} — ${to.getDate()}.${to.getMonth() + 1}`
       : "keyingi 5–10 ish kuni";
-  return `${range} (${names}). Soat: ${session} (Toshkent, London/NY sessiyasi)`;
+  return `${range} · ${names}. Soat: ${session} · Toshkent, London/NY sessiyasi`;
 }
 
 /** Yangiliklar — yagona sentiment manbai (regex takrorlanmaydi) */
@@ -111,7 +111,7 @@ export function computeLongTermStrategy(
     const entryTo = round2(sup + atrVal * 0.45);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (sotib olish)",
+      title: "KIRISH sotib olish",
       whenUz: buildWhenUz(days.slice(0, 3), session),
       priceHint: `Faqat $${entryFrom} — $${entryTo} zonasida (≈$${entryMid})`,
       priceFrom: entryFrom,
@@ -121,9 +121,9 @@ export function computeLongTermStrategy(
     takeProfit = round2(res + atrVal * 0.15);
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 2);
     exit = {
-      title: "CHIQISH (foyda)",
+      title: "CHIQISH foyda",
       whenUz: "TP yoki qarshilik — qisman yopish mumkin",
-      priceHint: `Maqsad $${takeProfit} (R:R ≥ 1:2)`,
+      priceHint: `Maqsad $${takeProfit} · R:R ≥ 1:2`,
       priceFrom: round2(takeProfit - atrVal * 0.2),
       priceTo: round2(takeProfit + atrVal * 0.15),
     };
@@ -135,9 +135,9 @@ export function computeLongTermStrategy(
     const entryTo = round2(res + atrVal * 0.25);
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
-      title: "KIRISH (short)",
+      title: "KIRISH short",
       whenUz: buildWhenUz(days.slice(0, 3), session),
-      priceHint: `Faqat $${entryFrom} — $${entryTo} (≈$${entryMid})`,
+      priceHint: `Faqat $${entryFrom} — $${entryTo} · ≈$${entryMid}`,
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
@@ -145,7 +145,7 @@ export function computeLongTermStrategy(
     takeProfit = round2(sup - atrVal * 0.15);
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 2);
     exit = {
-      title: "CHIQISH (short yopish)",
+      title: "CHIQISH short yopish",
       whenUz: "TP yoki qo'llab-quvvatlash",
       priceHint: `Maqsad $${takeProfit}`,
       priceFrom: round2(takeProfit - atrVal * 0.15),
@@ -275,7 +275,7 @@ export function computeLongTermStrategy(
       ? [
           `Kirish faqat $${entry.priceFrom}–$${entry.priceTo} retestda, market emas limit.`,
           `SL $${stopLoss} — kunlik yopilish ostida; hech qachon SL ni kengaytirmang.`,
-          `TP $${takeProfit} (R:R ${riskReward}) — 50% qisman, qolgani breakeven.`,
+          `TP $${takeProfit} · R:R ${riskReward} — 50% qisman, qolgani breakeven.`,
           `RSI ${tech.rsi}: ${tech.rsi > 65 ? "yuqori — faqat qisqa tuzatishda kirish" : "normal zona"}.`,
           dollarNote || "DXY kuzatuvda.",
           na?.tradeVerdictUz?.slice(0, 90) ?? "Yangiliklar paneli bilan sinxron.",
@@ -315,7 +315,7 @@ export function computeLongTermStrategy(
 
   return {
     bias: finalBias,
-    horizonUz: "1 hafta — 4 hafta (swing)",
+    horizonUz: "1 hafta — 4 hafta swing",
     confidence,
     situationUz: verdict.analysisUz,
     entry,

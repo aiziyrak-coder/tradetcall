@@ -21,7 +21,7 @@ export function SettingsScreen({ username, onBack }: Props) {
 
         <div className="fx-glass rounded-2xl p-6">
           <h1 className="font-display text-xl font-bold text-amber-400">{UZ.settings}</h1>
-          <p className="mt-1 text-[12px] text-slate-400">{username} · 100% bepul signal tizimi</p>
+          <p className="mt-1 text-[12px] text-slate-400">{username} · signal tizimi</p>
 
           <div className="mt-6 space-y-4 text-[12px] leading-relaxed text-slate-300">
             <div className="rounded-lg border border-emerald-600/40 bg-emerald-950/20 p-3">
@@ -29,7 +29,7 @@ export function SettingsScreen({ username, onBack }: Props) {
               <ul className="mt-2 list-inside list-disc space-y-1 text-[11px]">
                 <li>BUY/SELL faqat 7/7 filter MOS bo&apos;lganda</li>
                 <li>Yangiliklar + shamlar bir yo&apos;nalishda</li>
-                <li>R:R kamida 1:2.4 (uzoq) / 1:2.2 (yaqin)</li>
+                <li>R:R uzoq 1:2.4 · yaqin 1:2.2</li>
                 <li>Konfluens 82%+ / 88%+</li>
                 <li>NFP/CPI/FOMC atrofida avtomatik HOLD</li>
                 <li>Shubha bo&apos;lsa HOLD — zarar kamaytirish birinchi</li>
@@ -37,16 +37,15 @@ export function SettingsScreen({ username, onBack }: Props) {
             </div>
 
             <div className="rounded-lg border border-cyan-600/30 bg-cyan-950/20 p-3">
-              <p className="font-bold text-cyan-300">Ixtiyoriy: MT5 broker narx (bepul)</p>
+              <p className="font-bold text-cyan-300">MT5 broker narx</p>
               <p className="mt-1 text-[11px]">
                 <code className="text-amber-200">mt5-bridge/TradeBridgeEA.mq5</code> — server{" "}
-                <code className="text-amber-200">MT5_BRIDGE_SECRET</code> (ixtiyoriy).
+                <code className="text-amber-200">MT5_BRIDGE_SECRET</code>
               </p>
             </div>
 
             <p className="text-[10px] text-slate-500">
-              Manbalar: Yahoo + spot narx, RSS yangiliklar, makro drayverlar. Pullik AI yoki pullik
-              taqvim API ishlatilmaydi.
+              Manbalar: Yahoo + spot narx, RSS yangiliklar, makro drayverlar.
             </p>
           </div>
         </div>

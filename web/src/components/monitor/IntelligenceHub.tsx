@@ -17,7 +17,7 @@ export function IntelligenceHub({ analysis, drivers }: Props) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-violet-500/25 bg-[var(--term-panel)]">
       <div className="shrink-0 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
-          Yangiliklar markazi (bepul)
+          Yangiliklar markazi
         </span>
         <p className="text-[7px] text-[var(--term-muted)]">
           BUY/SELL faqat Uzoq/Yaqin — 7 filter MOS bo&apos;lganda
@@ -103,7 +103,7 @@ export function IntelligenceHub({ analysis, drivers }: Props) {
 
         {drivers.length > 0 && (
           <div className="border-t border-[var(--term-border)] pt-1">
-            <p className="mb-0.5 text-[8px] font-bold uppercase text-[var(--term-muted)]">Makro (bepul)</p>
+            <p className="mb-0.5 text-[8px] font-bold uppercase text-[var(--term-muted)]">Makro</p>
             <div className="flex flex-wrap gap-0.5">
               {drivers.slice(0, 10).map((d) => {
                 const up = d.changePercent >= 0;

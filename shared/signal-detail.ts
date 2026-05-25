@@ -88,7 +88,7 @@ export function buildSignalDetail(
   let statusUz = gate?.reasonUz ?? "Hozir kirmang — yangiliklar/texnik tasdiq yo'q";
 
   if (bias === "long" && tradeOk && gate?.allowed) {
-    actionUz = inEntryZone ? "LONG — zona ichida (tasdiqlangan)" : "LONG — kirish zonasini kuting";
+    actionUz = inEntryZone ? "LONG — zona ichida, tasdiqlangan" : "LONG — kirish zonasini kuting";
     status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.5 ? "armed" : "wait";
     statusUz = inEntryZone
       ? "Gate + yangiliklar + R:R OK — SL bilan lot ochish mumkin"
@@ -96,7 +96,7 @@ export function buildSignalDetail(
         ? "Zonaga yaqin — limit buy tayyor"
         : `Kutish: $${entryFrom}–$${entryTo}`;
   } else if (bias === "short" && tradeOk && gate?.allowed) {
-    actionUz = inEntryZone ? "SHORT — zona ichida (tasdiqlangan)" : "SHORT — kirish zonasini kuting";
+    actionUz = inEntryZone ? "SHORT — zona ichida, tasdiqlangan" : "SHORT — kirish zonasini kuting";
     status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone
       ? "Short tasdiq — SL qat'iy"
@@ -163,7 +163,7 @@ export function buildSignalDetail(
       ok: inEntryZone || status === "armed",
       textUz: inEntryZone
         ? "Narx kirish zonasida"
-        : `Narxga ${distanceToEntry.toFixed(2)}$ (${distancePct}%)`,
+        : `Narxga ${distanceToEntry.toFixed(2)}$ · ${distancePct}%`,
     },
     ...extraChecks,
   ];

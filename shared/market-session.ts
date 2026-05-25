@@ -57,7 +57,7 @@ export function getMarketSession(now = new Date()): MarketSessionInfo {
     };
   }
   return {
-    nameUz: "Sokin davr (off-hours)",
+    nameUz: "Sokin davr",
     active: false,
     volatility: "past",
     hintUz: "Spread kengayishi mumkin — lot ochmang yoki minimal",

@@ -50,15 +50,12 @@ export function MarketContextBar({
         <span className={session.primeWindow ? "font-bold text-emerald-400" : session.active ? "text-amber-300" : "text-zinc-500"}>
           {session.nameUz}
         </span>
-        <span className="ml-1 text-[var(--term-muted)]">({session.localHourUz})</span>
+        <span className="ml-1 text-[var(--term-muted)]">{session.localHourUz}</span>
       </span>
       {calendar?.eventNameUz && (
         <span className={calendar.inHighImpactWindow ? "font-bold text-red-400" : "text-amber-400"}>
           📅 {calendar.eventNameUz}
           {calendar.minutesUntil != null && calendar.minutesUntil > 0 ? ` +${calendar.minutesUntil}daq` : ""}
-          {calendar.source !== "heuristic" && (
-            <span className="ml-0.5 text-[7px] text-zinc-500">({calendar.source})</span>
-          )}
         </span>
       )}
       {gold?.source && (

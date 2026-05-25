@@ -1,15 +1,15 @@
 import type { CalendarImpact, CalendarStatus, EconomicEvent } from "./calendar-types";
 
 const EVENT_UZ: Record<string, string> = {
-  "Non Farm Payrolls": "NFP (ish bozori)",
-  "Nonfarm Payrolls": "NFP (ish bozori)",
+  "Non Farm Payrolls": "NFP ish bozori",
+  "Nonfarm Payrolls": "NFP ish bozori",
   "CPI": "CPI inflyatsiya",
   "Consumer Price Index": "CPI inflyatsiya",
   "Core CPI": "Core CPI",
   "FOMC": "FOMC / Fed",
   "Interest Rate": "Foiz stavkasi",
   "Fed Interest Rate": "Fed foiz",
-  "GDP": "YaIM (GDP)",
+  "GDP": "YaIM GDP",
   "Retail Sales": "Chakana savdo",
   "Unemployment Rate": "Ishsizlik",
   "Initial Jobless Claims": "Ishsizlik arizalari",
@@ -71,7 +71,7 @@ export function computeCalendarStatus(
         inHighImpactWindow: true,
         eventNameUz: ev.nameUz ?? ev.name,
         minutesUntil: minutesDiff(at, now),
-        hintUz: `${ev.nameUz ?? ev.name} (${ev.impact}) — ${before + after} daqiqa oyna: savdo ochmang.`,
+        hintUz: `${ev.nameUz ?? ev.name} · ${ev.impact} — ${before + after} daqiqa oyna: savdo ochmang.`,
         source,
         upcoming,
       };
@@ -87,7 +87,7 @@ export function computeCalendarStatus(
         inHighImpactWindow: false,
         eventNameUz: next.nameUz ?? next.name,
         minutesUntil: diff,
-        hintUz: `${next.nameUz ?? next.name} ~${diff} daqiqadan keyin (${next.impact}).`,
+        hintUz: `${next.nameUz ?? next.name} ~${diff} daqiqadan keyin · ${next.impact}.`,
         source,
         upcoming,
       };
@@ -98,7 +98,7 @@ export function computeCalendarStatus(
     inHighImpactWindow: false,
     eventNameUz: null,
     minutesUntil: null,
-    hintUz: "Bepul taqvim (NFP/CPI/FOMC oynalari) — yuqori ta'sir atrofida avtomatik HOLD.",
+    hintUz: "NFP/CPI/FOMC oynalari — yuqori ta'sir atrofida avtomatik HOLD.",
     source,
     upcoming,
   };

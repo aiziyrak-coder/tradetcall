@@ -531,7 +531,7 @@ export function startMonitorService(): void {
     });
 }
 
-/** Bepul rejim — pullik AI o'chirilgan */
+/** Yangiliklar tahlili — lokal hisob */
 export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
   return refreshNewsAnalysisLocal();
 }
@@ -588,7 +588,7 @@ export async function buildSnapshot(): Promise<MonitorSnapshot> {
   return lastSnapshot ?? emptySnapshot();
 }
 
-/** Bepul rejim — strategiya verdict.allaqachon bashorat beradi */
+/** Strategiya — verdict bashorat beradi */
 export async function runForecast(): Promise<LongTermForecast> {
   const gold = await getXAUUSDPrice();
   const candles = await fetchXAUUSDCandles(chartInterval, gold.price);

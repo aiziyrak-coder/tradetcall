@@ -40,7 +40,6 @@ cd ..
 
 echo "==> .env"
 SECRET=$(grep -E '^SESSION_SECRET=' .env 2>/dev/null | cut -d= -f2- || openssl rand -hex 32)
-MT5_SEC=$(grep -E '^MT5_BRIDGE_SECRET=' .env 2>/dev/null | cut -d= -f2- || true)
 cat > .env <<EOF
 NODE_ENV=production
 PORT=3070
@@ -52,10 +51,7 @@ FRONTEND_ORIGIN=$FRONTEND_ORIGIN
 CORS_ORIGINS=$FRONTEND_ORIGIN
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
 DJANGO_PUBLIC_ADMIN_URL=$API_PUBLIC/admin/
-COOKIE_DOMAIN=.ziyrak.org
 EOF
-[ -n "$MT5_SEC" ] && echo "MT5_BRIDGE_SECRET=$MT5_SEC" >> .env
-grep -q '^MT5_STALE_MS=' .env 2>/dev/null || echo "MT5_STALE_MS=8000" >> .env
 
 echo "==> Node build (VITE_API_BASE=$API_PUBLIC)"
 npm ci

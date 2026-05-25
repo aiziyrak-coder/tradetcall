@@ -30,7 +30,7 @@ const FACTOR_RULES: FactorRule[] = [
   },
   {
     id: "inflation",
-    nameUz: "Inflyatsiya (CPI/PPI)",
+    nameUz: "Inflyatsiya CPI/PPI",
     horizonUz: "1–2 hafta",
     patterns: [/cpi|ppi|inflation|stagflation|pce/i],
     bull: [/hot cpi|high inflation|inflation rise|sticky inflation/i],
@@ -38,7 +38,7 @@ const FACTOR_RULES: FactorRule[] = [
   },
   {
     id: "dollar",
-    nameUz: "Dollar indeksi (DXY)",
+    nameUz: "Dollar indeksi DXY",
     horizonUz: "kun–hafta",
     patterns: [/dollar|dxy|usd index|greenback|treasury yield/i],
     bull: [/weak dollar|dollar fall|dollar drop|yields fall|yield decline/i],
@@ -134,7 +134,7 @@ function analyzeFactors(items: NewsItem[]): NewsFactor[] {
       horizonUz: rule.horizonUz,
       explanationUz:
         direction === "bullish"
-          ? `${matched.length} ta yangilik oltin uchun ijobiy: ${rule.nameUz} (bull ${bull}, bear ${bear}).`
+          ? `${matched.length} ta yangilik oltin uchun ijobiy: ${rule.nameUz} · bull ${bull}, bear ${bear}.`
           : direction === "bearish"
             ? `${matched.length} ta yangilik oltin uchun salbiy bosim: ${rule.nameUz}.`
             : `${matched.length} ta yangilik aralash signal beradi — ehtiyotkor bo'ling.`,
@@ -239,7 +239,7 @@ export function computeNewsIntelligence(
   if (dollar) {
     driverNote =
       dollar.changePercent > 0.15
-        ? `Dollar kuchaymoqda (${dollar.changePercent.toFixed(2)}%) — oltin uchun bosim. `
+        ? `Dollar kuchaymoqda ${dollar.changePercent.toFixed(2)}% — oltin uchun bosim. `
         : dollar.changePercent < -0.15
           ? `Dollar zaiflashmoqda — oltin uchun qo'llab-quvvat. `
           : "";

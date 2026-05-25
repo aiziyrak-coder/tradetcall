@@ -65,7 +65,7 @@ export function itemsNeedingTranslation(
   return items.filter((item) => !cacheEntryValid(cache[item.id], item));
 }
 
-/** Bepul onlayn tarjima — har safar cheklangan batch */
+/** Onlayn tarjima — har safar cheklangan batch */
 export async function translateNewsBatch(
   items: NewsItem[],
   cache: TranslationCache,

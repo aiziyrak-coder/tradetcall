@@ -61,7 +61,7 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
       </div>
 
       <section className={`rounded border ${border} bg-[var(--term-bg)] p-1.5`}>
-        <p className={`mb-0.5 text-[7px] font-bold uppercase ${labelColor}`}>① Tahlil (yangiliklar asosiy)</p>
+        <p className={`mb-0.5 text-[7px] font-bold uppercase ${labelColor}`}>① Tahlil</p>
         <p className="text-[8px] leading-snug text-[var(--term-text)]">{verdict.analysisUz}</p>
       </section>
 

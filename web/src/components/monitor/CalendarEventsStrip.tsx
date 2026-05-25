@@ -22,7 +22,7 @@ export function CalendarEventsStrip({ calendar }: Props) {
     <div className="shrink-0 border-t border-[var(--term-border)] bg-black/20 px-2 py-1">
       <div className="flex flex-wrap items-center gap-2 text-[8px]">
         <span className="font-bold uppercase text-[var(--term-muted)]">
-          Taqvim ({calendar.source})
+          Taqvim
         </span>
         {calendar.inHighImpactWindow && (
           <span className="font-bold text-red-400">⛔ {calendar.eventNameUz}</span>

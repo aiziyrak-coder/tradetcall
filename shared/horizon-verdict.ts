@@ -57,13 +57,13 @@ function applyCapitalProtection(
   if (passed < 7) {
     return {
       action: "HOLD",
-      reliabilityUz: `Ishonchli emas (${passed}/7 filter) — savdo qilmang`,
+      reliabilityUz: `Ishonchli emas — ${passed}/7 filter — savdo qilmang`,
     };
   }
 
   return {
     action,
-    reliabilityUz: "Ishonchli signal — barcha filter MOS (SL majburiy)",
+    reliabilityUz: "Ishonchli signal — barcha filter MOS, SL majburiy",
   };
 }
 
@@ -223,7 +223,7 @@ export function buildHorizonVerdict(input: {
 
   return {
     horizon,
-    horizonLabelUz: forLong ? "Uzoq muddat (swing)" : "Yaqin (scalp 30daq)",
+    horizonLabelUz: forLong ? "Uzoq muddat swing" : "Yaqin scalp 30 daqiqa",
     action,
     strength,
     reliabilityUz: cap.reliabilityUz,

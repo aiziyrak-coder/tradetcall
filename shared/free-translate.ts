@@ -1,4 +1,4 @@
-/** Bepul onlayn tarjima (pullik API yo'q) */
+/** Onlayn tarjima en → o'zbek */
 
 const GLOSSARY: [RegExp, string][] = [
   [/\bgold\b/gi, "oltin"],
