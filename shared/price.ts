@@ -6,18 +6,7 @@ interface GoldApiResponse {
   price?: number;
 }
 
-/** Spot XAU/USD — broker/TradingView ga yaqin */
-async function fetchSpotGoldApi(): Promise<number | null> {
-  const data = await fetchJson<GoldApiResponse>("https://api.gold-api.com/price/XAU", {
-    headers: { Accept: "application/json" },
-    timeoutMs: 8000,
-    retries: 2,
-  });
-  if (typeof data?.price === "number" && data.price > 1000) {
-    return Math.round(data.price * 100) / 100;
-  }
-  return null;
-}
+const YAHOO_SYMBOLS = ["XAUUSD=X", "GC=F", "MGC=F"];
 
 async function fetchYahooMeta(symbol: string): Promise<{
   price: number;
@@ -28,7 +17,7 @@ async function fetchYahooMeta(symbol: string): Promise<{
 } | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`;
   const data = await fetchJson<YahooChartResponse>(url, {
-    timeoutMs: 8000,
+    timeoutMs: 5000,
     retries: 1,
   });
   const meta = data?.chart?.result?.[0]?.meta;
@@ -44,49 +33,86 @@ async function fetchYahooMeta(symbol: string): Promise<{
   };
 }
 
-/** Tez tick — faqat spot narx (grafik/stream uchun, ~300–800ms) */
-export async function getXAUUSDPriceLive(prev: PriceData | null): Promise<PriceData> {
-  const spot = await fetchSpotGoldApi();
-  if (spot && prev) {
-    const prevClose = prev.price - prev.change;
-    const change = Math.round((spot - prevClose) * 100) / 100;
-    const changePercent =
-      prevClose !== 0 ? Math.round((change / prevClose) * 10000) / 100 : 0;
-    return {
-      ...prev,
-      price: spot,
-      change,
-      changePercent,
-      timestamp: new Date().toISOString(),
-      source: prev.source,
-    };
+/** Eng yangi Yahoo spot (real vaqt, har tick) */
+async function fetchYahooLive(): Promise<{
+  price: number;
+  prevClose: number;
+  dayHigh: number;
+  dayLow: number;
+  time: number;
+  symbol: string;
+} | null> {
+  for (const sym of YAHOO_SYMBOLS) {
+    const m = await fetchYahooMeta(sym);
+    if (m && m.price > 1000) {
+      return { ...m, symbol: sym };
+    }
   }
-  return getXAUUSDPrice();
+  return null;
 }
 
-export async function getXAUUSDPrice(): Promise<PriceData> {
-  const [spot, yahoo] = await Promise.all([
-    fetchSpotGoldApi(),
-    fetchYahooMeta("GC=F"),
-  ]);
+/** Spot API — qo'shimcha manba */
+async function fetchSpotGoldApi(): Promise<number | null> {
+  const data = await fetchJson<GoldApiResponse>("https://api.gold-api.com/price/XAU", {
+    headers: { Accept: "application/json" },
+    timeoutMs: 4000,
+    retries: 1,
+  });
+  if (typeof data?.price === "number" && data.price > 1000) {
+    return Math.round(data.price * 100) / 100;
+  }
+  return null;
+}
 
-  if (spot && yahoo) {
+function buildPriceData(
+  livePrice: number,
+  prevClose: number,
+  dayHigh: number,
+  dayLow: number,
+  marketTime: number,
+  source: string
+): PriceData {
+  const change = Math.round((livePrice - prevClose) * 100) / 100;
+  const changePercent =
+    prevClose !== 0 ? Math.round((change / prevClose) * 10000) / 100 : 0;
+  return {
+    symbol: "XAUUSD",
+    price: livePrice,
+    change,
+    changePercent,
+    high24h: Math.round(dayHigh * 100) / 100,
+    low24h: Math.round(dayLow * 100) / 100,
+    timestamp: new Date(marketTime * 1000).toISOString(),
+    source,
+  };
+}
+
+/** Har tick — Yahoo real-time + spot (hech qachon eski narxni qaytarmaydi) */
+export async function getXAUUSDPriceLive(_prev: PriceData | null): Promise<PriceData> {
+  const [yahoo, spot] = await Promise.all([fetchYahooLive(), fetchSpotGoldApi()]);
+
+  if (yahoo && spot) {
     const scale = spot / yahoo.price;
-    const prevClose = Math.round(yahoo.prevClose * scale * 100) / 100;
-    const change = Math.round((spot - prevClose) * 100) / 100;
-    const changePercent =
-      prevClose !== 0 ? Math.round((change / prevClose) * 10000) / 100 : 0;
+    const live = Math.round(spot * 100) / 100;
+    return buildPriceData(
+      live,
+      Math.round(yahoo.prevClose * scale * 100) / 100,
+      yahoo.dayHigh * scale,
+      yahoo.dayLow * scale,
+      yahoo.time,
+      `Spot + Yahoo (${yahoo.symbol})`
+    );
+  }
 
-    return {
-      symbol: "XAUUSD",
-      price: spot,
-      change,
-      changePercent,
-      high24h: Math.round(yahoo.dayHigh * scale * 100) / 100,
-      low24h: Math.round(yahoo.dayLow * scale * 100) / 100,
-      timestamp: new Date(yahoo.time * 1000).toISOString(),
-      source: "Spot + Yahoo",
-    };
+  if (yahoo) {
+    return buildPriceData(
+      yahoo.price,
+      yahoo.prevClose,
+      yahoo.dayHigh,
+      yahoo.dayLow,
+      yahoo.time,
+      `Yahoo ${yahoo.symbol}`
+    );
   }
 
   if (spot) {
@@ -96,29 +122,15 @@ export async function getXAUUSDPrice(): Promise<PriceData> {
       change: 0,
       changePercent: 0,
       timestamp: new Date().toISOString(),
-      source: "Spot XAU/USD",
+      source: "Spot API",
     };
   }
 
-  if (yahoo) {
-    const change = yahoo.price - yahoo.prevClose;
-    const changePercent =
-      yahoo.prevClose !== 0
-        ? Math.round((change / yahoo.prevClose) * 10000) / 100
-        : 0;
-    return {
-      symbol: "XAUUSD",
-      price: Math.round(yahoo.price * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePercent,
-      high24h: Math.round(yahoo.dayHigh * 100) / 100,
-      low24h: Math.round(yahoo.dayLow * 100) / 100,
-      timestamp: new Date(yahoo.time * 1000).toISOString(),
-      source: "Yahoo GC=F",
-    };
-  }
+  throw new Error("XAUUSD narxi olinmadi — Yahoo va Spot javob bermadi");
+}
 
-  throw new Error("XAUUSD narxi olinmadi — internet yoki manba tekshiring");
+export async function getXAUUSDPrice(): Promise<PriceData> {
+  return getXAUUSDPriceLive(null);
 }
 
 /** Grafik shamini spot narxga moslashtirish (futures → spot) */

@@ -20,10 +20,10 @@ export interface TradeGateResult {
   newsVerdictUz: string;
 }
 
-const MIN_RR: Record<TradeMode, number> = { longterm: 2, short: 1.8 };
-const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 72, short: 78 };
-const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 58, short: 62 };
-const MIN_SCORE: Record<TradeMode, number> = { longterm: 2.6, short: 3 };
+const MIN_RR: Record<TradeMode, number> = { longterm: 2.2, short: 2 };
+const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 78, short: 85 };
+const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 68, short: 72 };
+const MIN_SCORE: Record<TradeMode, number> = { longterm: 3.2, short: 3.8 };
 
 /** Yangiliklar savdo uchun ruxsat beradimi — asosiy filter */
 export function evaluateNewsForTrade(
@@ -44,7 +44,7 @@ export function evaluateNewsForTrade(
     };
   }
 
-  if (news.confidence < 45) {
+  if (news.confidence < 52) {
     return {
       ok: false,
       verdictUz: `Yangiliklar ishonchi past (${news.confidence}%) — faqat aniq fon bo'lganda kirish.`,

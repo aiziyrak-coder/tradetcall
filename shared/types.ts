@@ -219,6 +219,7 @@ export interface MonitorSnapshot {
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
   marketFlow?: MarketFlow | null;
+  tickSeq?: number;
   translating?: boolean;
   analyzingNews?: boolean;
 }

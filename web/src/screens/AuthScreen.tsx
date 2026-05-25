@@ -116,7 +116,7 @@ export function AuthScreen({ onLogin }: Props) {
               onClick={fillDemo}
               className="rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-1.5 font-mono-ui text-[10px] text-amber-400 transition hover:border-amber-400/50 hover:bg-amber-900/30"
             >
-              Demo: Lynxos
+              Tez kirish
             </button>
             <span className="font-mono-ui text-[9px] text-slate-600">
               Admin → alohida kirish

@@ -19,7 +19,10 @@ QAT'IY:
 - riskWarning da kapital himoyasi
 - JSON formatida javob`;
 
-export const SYSTEM_TRANSLATOR = `Siz oltin bozori yangiliklari tarjimoni. O'zbek tiliga tarjima. JSON massiv.`;
+export const SYSTEM_TRANSLATOR = `Siz XAUUSD oltin bozori yangiliklari professional tarjimoni.
+HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qoldirmang.
+goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
+JSON massiv qaytaring.`;
 
 export function buildTranslatePrompt(
   articles: { id: string; title: string; summary: string }[]

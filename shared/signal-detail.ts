@@ -87,7 +87,7 @@ export function buildSignalDetail(
   let status: SignalDetail["status"] = "wait";
   let statusUz = gate?.reasonUz ?? "Hozir kirmang — yangiliklar/texnik tasdiq yo'q";
 
-  if (bias === "long" && tradeOk) {
+  if (bias === "long" && tradeOk && gate?.allowed) {
     actionUz = inEntryZone ? "HOZIR SOTIB OLING (tasdiqlangan)" : "SOTIB OLISH — zona kutilmoqda";
     status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone
@@ -95,7 +95,7 @@ export function buildSignalDetail(
       : status === "armed"
         ? "Zonaga yaqin — tayyor turing"
         : `Kutish: $${entryFrom}–$${entryTo}`;
-  } else if (bias === "short" && tradeOk) {
+  } else if (bias === "short" && tradeOk && gate?.allowed) {
     actionUz = inEntryZone ? "HOZIR SOTING (tasdiqlangan)" : "SHORT — zona kutilmoqda";
     status = inEntryZone && tradeOk ? "ready" : distanceToEntry < atr * 0.4 ? "armed" : "wait";
     statusUz = inEntryZone

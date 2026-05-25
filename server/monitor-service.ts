@@ -37,10 +37,9 @@ import {
   setTranslationCache,
 } from "./store";
 
-const PRICE_TICK_MS = 500;
-const STRATEGY_TICK_MS = 8_000;
-const FULL_GOLD_MS = 25_000;
-const CHART_TICK_MS = 5000;
+const PRICE_TICK_MS = 800;
+const STRATEGY_TICK_MS = 10_000;
+const CHART_TICK_MS = 3000;
 const HEARTBEAT_MS = 2000;
 const INTERNET_CHECK_MS = 25_000;
 
@@ -49,7 +48,7 @@ const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
 const NEWS_ANALYSIS_MS = 15000;
 const NEWS_AI_MS = 60000;
-const TRANSLATE_TICK_MS = 45000;
+const TRANSLATE_TICK_MS = 25000;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
 
@@ -69,7 +68,7 @@ let strategyBusy = false;
 let fastBusy = false;
 let lastInternetOk = true;
 let lastInternetCheckAt = 0;
-let lastFullGoldAt = 0;
+let tickSeq = 0;
 let chartBusy = false;
 let driversBusy = false;
 let translating = false;
@@ -257,22 +256,14 @@ async function refreshPriceLive() {
       return;
     }
 
-    const prevGold = lastSnapshot?.gold ?? null;
-    const now = Date.now();
-    const needFullGold = !prevGold || now - lastFullGoldAt >= FULL_GOLD_MS;
-
-    const gold = await (
-      needFullGold
-        ? getXAUUSDPrice()
-        : getXAUUSDPriceLive(prevGold)
-    ).catch((e) => {
+    const gold = await getXAUUSDPriceLive(lastSnapshot?.gold ?? null).catch((e) => {
       markPriceFail(e instanceof Error ? e.message : "Narx xatosi");
       return null;
     });
     if (!gold) return;
 
-    if (needFullGold) lastFullGoldAt = now;
     markPriceOk();
+    tickSeq += 1;
 
     const baseCandles = lastSnapshot?.chart?.candles ?? [];
     let candles = baseCandles;
@@ -297,6 +288,7 @@ async function refreshPriceLive() {
       gold,
       chart: { interval: chartInterval, candles },
       marketFlow,
+      tickSeq,
     });
     broadcast("monitor:update", lastSnapshot);
   } catch (e) {
@@ -378,10 +370,23 @@ async function refreshDrivers() {
   }
 }
 
+async function translateAllNewsNow(): Promise<void> {
+  const key = getApiKey();
+  if (!key) return;
+  clearEnvApiKeys();
+  setApiKey(key);
+  const items = allGoldNewsItems(rawNews);
+  if (!items.length) return;
+  let cache = getTranslationCache();
+  cache = await translateNewsBatch(items, cache, 32);
+  setTranslationCache(cache);
+}
+
 async function refreshNews() {
   try {
     if (!(await checkInternet())) return;
     rawNews = await fetchGoldNews();
+    await translateAllNewsNow();
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
@@ -424,7 +429,7 @@ async function refreshTranslations() {
     let cache = getTranslationCache();
     const items = allGoldNewsItems(rawNews);
     if (items.length === 0) return;
-    cache = await translateNewsBatch(items, cache, 18);
+    cache = await translateNewsBatch(items, cache, 32);
     setTranslationCache(cache);
     const translated = applyNewsTranslations(rawNews, cache);
     publishSnapshot({ news: translated });
@@ -467,9 +472,10 @@ async function bootstrapSnapshot(): Promise<void> {
       getGoldDrivers(gold),
     ]);
     rawNews = news;
+    await translateAllNewsNow();
     const patched =
       candles.length > 0 ? patchLastCandle(candles, gold.price) : candles;
-    const allNews = allGoldNewsItems(news);
+    const allNews = getTranslatedNews();
     lastNewsAnalysis = computeNewsIntelligence(
       allNews,
       gold.price,

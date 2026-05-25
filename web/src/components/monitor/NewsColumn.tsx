@@ -82,11 +82,14 @@ export function NewsColumn({
                 </div>
                 <p
                   className={`font-medium leading-snug text-[var(--term-text)] ${
-                    compact ? "line-clamp-1 text-[8px]" : "mt-0.5 line-clamp-2 text-[11px]"
+                    compact ? "line-clamp-2 text-[8px]" : "mt-0.5 line-clamp-2 text-[11px]"
                   }`}
                 >
-                  {item.titleUz ?? item.title}
+                  {item.titleUz || item.title}
                 </p>
+                {!item.titleUz && (
+                  <span className="text-[7px] text-amber-400">tarjima kutilmoqda…</span>
+                )}
                 {!compact && (item.goldImpactUz || item.summaryUz) && (
                   <p className="mt-0.5 line-clamp-2 text-[9px] leading-snug text-[var(--term-muted)]">
                     {item.goldImpactUz ?? item.summaryUz?.slice(0, 120)}
