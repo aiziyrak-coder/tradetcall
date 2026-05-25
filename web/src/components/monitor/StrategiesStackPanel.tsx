@@ -1,5 +1,8 @@
+import { useState } from "react";
 import type { LongTermForecast, LongTermStrategy, ShortTermStrategy } from "../../../../shared/types";
 import { LongStrategyBlock, ShortStrategyBlock } from "./StrategyBlockPro";
+
+type StrategyTab = "long" | "short";
 
 interface Props {
   longStrategy: LongTermStrategy | null;
@@ -11,6 +14,12 @@ interface Props {
   onForecast: () => void;
 }
 
+const biasChip: Record<string, string> = {
+  long: "bg-emerald-600/90 text-white",
+  short: "bg-red-600/90 text-white",
+  wait: "bg-amber-700/90 text-amber-100",
+};
+
 export function StrategiesStackPanel({
   longStrategy,
   shortStrategy,
@@ -20,24 +29,61 @@ export function StrategiesStackPanel({
   price,
   onForecast,
 }: Props) {
+  const [tab, setTab] = useState<StrategyTab>("short");
+
+  const longBias = (forecast ?? longStrategy)?.bias ?? "wait";
+  const shortBias = shortStrategy?.bias ?? "wait";
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-amber-500/30 bg-[var(--term-panel)]">
       <div className="shrink-0 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1">
         <h2 className="text-[10px] font-bold uppercase tracking-wider text-[var(--term-gold)]">
           Strategiyalar
         </h2>
-        <p className="text-[8px] text-[var(--term-muted)]">Uzoq + qisqa · professional playbook</p>
+        <div className="mt-1 flex gap-1">
+          <button
+            type="button"
+            onClick={() => setTab("long")}
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase transition ${
+              tab === "long"
+                ? "bg-amber-900/80 text-amber-100 ring-1 ring-amber-500/60"
+                : "bg-zinc-900/60 text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Uzoq
+            <span className={`rounded px-1 py-0 text-[7px] ${biasChip[longBias]}`}>
+              {longBias.toUpperCase()}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("short")}
+            className={`flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase transition ${
+              tab === "short"
+                ? "bg-cyan-950/80 text-cyan-100 ring-1 ring-cyan-500/50"
+                : "bg-zinc-900/60 text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            Yaqin
+            <span className={`rounded px-1 py-0 text-[7px] ${biasChip[shortBias]}`}>
+              {shortBias.toUpperCase()}
+            </span>
+          </button>
+        </div>
       </div>
       <div className="term-scroll min-h-0 flex-1 px-2 py-1.5">
-        <LongStrategyBlock
-          strategy={longStrategy}
-          forecast={forecast}
-          price={price}
-          onForecast={onForecast}
-          forecastLoading={forecastLoading}
-          hasApiKey={hasApiKey}
-        />
-        <ShortStrategyBlock strategy={shortStrategy} price={price} />
+        {tab === "long" ? (
+          <LongStrategyBlock
+            strategy={longStrategy}
+            forecast={forecast}
+            price={price}
+            onForecast={onForecast}
+            forecastLoading={forecastLoading}
+            hasApiKey={hasApiKey}
+          />
+        ) : (
+          <ShortStrategyBlock strategy={shortStrategy} price={price} />
+        )}
       </div>
     </div>
   );

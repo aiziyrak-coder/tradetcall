@@ -42,9 +42,9 @@ export function LongStrategyBlock({ strategy, forecast, price, onForecast, forec
   const fc = forecast;
 
   return (
-    <div className="space-y-1 border-b border-[var(--term-border)] pb-2">
+    <div className="space-y-1">
       <div className="flex items-center gap-1">
-        <span className="text-[9px] font-bold uppercase text-[var(--term-gold)]">Uzoq muddat · Swing</span>
+        <span className="text-[9px] font-bold uppercase text-[var(--term-gold)]">Swing · 1 hafta+</span>
         {onForecast && (
           <button
             type="button"
@@ -109,9 +109,9 @@ export function ShortStrategyBlock({ strategy, price }: ShortProps) {
   if (!strategy) return <p className="text-[9px] text-[var(--term-muted)]">Qisqa muddat yuklanmoqda…</p>;
 
   return (
-    <div className="space-y-1 pt-1">
+    <div className="space-y-1">
       <span className="text-[9px] font-bold uppercase text-cyan-400">
-        Qisqa · 30daq · {strategy.tfAligned}/{strategy.tfTotal} TF
+        Scalp · 30 daqiqa · {strategy.tfAligned}/{strategy.tfTotal} TF
       </span>
       <SignalHeroCompact signal={strategy.signal} bias={strategy.bias} confidence={strategy.confidence} label="SCALP" />
       <SignalChecklist items={strategy.signal.checklist} />
