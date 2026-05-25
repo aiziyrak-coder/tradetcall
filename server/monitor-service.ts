@@ -6,7 +6,6 @@ import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
 import { getXAUUSDPrice, getXAUUSDPriceLive } from "../shared/price";
 import { extractJSON } from "../shared/parse-json";
-import { computeMarketFlow } from "../shared/market-flow";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
 import {
   SYSTEM_ANALYST,
@@ -122,7 +121,6 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
     newsAnalysis: null,
     strategy: null,
     shortStrategy: null,
-    marketFlow: null,
     translating: false,
     analyzingNews: false,
     ...partial,
@@ -275,19 +273,12 @@ async function refreshPriceLive() {
       candles = await fetchXAUUSDCandles(chartInterval, gold.price);
     }
 
-    const flowCandles =
-      multiTfCandles["5m"]?.length && multiTfCandles["5m"]!.length > 5
-        ? multiTfCandles["5m"]!
-        : candles;
-    const marketFlow = computeMarketFlow(flowCandles, 24, "5m");
-
     mergeSnapshot({
       online: true,
       priceStale: false,
       feedError: null,
       gold,
       chart: { interval: chartInterval, candles },
-      marketFlow,
       tickSeq,
     });
     broadcast("monitor:update", lastSnapshot);
@@ -491,10 +482,6 @@ async function bootstrapSnapshot(): Promise<void> {
       allNews
     );
 
-    const flowCandles =
-      multiTfCandles["5m"]?.length && multiTfCandles["5m"]!.length > 5
-        ? multiTfCandles["5m"]!
-        : patched;
     mergeSnapshot({
       online: true,
       priceStale: false,
@@ -506,7 +493,6 @@ async function bootstrapSnapshot(): Promise<void> {
       chart: { interval: chartInterval, candles: patched },
       strategy,
       shortStrategy,
-      marketFlow: computeMarketFlow(flowCandles, 24, "5m"),
       translating: false,
       analyzingNews: false,
     });

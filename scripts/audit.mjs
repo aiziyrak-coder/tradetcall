@@ -34,7 +34,6 @@ const mustExist = [
   "shared/strategy.ts",
   "shared/short-strategy.ts",
   "shared/trade-gate.ts",
-  "shared/market-flow.ts",
   "django_auth/manage.py",
   "deploy/remote-setup.sh",
   "deploy/nginx-trade.ziyrak.org.conf",
@@ -74,10 +73,10 @@ if (monitorTs.includes("mergeSnapshot") || monitorTs.includes("function publishS
   fail("monitor: snapshot merge", "no unified merge");
 }
 
-if (monitorTs.includes("marketFlow")) {
-  ok("monitor: marketFlow");
+if (!monitorTs.includes("computeMarketFlow") && !existsSync(resolve(root, "shared/market-flow.ts"))) {
+  ok("monitor: no fake buy/sell flow");
 } else {
-  fail("monitor: marketFlow", "missing");
+  fail("monitor: fake buy/sell", "remove market-flow proxy");
 }
 
 if (monitorTs.includes("refreshPriceLive") && monitorTs.includes("HEARTBEAT_MS")) {

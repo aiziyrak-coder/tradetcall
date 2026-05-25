@@ -1,6 +1,5 @@
 import type {
   LongTermStrategy,
-  MarketFlow,
   MarketQuote,
   PriceData,
   ShortTermStrategy,
@@ -13,7 +12,6 @@ interface Props {
   gold: PriceData | null;
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
-  marketFlow?: MarketFlow | null;
   drivers?: MarketQuote[];
   username: string;
   lastUpdate: string;
@@ -39,7 +37,6 @@ export function MonitorTopBar({
   gold,
   strategy,
   shortStrategy,
-  marketFlow,
   drivers = [],
   username,
   lastUpdate,
@@ -91,16 +88,6 @@ export function MonitorTopBar({
             <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
               {up ? "▲" : "▼"} {changeLabel}
             </span>
-          </div>
-        )}
-
-        {marketFlow && (
-          <div className="flex items-center gap-1 font-mono-ui text-[9px]">
-            <span className="text-emerald-400">B{marketFlow.buyPct}%</span>
-            <span className="h-1.5 w-12 overflow-hidden rounded-full bg-zinc-800">
-              <span className="block h-full bg-emerald-500" style={{ width: `${marketFlow.buyPct}%` }} />
-            </span>
-            <span className="text-red-400">S{marketFlow.sellPct}%</span>
           </div>
         )}
 

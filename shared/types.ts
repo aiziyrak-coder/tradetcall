@@ -53,18 +53,6 @@ export interface Candle {
   close: number;
 }
 
-/** BUY/SELL hajmi (sham asosida, real vaqt) */
-export interface MarketFlow {
-  buyVolume: number;
-  sellVolume: number;
-  buyPct: number;
-  sellPct: number;
-  delta: number;
-  pressure: "buy" | "sell" | "neutral";
-  labelUz: string;
-  windowUz: string;
-}
-
 export interface TechnicalAnalysis {
   rsi: number;
   trend: "bullish" | "bearish" | "neutral";
@@ -218,7 +206,6 @@ export interface MonitorSnapshot {
   chart: ChartData;
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
-  marketFlow?: MarketFlow | null;
   tickSeq?: number;
   translating?: boolean;
   analyzingNews?: boolean;

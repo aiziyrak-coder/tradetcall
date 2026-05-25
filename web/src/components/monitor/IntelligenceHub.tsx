@@ -1,15 +1,12 @@
 import type {
   LongTermStrategy,
-  MarketFlow,
   MarketQuote,
   NewsMarketAnalysis,
   ShortTermStrategy,
 } from "../../../../shared/types";
-import { MarketFlowBar } from "./MarketFlowBar";
 
 interface Props {
   analysis: NewsMarketAnalysis | null;
-  marketFlow: MarketFlow | null;
   drivers: MarketQuote[];
   longStrategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
@@ -26,7 +23,6 @@ const biasStyle = {
 
 export function IntelligenceHub({
   analysis,
-  marketFlow,
   drivers,
   longStrategy,
   shortStrategy,
@@ -51,8 +47,6 @@ export function IntelligenceHub({
       </div>
 
       <div className="term-scroll min-h-0 flex-1 space-y-2 p-2">
-        <MarketFlowBar flow={marketFlow} />
-
         {analysis ? (
           <>
             <div className="flex flex-wrap items-center gap-1">

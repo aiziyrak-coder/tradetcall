@@ -123,7 +123,6 @@ export function MonitorScreen({
         gold={data?.gold ?? null}
         strategy={data?.strategy ?? null}
         shortStrategy={data?.shortStrategy ?? null}
-        marketFlow={data?.marketFlow ?? null}
         drivers={data?.drivers ?? []}
         username={username}
         lastUpdate={lastUpdate}
@@ -192,7 +191,6 @@ export function MonitorScreen({
         <div style={{ gridArea: "intel" }} className="min-h-0 overflow-hidden">
           <IntelligenceHub
             analysis={data?.newsAnalysis ?? null}
-            marketFlow={data?.marketFlow ?? null}
             drivers={data?.drivers ?? []}
             longStrategy={data?.strategy ?? null}
             shortStrategy={data?.shortStrategy ?? null}
