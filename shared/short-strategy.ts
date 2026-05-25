@@ -243,11 +243,45 @@ export function computeShortTermStrategy(
     { label: "5m yuqori", price: round2(res) },
   ];
 
+  const playbookUz =
+    finalBias === "long"
+      ? `SCALP LONG: ${longVotes}/4 TF mos. Kirish $${entry.priceFrom}–$${entry.priceTo}, chiqish ${exitBy} gacha. Spread keng bo'lsa SKIP.`
+      : finalBias === "short"
+        ? `SCALP SHORT: ${shortVotes}/4 TF. Qarshilikdan rad → $${takeProfit}. 30 daqiqa qoidasi qat'iy.`
+        : `SCALP STANDBY: TF mos emas (${longVotes}L/${shortVotes}S). Faqat aniq impuls + yangiliklar MOS.`;
+
+  const tacticsUz: string[] =
+    finalBias === "long"
+      ? [
+          `1m/5m impuls long — kirish zona $${entry.priceFrom}–$${entry.priceTo}.`,
+          `SL $${stopLoss} (1m yopilish), TP $${takeProfit}, R:R ${riskReward}.`,
+          `${tfAligned}/4 TF + yangiliklar sinxron.`,
+          `RSI 5m: ${tech5.rsi} — ${tech5.rsi > 68 ? "overbought, ehtiyot" : "ishonchli"}.`,
+          `Maks ${exitBy} da yoping — vaqt stop muhimroq.`,
+          gate.allowed ? "GATE: ruxsat" : `GATE: ${gate.reasonUz.slice(0, 70)}`,
+        ]
+      : finalBias === "short"
+        ? [
+            `Short impuls — zona $${entry.priceFrom}–$${entry.priceTo}.`,
+            `SL $${stopLoss}, TP $${takeProfit}, R:R ${riskReward}.`,
+            `${shortVotes}/4 TF short ovoz.`,
+            `ATR ${round2(atr5)} — stop shu asosida, qo'lda kengaytirmang.`,
+            `30 daqiqa ichida chiqish majburiy.`,
+            gate.allowed ? "GATE: ruxsat" : `GATE: ${gate.reasonUz.slice(0, 70)}`,
+          ]
+        : [
+            "Hozir scalp yo'q — spread va yangiliklar tekshiring.",
+            `TF: ${timeframes.map((t) => `${t.labelUz[0]}${t.bias[0]}`).join(" ")}.`,
+            `Kuzatuv $${round2(sup)}/$${round2(res)}.`,
+            na?.tradeVerdictUz?.slice(0, 80) ?? "Yangiliklar kuting.",
+            "Professional: no setup = no click.",
+          ];
+
   return {
     bias: finalBias,
     horizonUz: "Maksimum 30 daqiqa",
     confidence,
-    situationUz: `${gate.capitalRuleUz} ${gate.newsVerdictUz} ${signal.oneLineUz} ${situationUz}`,
+    situationUz: `${playbookUz} ${gate.capitalRuleUz} ${gate.newsVerdictUz} ${signal.oneLineUz} ${situationUz}`,
     entry,
     exit,
     stopLoss,
@@ -267,6 +301,8 @@ export function computeShortTermStrategy(
     tfAligned,
     tfTotal,
     keyLevels,
+    playbookUz,
+    tacticsUz,
   };
 }
 

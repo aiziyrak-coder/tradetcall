@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { LongTermForecast, MonitorSnapshot } from "../../../shared/types";
-import { GoldChart, type ChartPriceLevels } from "../components/gold/GoldChart";
+import { GoldChart } from "../components/gold/GoldChart";
+import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
-import { NewsAnalysisStrip } from "../components/monitor/NewsAnalysisStrip";
 import { NewsColumn } from "../components/monitor/NewsColumn";
-import { ShortStrategyPanelCompact } from "../components/monitor/ShortStrategyPanelCompact";
-import { StrategyPanelCompact } from "../components/monitor/StrategyPanelCompact";
+import { StrategiesStackPanel } from "../components/monitor/StrategiesStackPanel";
 import { api, connectMonitor } from "../lib/api";
 import { UZ } from "../lib/uz";
 
@@ -28,6 +27,7 @@ export function MonitorScreen({
   const [ready, setReady] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [lastUpdate, setLastUpdate] = useState("—");
+  const [tickFlash, setTickFlash] = useState(0);
   const [chartInterval, setChartInterval] = useState("5m");
   const [forecast, setForecast] = useState<LongTermForecast | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -35,6 +35,7 @@ export function MonitorScreen({
   const [analyzingNews, setAnalyzingNews] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
+  const [wsLive, setWsLive] = useState(false);
 
   useEffect(() => {
     void api.status().then((r) => setHasApiKey(r.hasKey));
@@ -58,11 +59,14 @@ export function MonitorScreen({
         setData(s);
         setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
         setOnline(s.online);
+        setWsLive(true);
+        setTickFlash((n) => n + 1);
         setReady(true);
       },
       onError: (e) => setError(e.message),
       onTranslating: setTranslating,
       onAnalyzingNews: setAnalyzingNews,
+      onConnection: setWsLive,
     });
 
     return disconnect;
@@ -80,21 +84,6 @@ export function MonitorScreen({
   };
 
   const price = data?.gold?.price ?? 0;
-  const short = data?.shortStrategy;
-  const long = data?.strategy;
-
-  const chartLevels: ChartPriceLevels | undefined = useMemo(() => {
-    const sig = short?.signal;
-    if (!sig) return undefined;
-    return {
-      entry: sig.entryPrice,
-      entryFrom: sig.entryFrom,
-      entryTo: sig.entryTo,
-      sl: sig.stopLoss,
-      tp: sig.takeProfit,
-    };
-  }, [short?.signal]);
-
   const news = data?.news ?? { direct: [], macro: [], geopolitics: [] };
 
   if (!ready) {
@@ -109,12 +98,15 @@ export function MonitorScreen({
     <div className="monitor-root monitor-compact relative flex flex-col overflow-hidden bg-[var(--term-bg)]">
       <MonitorTopBar
         gold={data?.gold ?? null}
-        strategy={long ?? null}
-        shortStrategy={short ?? null}
+        strategy={data?.strategy ?? null}
+        shortStrategy={data?.shortStrategy ?? null}
+        marketFlow={data?.marketFlow ?? null}
         drivers={data?.drivers ?? []}
         username={username}
         lastUpdate={lastUpdate}
-        online={online}
+        online={online && wsLive}
+        streamLive={wsLive}
+        tickFlash={tickFlash}
         priceStale={data?.priceStale}
         feedError={data?.feedError}
         translating={translating || analyzingNews}
@@ -134,25 +126,24 @@ export function MonitorScreen({
       )}
 
       <div
-        className="grid min-h-0 flex-1 gap-1 p-1"
+        className="grid min-h-0 flex-1 gap-1.5 p-1.5"
         style={{
-          gridTemplateColumns: "minmax(200px, 22%) minmax(0, 1fr) minmax(200px, 22%)",
-          gridTemplateRows: "minmax(0, 1fr) 54px 40px",
+          gridTemplateColumns: "minmax(220px, 26%) minmax(280px, 36%) minmax(260px, 1fr)",
+          gridTemplateRows: "minmax(0, 1fr) minmax(130px, 28%)",
           gridTemplateAreas: `
-            "long chart short"
-            "analysis analysis analysis"
+            "strategies chart intel"
             "news news news"
           `,
         }}
       >
-        <div style={{ gridArea: "long" }} className="min-h-0 overflow-hidden">
-          <StrategyPanelCompact
-            strategy={long ?? null}
+        <div style={{ gridArea: "strategies" }} className="min-h-0 overflow-hidden">
+          <StrategiesStackPanel
+            longStrategy={data?.strategy ?? null}
+            shortStrategy={data?.shortStrategy ?? null}
             forecast={forecast}
             forecastLoading={forecastLoading}
             hasApiKey={hasApiKey}
-            currentPrice={price}
-            newsAnalysis={data?.newsAnalysis ?? null}
+            price={price}
             onForecast={async () => {
               setForecastLoading(true);
               setError(null);
@@ -169,28 +160,19 @@ export function MonitorScreen({
 
         <div style={{ gridArea: "chart" }} className="min-h-0 overflow-hidden rounded-md border border-[var(--term-border)]">
           <GoldChart
-            key={chartInterval}
             candles={data?.chart?.candles ?? []}
             interval={chartInterval}
             onIntervalChange={handleIntervalChange}
-            levels={chartLevels}
           />
         </div>
 
-        <div style={{ gridArea: "short" }} className="min-h-0 overflow-hidden">
-          <ShortStrategyPanelCompact
-            strategy={short ?? null}
-            currentPrice={price}
-            newsAnalysis={data?.newsAnalysis ?? null}
-          />
-        </div>
-
-        <div
-          style={{ gridArea: "analysis" }}
-          className="min-h-0 overflow-hidden rounded-md border border-cyan-500/30 bg-[var(--term-panel)]"
-        >
-          <NewsAnalysisStrip
+        <div style={{ gridArea: "intel" }} className="min-h-0 overflow-hidden">
+          <IntelligenceHub
             analysis={data?.newsAnalysis ?? null}
+            marketFlow={data?.marketFlow ?? null}
+            drivers={data?.drivers ?? []}
+            longStrategy={data?.strategy ?? null}
+            shortStrategy={data?.shortStrategy ?? null}
             analyzing={analyzingNews}
             hasApiKey={hasApiKey}
             onDeepAnalysis={async () => {
@@ -209,7 +191,7 @@ export function MonitorScreen({
 
         <div
           style={{ gridArea: "news" }}
-          className="grid min-h-0 grid-cols-3 gap-0 overflow-hidden rounded-md border border-[var(--term-border)] bg-[var(--term-panel)]"
+          className="grid min-h-0 grid-cols-3 gap-px overflow-hidden rounded-md border border-[var(--term-border)] bg-[var(--term-panel)]"
         >
           <NewsColumn
             title={UZ.streams.direct}
@@ -217,24 +199,23 @@ export function MonitorScreen({
             items={news.direct}
             accent="text-[var(--term-gold)]"
             highlight
-            compact
-            maxItems={3}
+            maxItems={8}
           />
           <NewsColumn
             title={UZ.streams.macro}
+            subtitle={UZ.streams.macroHint}
             icon="📊"
             items={news.macro}
             accent="text-[var(--term-green)]"
-            compact
-            maxItems={3}
+            maxItems={8}
           />
           <NewsColumn
             title={UZ.streams.geopolitics}
+            subtitle={UZ.streams.geoHint}
             icon="🌍"
             items={news.geopolitics}
             accent="text-[var(--term-red)]"
-            compact
-            maxItems={3}
+            maxItems={8}
           />
         </div>
       </div>

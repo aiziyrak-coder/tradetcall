@@ -6,6 +6,7 @@ import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
 import { getXAUUSDPrice } from "../shared/price";
 import { extractJSON } from "../shared/parse-json";
+import { computeMarketFlow } from "../shared/market-flow";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
 import {
   SYSTEM_ANALYST,
@@ -36,8 +37,8 @@ import {
   setTranslationCache,
 } from "./store";
 
-const FAST_TICK_MS = 2000;
-const CHART_TICK_MS = 12000;
+const FAST_TICK_MS = 1000;
+const CHART_TICK_MS = 6000;
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
 const NEWS_ANALYSIS_MS = 15000;
@@ -106,6 +107,7 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
     newsAnalysis: null,
     strategy: null,
     shortStrategy: null,
+    marketFlow: null,
     translating: false,
     analyzingNews: false,
     ...partial,
@@ -251,6 +253,8 @@ async function refreshFastLive() {
       allNews
     );
 
+    const marketFlow = computeMarketFlow(candles);
+
     const patch: MonitorSnapshot = {
       ...(lastSnapshot ?? emptySnapshot()),
       online: true,
@@ -261,6 +265,7 @@ async function refreshFastLive() {
       newsAnalysis,
       strategy,
       shortStrategy,
+      marketFlow,
       timestamp: new Date().toISOString(),
       translating,
     };

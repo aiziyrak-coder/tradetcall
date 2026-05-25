@@ -98,37 +98,69 @@ export function connectMonitor(handlers: {
   onError: (e: { message: string }) => void;
   onTranslating: (v: boolean) => void;
   onAnalyzingNews: (v: boolean) => void;
+  onConnection?: (live: boolean) => void;
 }): () => void {
-  const ws = new WebSocket(wsEndpoint());
+  let ws: WebSocket | null = null;
+  let closed = false;
+  let retry = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  ws.onmessage = (ev) => {
-    try {
-      const msg = JSON.parse(ev.data as string) as { channel: string; data: unknown };
-      switch (msg.channel) {
-        case "monitor:update":
-          handlers.onUpdate(msg.data as MonitorSnapshot);
-          break;
-        case "monitor:error":
-          handlers.onError(msg.data as { message: string });
-          break;
-        case "monitor:translating":
-          handlers.onTranslating(!!msg.data);
-          break;
-        case "monitor:analyzingNews":
-          handlers.onAnalyzingNews(!!msg.data);
-          break;
-        default:
-          break;
+  const bind = (socket: WebSocket) => {
+    socket.onopen = () => {
+      retry = 0;
+      handlers.onConnection?.(true);
+    };
+
+    socket.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data as string) as { channel: string; data: unknown };
+        switch (msg.channel) {
+          case "monitor:update":
+            handlers.onUpdate(msg.data as MonitorSnapshot);
+            break;
+          case "monitor:error":
+            handlers.onError(msg.data as { message: string });
+            break;
+          case "monitor:translating":
+            handlers.onTranslating(!!msg.data);
+            break;
+          case "monitor:analyzingNews":
+            handlers.onAnalyzingNews(!!msg.data);
+            break;
+          default:
+            break;
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore malformed */
-    }
+    };
+
+    socket.onerror = () => {
+      handlers.onConnection?.(false);
+      handlers.onError({ message: "WebSocket ulanishi uzildi" });
+    };
+
+    socket.onclose = () => {
+      handlers.onConnection?.(false);
+      if (closed) return;
+      const delay = Math.min(15000, 800 + retry * 1200);
+      retry += 1;
+      retryTimer = setTimeout(connect, delay);
+    };
   };
 
-  ws.onerror = () => handlers.onError({ message: "WebSocket ulanishi uzildi" });
+  function connect() {
+    if (closed) return;
+    ws = new WebSocket(wsEndpoint());
+    bind(ws);
+  }
+
+  connect();
 
   return () => {
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       ws.close();
     }
   };

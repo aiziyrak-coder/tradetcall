@@ -223,11 +223,50 @@ export function computeLongTermStrategy(
     ? `${na.recommendationUz ?? ""} ${na.trendOutlookUz ?? ""} ${gate.newsVerdictUz}`
     : "Yangiliklar tahlili kutilmoqda — savdo ochmang.";
 
+  const dollarNote = dollar
+    ? `DXY ${dollar.changePercent >= 0 ? "+" : ""}${dollar.changePercent.toFixed(2)}% — oltin uchun ${dollar.changePercent > 0.2 ? "salbiy korrelyatsiya" : dollar.changePercent < -0.2 ? "qo'llab-quvvat" : "neytral"}.`
+    : "";
+
+  const playbookUz =
+    finalBias === "long"
+      ? `SWING LONG PLAYBOOK: Likvidlik yig'ish $${round2(sup)} atrofida → impuls $${round2(res)} ga. Faqat MOS yangilik + R:R≥2. Qisman TP qarshilikda, qolgani trailing.`
+      : finalBias === "short"
+        ? `SWING SHORT PLAYBOOK: Qarshilik rad etish $${round2(res)} → maqsad $${round2(sup)}. Makro salbiy tasdiq bo'lmaguncha qo'shimcha lot yo'q.`
+        : `CAPITAL PRESERVATION: Range $${round2(sup)}–$${round2(res)}. Breakout + retest + yangiliklar tasdiqlanguncha pozitsiya yo'q.`;
+
+  const tacticsUz: string[] =
+    finalBias === "long"
+      ? [
+          `Kirish faqat $${entry.priceFrom}–$${entry.priceTo} retestda, market emas limit.`,
+          `SL $${stopLoss} — kunlik yopilish ostida; hech qachon SL ni kengaytirmang.`,
+          `TP $${takeProfit} (R:R ${riskReward}) — 50% qisman, qolgani breakeven.`,
+          `RSI ${tech.rsi}: ${tech.rsi > 65 ? "yuqori — faqat qisqa tuzatishda kirish" : "normal zona"}.`,
+          dollarNote || "DXY kuzatuvda.",
+          na?.tradeVerdictUz?.slice(0, 90) ?? "Yangiliklar paneli bilan sinxron.",
+        ]
+      : finalBias === "short"
+        ? [
+            `Short faqat $${entry.priceFrom}–$${entry.priceTo} rad zonasida.`,
+            `SL $${stopLoss} yuqorida qat'iy; gap xavfi uchun lot kichik.`,
+            `TP $${takeProfit}, R:R ${riskReward}. 30% foyda oling, qolgani trailing.`,
+            `Trend ${tech.trend}, momentum: ${tech.momentum.slice(0, 60)}.`,
+            dollarNote || "DXY kuzatuvda.",
+            gate.reasonUz.slice(0, 90),
+          ]
+        : [
+            "Hozir: NO TRADE — professional kutish.",
+            `Kuzatuv: qarshilik $${round2(res)} sinovi, qo'llab $${round2(sup)} ushlanishi.`,
+            "Yangiliklar zid bo'lsa 24 soat kutish.",
+            `Konfluens ${confluencePct}% — minimal 65% talab.`,
+            dollarNote || "Makro omillar kutilmoqda.",
+            na?.contradictionsUz?.slice(0, 90) ?? "Signal yo'qligi — sabr.",
+          ];
+
   return {
     bias: finalBias,
     horizonUz: "1 hafta — 4 hafta (swing)",
     confidence,
-    situationUz: `${gate.capitalRuleUz} ${newsBlock} ${signal.oneLineUz} ${situationUz}`,
+    situationUz: `${playbookUz} ${gate.capitalRuleUz} ${newsBlock} ${signal.oneLineUz} ${situationUz}`,
     entry,
     exit,
     stopLoss,
@@ -241,5 +280,7 @@ export function computeLongTermStrategy(
     technical: tech,
     signal,
     keyLevels,
+    playbookUz,
+    tacticsUz,
   };
 }

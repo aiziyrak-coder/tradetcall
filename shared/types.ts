@@ -53,6 +53,18 @@ export interface Candle {
   close: number;
 }
 
+/** BUY/SELL hajmi (sham asosida, real vaqt) */
+export interface MarketFlow {
+  buyVolume: number;
+  sellVolume: number;
+  buyPct: number;
+  sellPct: number;
+  delta: number;
+  pressure: "buy" | "sell" | "neutral";
+  labelUz: string;
+  windowUz: string;
+}
+
 export interface TechnicalAnalysis {
   rsi: number;
   trend: "bullish" | "bearish" | "neutral";
@@ -87,6 +99,8 @@ export interface LongTermStrategy {
   technical: TechnicalAnalysis;
   signal: SignalDetail;
   keyLevels: { label: string; price: number }[];
+  playbookUz: string;
+  tacticsUz: string[];
 }
 
 export interface ChartData {
@@ -139,6 +153,8 @@ export interface ShortTermStrategy {
   tfAligned: number;
   tfTotal: number;
   keyLevels: { label: string; price: number }[];
+  playbookUz: string;
+  tacticsUz: string[];
 }
 
 /** Kelajakda narxga ta'sir qiluvchi omil */
@@ -202,6 +218,7 @@ export interface MonitorSnapshot {
   chart: ChartData;
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
+  marketFlow?: MarketFlow | null;
   translating?: boolean;
   analyzingNews?: boolean;
 }
