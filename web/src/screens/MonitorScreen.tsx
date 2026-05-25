@@ -215,8 +215,6 @@ export function MonitorScreen({
           <IntelligenceHub
             analysis={data?.newsAnalysis ?? null}
             drivers={data?.drivers ?? []}
-            longStrategy={data?.strategy ?? null}
-            shortStrategy={data?.shortStrategy ?? null}
             analyzing={analyzingNews}
             hasApiKey={hasApiKey}
             onDeepAnalysis={async () => {

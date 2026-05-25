@@ -31,12 +31,6 @@ interface Props {
   onLogout: () => void;
 }
 
-const biasChip: Record<string, string> = {
-  long: "bg-emerald-600 text-white",
-  short: "bg-red-600 text-white",
-  wait: "bg-amber-700 text-amber-950",
-};
-
 export function MonitorTopBar({
   gold,
   strategy,
@@ -110,14 +104,30 @@ export function MonitorTopBar({
 
         <span className="text-[8px] text-[var(--term-muted)]">{session.nameUz}</span>
 
-        {shortStrategy && (
-          <span className="max-w-[160px] truncate text-[8px] font-bold text-cyan-300">
-            Q: {shortStrategy.signal.actionUz}
+        {shortStrategy?.verdict && (
+          <span
+            className={`rounded px-1.5 py-0 text-[8px] font-black ${
+              shortStrategy.verdict.action === "BUY"
+                ? "bg-emerald-700 text-white"
+                : shortStrategy.verdict.action === "SELL"
+                  ? "bg-red-700 text-white"
+                  : "bg-amber-800 text-amber-100"
+            }`}
+          >
+            YAQIN {shortStrategy.verdict.action}
           </span>
         )}
-        {strategy && (
-          <span className={`rounded px-1 py-0 text-[7px] font-bold ${biasChip[strategy.bias]}`}>
-            UZ {strategy.bias.toUpperCase()}
+        {strategy?.verdict && (
+          <span
+            className={`rounded px-1.5 py-0 text-[8px] font-black ${
+              strategy.verdict.action === "BUY"
+                ? "bg-emerald-800 text-white"
+                : strategy.verdict.action === "SELL"
+                  ? "bg-red-800 text-white"
+                  : "bg-amber-800 text-amber-100"
+            }`}
+          >
+            UZOQ {strategy.verdict.action}
           </span>
         )}
 

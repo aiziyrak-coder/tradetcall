@@ -14,10 +14,10 @@ interface Props {
   onForecast: () => void;
 }
 
-const biasChip: Record<string, string> = {
-  long: "bg-emerald-600/90 text-white",
-  short: "bg-red-600/90 text-white",
-  wait: "bg-amber-700/90 text-amber-100",
+const actionChip: Record<string, string> = {
+  BUY: "bg-emerald-600/90 text-white",
+  SELL: "bg-red-600/90 text-white",
+  HOLD: "bg-amber-700/90 text-amber-100",
 };
 
 export function StrategiesStackPanel({
@@ -31,8 +31,8 @@ export function StrategiesStackPanel({
 }: Props) {
   const [tab, setTab] = useState<StrategyTab>("short");
 
-  const longBias = (forecast ?? longStrategy)?.bias ?? "wait";
-  const shortBias = shortStrategy?.bias ?? "wait";
+  const longAction = longStrategy?.verdict?.action ?? "HOLD";
+  const shortAction = shortStrategy?.verdict?.action ?? "HOLD";
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-amber-500/30 bg-[var(--term-panel)]">
@@ -51,8 +51,8 @@ export function StrategiesStackPanel({
             }`}
           >
             Uzoq
-            <span className={`rounded px-1 py-0 text-[7px] ${biasChip[longBias]}`}>
-              {longBias.toUpperCase()}
+            <span className={`rounded px-1 py-0 text-[7px] ${actionChip[longAction]}`}>
+              {longAction}
             </span>
           </button>
           <button
@@ -65,8 +65,8 @@ export function StrategiesStackPanel({
             }`}
           >
             Yaqin
-            <span className={`rounded px-1 py-0 text-[7px] ${biasChip[shortBias]}`}>
-              {shortBias.toUpperCase()}
+            <span className={`rounded px-1 py-0 text-[7px] ${actionChip[shortAction]}`}>
+              {shortAction}
             </span>
           </button>
         </div>
@@ -82,7 +82,7 @@ export function StrategiesStackPanel({
             hasApiKey={hasApiKey}
           />
         ) : (
-          <ShortStrategyBlock strategy={shortStrategy} price={price} />
+          <ShortStrategyBlock strategy={shortStrategy} />
         )}
       </div>
     </div>

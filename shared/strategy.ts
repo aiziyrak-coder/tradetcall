@@ -6,6 +6,7 @@ import type {
   NewsMarketAnalysis,
   StrategyStep,
 } from "./types";
+import { buildHorizonVerdict } from "./horizon-verdict";
 import { buildSignalDetail } from "./signal-detail";
 import { getCalendarStatus } from "./economic-calendar";
 import { evaluateMarketRegime } from "./market-regime";
@@ -55,11 +56,12 @@ function buildWhenUz(days: { label: string; date: Date }[], session: string): st
 function newsScoreFromAnalysis(na: NewsMarketAnalysis | null): number {
   if (!na) return 0;
   let s = 0;
-  if (na.overallBias === "bullish") s += na.biasStrength / 22;
-  if (na.overallBias === "bearish") s -= na.biasStrength / 22;
-  if (na.newsCandleAligned) s *= 1.15;
-  else s *= 0.45;
-  if (na.contradictionsUz) return s * 0.2;
+  if (na.overallBias === "bullish") s += na.biasStrength / 16;
+  if (na.overallBias === "bearish") s -= na.biasStrength / 16;
+  if (na.newsCandleAligned) s *= 1.35;
+  else s *= 0.35;
+  if (na.contradictionsUz) return s * 0.12;
+  s += (na.confidence - 50) / 35;
   return s;
 }
 
@@ -299,11 +301,23 @@ export function computeLongTermStrategy(
             na?.contradictionsUz?.slice(0, 90) ?? "Signal yo'qligi — sabr.",
           ];
 
+  const verdict = buildHorizonVerdict({
+    horizon: "long",
+    finalBias,
+    gate,
+    news: na,
+    tech,
+    signal,
+    confidence,
+    confluencePct,
+    playbookUz,
+  });
+
   return {
     bias: finalBias,
     horizonUz: "1 hafta — 4 hafta (swing)",
     confidence,
-    situationUz: `${playbookUz} ${gate.capitalRuleUz} ${newsBlock} ${signal.oneLineUz} ${situationUz}`,
+    situationUz: verdict.analysisUz,
     entry,
     exit,
     stopLoss,
@@ -318,6 +332,7 @@ export function computeLongTermStrategy(
     signal,
     keyLevels,
     playbookUz,
-    tacticsUz,
+    tacticsUz: [verdict.forecastUz.slice(0, 120), verdict.signalUz, ...tacticsUz.slice(0, 3)],
+    verdict,
   };
 }

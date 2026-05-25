@@ -33,6 +33,7 @@ const mustExist = [
   "web/src/lib/api.ts",
   "shared/strategy.ts",
   "shared/short-strategy.ts",
+  "shared/horizon-verdict.ts",
   "shared/trade-gate.ts",
   "shared/technical.ts",
   "shared/market-regime.ts",
@@ -97,6 +98,12 @@ if (strategyTs.includes("waitTradeLevels")) {
   ok("strategy: wait levels after gate");
 } else {
   fail("strategy: wait levels after gate", "SL/TP may show when gated wait");
+}
+
+if (strategyTs.includes("buildHorizonVerdict") && strategyTs.includes("verdict")) {
+  ok("strategy: unified horizon verdict");
+} else {
+  fail("strategy: unified horizon verdict", "missing BUY/SELL/HOLD verdict");
 }
 
 const technicalTs = readFileSync(resolve(root, "shared/technical.ts"), "utf8");

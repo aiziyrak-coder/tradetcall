@@ -8,6 +8,7 @@ import type {
   StrategyStep,
   TimeframeSignal,
 } from "./types";
+import { buildHorizonVerdict } from "./horizon-verdict";
 import { buildSignalDetail } from "./signal-detail";
 import { getCalendarStatus } from "./economic-calendar";
 import { evaluateMarketRegime } from "./market-regime";
@@ -46,10 +47,12 @@ function formatClockOffset(minutes: number): string {
 function newsScoreShort(na: NewsMarketAnalysis | null): number {
   if (!na) return 0;
   let s = 0;
-  if (na.overallBias === "bullish") s += na.biasStrength / 20;
-  if (na.overallBias === "bearish") s -= na.biasStrength / 20;
-  if (!na.newsCandleAligned) s *= 0.35;
+  if (na.overallBias === "bullish") s += na.biasStrength / 14;
+  if (na.overallBias === "bearish") s -= na.biasStrength / 14;
+  if (na.newsCandleAligned) s *= 1.4;
+  else s *= 0.3;
   if (na.contradictionsUz) return 0;
+  s += (na.confidence - 50) / 30;
   return s;
 }
 
@@ -308,11 +311,24 @@ export function computeShortTermStrategy(
             "Professional: no setup = no click.",
           ];
 
+  const verdict = buildHorizonVerdict({
+    horizon: "short",
+    finalBias,
+    gate,
+    news: na,
+    tech: tech5,
+    signal,
+    confidence,
+    confluencePct,
+    playbookUz,
+    extraContextUz: `${longVotes}L/${shortVotes}S TF`,
+  });
+
   return {
     bias: finalBias,
     horizonUz: "Maksimum 30 daqiqa",
     confidence,
-    situationUz: `${playbookUz} ${gate.capitalRuleUz} ${gate.newsVerdictUz} ${signal.oneLineUz} ${situationUz}`,
+    situationUz: verdict.analysisUz,
     entry,
     exit,
     stopLoss,
@@ -333,7 +349,8 @@ export function computeShortTermStrategy(
     tfTotal,
     keyLevels,
     playbookUz,
-    tacticsUz,
+    tacticsUz: [verdict.signalUz, ...tacticsUz.slice(0, 4)],
+    verdict,
   };
 }
 

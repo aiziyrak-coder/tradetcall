@@ -4,6 +4,7 @@ import type { CalendarStatus } from "./calendar-types";
 
 export type { Mt5BridgeStatus, Mt5TickPayload } from "./mt5-types";
 export type { CalendarStatus, EconomicEvent, CalendarImpact } from "./calendar-types";
+export type { HorizonVerdict, TradeAction } from "./horizon-verdict";
 
 export type NewsStream = "direct" | "macro" | "geopolitics";
 
@@ -102,6 +103,7 @@ export interface LongTermStrategy {
   keyLevels: { label: string; price: number }[];
   playbookUz: string;
   tacticsUz: string[];
+  verdict: import("./horizon-verdict").HorizonVerdict;
 }
 
 export interface ChartData {
@@ -156,6 +158,7 @@ export interface ShortTermStrategy {
   keyLevels: { label: string; price: number }[];
   playbookUz: string;
   tacticsUz: string[];
+  verdict: import("./horizon-verdict").HorizonVerdict;
 }
 
 /** Kelajakda narxga ta'sir qiluvchi omil */
