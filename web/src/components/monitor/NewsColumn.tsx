@@ -1,6 +1,16 @@
 import type { NewsItem } from "../../../../shared/types";
+import { isLikelyEnglish } from "../../../../shared/free-translate";
 import { openUrl } from "../../lib/openUrl";
 import { UZ } from "../../lib/uz";
+
+function displayTitle(item: NewsItem): string {
+  if (item.titleUz && !isLikelyEnglish(item.titleUz)) return item.titleUz;
+  return item.title;
+}
+
+function hasUzbekTitle(item: NewsItem): boolean {
+  return !!item.titleUz && !isLikelyEnglish(item.titleUz);
+}
 
 interface Props {
   title: string;
@@ -85,10 +95,10 @@ export function NewsColumn({
                     compact ? "line-clamp-2 text-[8px]" : "mt-0.5 line-clamp-2 text-[11px]"
                   }`}
                 >
-                  {item.titleUz || item.title}
+                  {displayTitle(item)}
                 </p>
-                {!item.titleUz && (
-                  <span className="text-[7px] text-amber-400">tarjima kutilmoqda…</span>
+                {!hasUzbekTitle(item) && (
+                  <span className="text-[7px] text-amber-400">O&apos;zbekchaga tarjima…</span>
                 )}
                 {!compact && (item.goldImpactUz || item.summaryUz) && (
                   <p className="mt-0.5 line-clamp-2 text-[9px] leading-snug text-[var(--term-muted)]">

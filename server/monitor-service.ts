@@ -17,6 +17,7 @@ import {
 import {
   applyNewsTranslations,
   mergeTranslationCache,
+  translateNewsBatch,
 } from "../shared/translate";
 import type {
   GoldNewsBundle,
@@ -37,6 +38,8 @@ const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
 const NEWS_ANALYSIS_MS = 20000;
+const TRANSLATE_TICK_MS = 12_000;
+const TRANSLATE_BATCH = 8;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
 
@@ -48,6 +51,7 @@ let chartIntervalTimer: ReturnType<typeof setInterval> | null = null;
 let driversInterval: ReturnType<typeof setInterval> | null = null;
 let newsInterval: ReturnType<typeof setInterval> | null = null;
 let newsAnalysisInterval: ReturnType<typeof setInterval> | null = null;
+let translateInterval: ReturnType<typeof setInterval> | null = null;
 
 let priceBusy = false;
 let strategyBusy = false;
@@ -138,10 +142,42 @@ function newsWithCache(): GoldNewsBundle {
   return applyNewsTranslations(rawNews, cache);
 }
 
-function syncFreeNewsCache(): void {
+function pruneTranslationCache(): void {
   const items = allGoldNewsItems(rawNews);
   const cache = mergeTranslationCache(getTranslationCache(), items);
   setTranslationCache(cache);
+}
+
+async function runNewsTranslation(): Promise<void> {
+  if (translating) return;
+  const items = allGoldNewsItems(rawNews);
+  if (items.length === 0) return;
+  translating = true;
+  publishSnapshot({ translating: true });
+  try {
+    if (!(await checkInternet())) return;
+    const merged = mergeTranslationCache(getTranslationCache(), items);
+    const updated = await translateNewsBatch(items, merged, TRANSLATE_BATCH);
+    setTranslationCache(updated);
+    publishSnapshot({ news: newsWithCache(), translating: false });
+    if (lastSnapshot?.gold) {
+      const allNews = getTranslatedNews();
+      const gold = lastSnapshot.gold;
+      const candles = lastSnapshot.chart?.candles ?? [];
+      const drivers = lastSnapshot.drivers ?? [];
+      const built = buildStrategies(gold, candles, drivers, allNews);
+      publishSnapshot({
+        newsAnalysis: built.newsAnalysis,
+        strategy: built.strategy,
+        shortStrategy: built.shortStrategy,
+        translating: false,
+      });
+    }
+  } catch {
+    publishSnapshot({ translating: false });
+  } finally {
+    translating = false;
+  }
 }
 
 function isPriceStale(): boolean {
@@ -354,7 +390,8 @@ async function refreshNews() {
   try {
     if (!(await checkInternet())) return;
     rawNews = await fetchGoldNews();
-    syncFreeNewsCache();
+    pruneTranslationCache();
+    void runNewsTranslation();
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
@@ -403,7 +440,7 @@ async function bootstrapSnapshot(): Promise<void> {
       getGoldDrivers(gold),
     ]);
     rawNews = news;
-    syncFreeNewsCache();
+    pruneTranslationCache();
     const patched =
       candles.length > 0 ? patchLastCandle(candles, gold.price) : candles;
     const allNews = getTranslatedNews();
@@ -438,6 +475,7 @@ async function bootstrapSnapshot(): Promise<void> {
     });
     lastStrategyRebuildAt = Date.now();
     broadcast("monitor:update", lastSnapshot);
+    void runNewsTranslation();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Boshlang‘ich yuklash xatosi";
     lastSnapshot = emptySnapshot({ feedError: msg });
@@ -473,6 +511,8 @@ function startIntervals() {
       shortStrategy: built.shortStrategy,
     });
   }, NEWS_ANALYSIS_MS);
+  translateInterval = setInterval(() => void runNewsTranslation(), TRANSLATE_TICK_MS);
+  void runNewsTranslation();
 }
 
 export function startMonitorService(): void {
@@ -510,6 +550,7 @@ export function stopMonitorService(): void {
   if (driversInterval) clearInterval(driversInterval);
   if (newsInterval) clearInterval(newsInterval);
   if (newsAnalysisInterval) clearInterval(newsAnalysisInterval);
+  if (translateInterval) clearInterval(translateInterval);
   priceInterval = null;
   strategyInterval = null;
   heartbeatInterval = null;
@@ -520,6 +561,7 @@ export function stopMonitorService(): void {
   driversInterval = null;
   newsInterval = null;
   newsAnalysisInterval = null;
+  translateInterval = null;
   chartBusy = false;
   driversBusy = false;
   translating = false;
