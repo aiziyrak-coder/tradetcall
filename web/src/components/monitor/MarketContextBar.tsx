@@ -1,5 +1,11 @@
-import type { NewsMarketAnalysis, PriceData, ShortTermStrategy, LongTermStrategy } from "../../../../shared/types";
-import { getCalendarStatus } from "../../../../shared/economic-calendar";
+import type {
+  CalendarStatus,
+  NewsMarketAnalysis,
+  PriceData,
+  ShortTermStrategy,
+  LongTermStrategy,
+  Mt5BridgeStatus,
+} from "../../../../shared/types";
 import { getMarketSession } from "../../../../shared/market-session";
 
 interface Props {
@@ -7,17 +13,38 @@ interface Props {
   shortStrategy: ShortTermStrategy | null;
   longStrategy: LongTermStrategy | null;
   newsAnalysis?: NewsMarketAnalysis | null;
+  calendar?: CalendarStatus | null;
+  mt5Bridge?: Mt5BridgeStatus | null;
 }
 
-export function MarketContextBar({ gold, shortStrategy, longStrategy, newsAnalysis }: Props) {
+export function MarketContextBar({
+  gold,
+  shortStrategy,
+  longStrategy,
+  newsAnalysis,
+  calendar,
+  mt5Bridge,
+}: Props) {
   const session = getMarketSession();
-  const calendar = getCalendarStatus();
   const price = gold?.price ?? 0;
   const atr = shortStrategy?.signal.atr ?? longStrategy?.signal.atr ?? 0;
   const adx = longStrategy?.technical.adx ?? shortStrategy?.technical.adx;
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
+      {mt5Bridge && (
+        <span className={mt5Bridge.connected ? "font-bold text-emerald-400" : "text-amber-500"}>
+          {mt5Bridge.connected
+            ? `MT5 LIVE · ${mt5Bridge.spread != null ? mt5Bridge.spread.toFixed(2) : "—"} spread`
+            : "MT5 OFF"}
+        </span>
+      )}
+      {gold?.feed === "mt5" && gold.bid != null && gold.ask != null && (
+        <span className="font-mono-ui text-[8px]">
+          BID <span className="text-emerald-400">${gold.bid}</span> ASK{" "}
+          <span className="text-red-400">${gold.ask}</span>
+        </span>
+      )}
       <span>
         <span className="text-[var(--term-muted)]">Sessiya: </span>
         <span className={session.primeWindow ? "font-bold text-emerald-400" : session.active ? "text-amber-300" : "text-zinc-500"}>
@@ -25,10 +52,13 @@ export function MarketContextBar({ gold, shortStrategy, longStrategy, newsAnalys
         </span>
         <span className="ml-1 text-[var(--term-muted)]">({session.localHourUz})</span>
       </span>
-      {calendar.eventNameUz && (
+      {calendar?.eventNameUz && (
         <span className={calendar.inHighImpactWindow ? "font-bold text-red-400" : "text-amber-400"}>
           📅 {calendar.eventNameUz}
           {calendar.minutesUntil != null && calendar.minutesUntil > 0 ? ` +${calendar.minutesUntil}daq` : ""}
+          {calendar.source !== "heuristic" && (
+            <span className="ml-0.5 text-[7px] text-zinc-500">({calendar.source})</span>
+          )}
         </span>
       )}
       {gold?.source && (

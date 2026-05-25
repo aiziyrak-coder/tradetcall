@@ -1,5 +1,5 @@
 import type { NewsMarketAnalysis } from "./types";
-import type { CalendarStatus } from "./economic-calendar";
+import type { CalendarStatus } from "./calendar-types";
 import type { MarketRegime } from "./market-regime";
 
 export type TradeMode = "longterm" | "short";

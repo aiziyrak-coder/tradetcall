@@ -4,6 +4,7 @@ import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
 import { MarketContextBar } from "../components/monitor/MarketContextBar";
+import { CalendarEventsStrip } from "../components/monitor/CalendarEventsStrip";
 import { PriceLevelsVisual } from "../components/monitor/PriceLevelsVisual";
 import { NewsColumn } from "../components/monitor/NewsColumn";
 import { StrategiesStackPanel } from "../components/monitor/StrategiesStackPanel";
@@ -135,6 +136,8 @@ export function MonitorScreen({
         feedError={data?.feedError}
         translating={translating || analyzingNews}
         newsReady={!!data?.newsAnalysis}
+        mt5Bridge={data?.mt5Bridge ?? null}
+        goldFeed={data?.gold?.feed}
         isAdmin={isAdmin}
         onOpenAdmin={onOpenAdmin}
         onOpenSettings={onOpenSettings}
@@ -145,7 +148,10 @@ export function MonitorScreen({
         shortStrategy={data?.shortStrategy ?? null}
         longStrategy={data?.strategy ?? null}
         newsAnalysis={data?.newsAnalysis ?? null}
+        calendar={data?.calendar ?? null}
+        mt5Bridge={data?.mt5Bridge ?? null}
       />
+      <CalendarEventsStrip calendar={data?.calendar ?? null} />
 
       {error && (
         <div className="shrink-0 bg-red-950/60 px-2 py-0.5 text-center text-[9px] text-[var(--term-red)]">

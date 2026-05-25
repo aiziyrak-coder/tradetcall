@@ -143,6 +143,23 @@ export function SettingsScreen({ username, onBack }: Props) {
               serverda — brauzerda ko'rinmaydi. Productionda <code className="text-cyan-600">ANTHROPIC_API_KEY</code>{" "}
               env orqali ham berish mumkin.
             </p>
+
+            <div className="rounded-lg border border-cyan-600/30 bg-cyan-950/20 p-3 text-[10px] leading-relaxed text-slate-300">
+              <p className="font-bold text-cyan-300">MT5 haqiqiy narx (broker)</p>
+              <p className="mt-1">
+                Windows + MT5: <code className="text-amber-200">mt5-bridge/TradeBridgeEA.mq5</code> yoki{" "}
+                <code className="text-amber-200">python_bridge.py</code>. Server{" "}
+                <code className="text-amber-200">/opt/trade/.env</code> ga{" "}
+                <code className="text-amber-200">MT5_BRIDGE_SECRET</code> (min 16 belgi) qo&apos;ying, EA inputida
+                xuddi shu secret. Terminalda <b className="text-emerald-400">MT5 LIVE</b> ko&apos;rinishi kerak.
+              </p>
+              <p className="mt-2 font-bold text-amber-300">Iqtisodiy taqvim</p>
+              <p className="mt-1">
+                <code className="text-amber-200">TRADING_ECONOMICS_API_KEY</code> yoki bepul{" "}
+                <code className="text-amber-200">FINNHUB_API_KEY</code> — .env ga qo&apos;shib trade-api ni restart
+                qiling. Kalitsiz taxminiy NFP/CPI/FOMC ishlatiladi.
+              </p>
+            </div>
           </div>
         </div>
       </div>

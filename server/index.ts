@@ -27,6 +27,8 @@ import {
   startMonitorService,
   stopMonitorService,
 } from "./monitor-service";
+import { getMt5BridgeStatus, ingestMt5Tick, isMt5BridgeEnabled } from "./mt5-bridge";
+import type { Mt5TickPayload } from "../shared/mt5-types";
 import {
   clearEnvApiKeys,
   setApiKey as setClaudeKey,
@@ -175,7 +177,26 @@ app.use((_req, res, next) => {
 });
 
 app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, mt5: isMt5BridgeEnabled() });
+});
+
+/** MT5 EA / Python bridge — session cookie kerak emas, faqat X-MT5-Secret */
+app.post("/api/mt5/tick", (req, res) => {
+  const secret =
+    (req.headers["x-mt5-secret"] as string) ||
+    (req.body as { secret?: string })?.secret ||
+    "";
+  const body = req.body as Mt5TickPayload;
+  const result = ingestMt5Tick(body, secret);
+  if (!result.ok) {
+    res.status(result.error?.includes("secret") ? 401 : 400).json(result);
+    return;
+  }
   res.json({ ok: true });
+});
+
+app.get("/api/mt5/status", requireAuth, (_req, res) => {
+  res.json(getMt5BridgeStatus());
 });
 
 app.get("/api/status", requireAuth, (_req, res) => {

@@ -37,6 +37,10 @@ const mustExist = [
   "shared/technical.ts",
   "shared/market-regime.ts",
   "shared/economic-calendar.ts",
+  "shared/mt5-price.ts",
+  "server/mt5-bridge.ts",
+  "server/calendar-service.ts",
+  "server/price-feed.ts",
   "django_auth/manage.py",
   "deploy/remote-setup.sh",
   "deploy/nginx-trade.ziyrak.org.conf",
@@ -107,6 +111,20 @@ if (gateTs.includes("inHighImpactWindow") && gateTs.includes("goldLongAdjust")) 
   ok("gate: calendar + regime");
 } else {
   fail("gate: calendar + regime", "missing macro filters");
+}
+
+const indexTs2 = indexTs;
+if (indexTs2.includes("/api/mt5/tick") && indexTs2.includes("ingestMt5Tick")) {
+  ok("api: mt5 tick bridge");
+} else {
+  fail("api: mt5 tick bridge", "missing POST /api/mt5/tick");
+}
+
+const priceFeed = readFileSync(resolve(root, "server/price-feed.ts"), "utf8");
+if (priceFeed.includes("getMt5PriceData")) {
+  ok("price: mt5 priority feed");
+} else {
+  fail("price: mt5 priority feed", "missing MT5 first price");
 }
 
 run("tsc server+web", "npx tsc --noEmit -p tsconfig.audit.json");

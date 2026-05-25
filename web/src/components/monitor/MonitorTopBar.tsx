@@ -1,6 +1,7 @@
 import type {
   LongTermStrategy,
   MarketQuote,
+  Mt5BridgeStatus,
   PriceData,
   ShortTermStrategy,
 } from "../../../../shared/types";
@@ -22,6 +23,8 @@ interface Props {
   feedError?: string | null;
   translating: boolean;
   newsReady?: boolean;
+  mt5Bridge?: Mt5BridgeStatus | null;
+  goldFeed?: string;
   isAdmin?: boolean;
   onOpenAdmin?: () => void;
   onOpenSettings?: () => void;
@@ -48,6 +51,8 @@ export function MonitorTopBar({
   feedError,
   translating,
   newsReady,
+  mt5Bridge,
+  goldFeed,
   isAdmin,
   onOpenAdmin,
   onOpenSettings,
@@ -61,6 +66,7 @@ export function MonitorTopBar({
       ? `${up ? "+" : ""}${gold.changePercent.toFixed(2)}%`
       : `${up ? "+" : ""}${gold.change.toFixed(2)}`);
 
+  const mt5Ok = mt5Bridge?.connected && !mt5Bridge?.stale;
   const liveOk = online && streamLive && !priceStale && !feedError;
 
   return (
@@ -74,7 +80,7 @@ export function MonitorTopBar({
           <span
             className={`h-2 w-2 rounded-full ${liveOk ? "animate-pulse-dot bg-emerald-400" : "bg-amber-500"}`}
           />
-          {liveOk ? "STREAM LIVE" : streamLive ? "NARX KECHIKDI" : "UZILDI"}
+          {liveOk ? (mt5Ok ? "MT5 LIVE" : "STREAM LIVE") : streamLive ? "NARX KECHIKDI" : "UZILDI"}
           <span className="font-normal text-[var(--term-muted)]">{lastUpdate}</span>
           {tickFlash > 0 && (
             <span key={tickFlash} className="text-[8px] text-emerald-300/80">
@@ -90,8 +96,11 @@ export function MonitorTopBar({
             <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
               {up ? "▲" : "▼"} {changeLabel}
             </span>
-            <span className="text-[7px] text-[var(--term-muted)]" title={gold.source}>
-              {gold.source?.split("+")[0]?.trim() ?? "spot"}
+            <span
+              className={`text-[7px] ${goldFeed === "mt5" ? "font-bold text-emerald-400" : "text-[var(--term-muted)]"}`}
+              title={gold.source}
+            >
+              {goldFeed === "mt5" ? "MT5" : gold.source?.split("+")[0]?.trim() ?? "spot"}
             </span>
           </div>
         )}

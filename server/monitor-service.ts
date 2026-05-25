@@ -4,7 +4,11 @@ import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
-import { getXAUUSDPrice, getXAUUSDPriceLive } from "../shared/price";
+import { getXAUUSDPrice } from "../shared/price";
+import { getCalendarStatus } from "../shared/economic-calendar";
+import { getBestGoldPrice } from "./price-feed";
+import { getMt5BridgeStatus } from "./mt5-bridge";
+import { startCalendarService, stopCalendarService } from "./calendar-service";
 import { extractJSON } from "../shared/parse-json";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
 import {
@@ -122,6 +126,8 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
     shortStrategy: null,
     translating: false,
     analyzingNews: false,
+    mt5Bridge: getMt5BridgeStatus(),
+    calendar: getCalendarStatus(),
     ...partial,
   };
 }
@@ -158,6 +164,8 @@ function ensureApiKey() {
 }
 
 function isPriceStale(): boolean {
+  const mt5 = getMt5BridgeStatus();
+  if (mt5.connected && !mt5.stale) return false;
   if (!lastPriceOkAt) return true;
   return Date.now() - lastPriceOkAt > PRICE_STALE_MS;
 }
@@ -171,6 +179,8 @@ function mergeSnapshot(partial: Partial<MonitorSnapshot>): MonitorSnapshot {
     priceStale: isPriceStale(),
     translating,
     analyzingNews,
+    mt5Bridge: partial.mt5Bridge ?? getMt5BridgeStatus(),
+    calendar: partial.calendar ?? getCalendarStatus(),
   };
   return lastSnapshot;
 }
@@ -253,7 +263,7 @@ async function refreshPriceLive() {
       return;
     }
 
-    const gold = await getXAUUSDPriceLive(lastSnapshot?.gold ?? null).catch((e) => {
+    const gold = await getBestGoldPrice(lastSnapshot?.gold ?? null).catch((e) => {
       markPriceFail(e instanceof Error ? e.message : "Narx xatosi");
       return null;
     });
@@ -538,6 +548,7 @@ function startIntervals() {
 
 export function startMonitorService(): void {
   if (fastInterval) return;
+  startCalendarService();
   if (!lastSnapshot) lastSnapshot = emptySnapshot();
   const boot = bootstrapPromise ?? bootstrapSnapshot();
   bootstrapPromise = boot;
@@ -650,6 +661,7 @@ export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
 }
 
 export function stopMonitorService(): void {
+  stopCalendarService();
   if (priceInterval) clearInterval(priceInterval);
   if (strategyInterval) clearInterval(strategyInterval);
   if (heartbeatInterval) clearInterval(heartbeatInterval);

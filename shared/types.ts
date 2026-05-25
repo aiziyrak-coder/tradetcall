@@ -1,4 +1,9 @@
 import type { SignalDetail } from "./signal-detail";
+import type { Mt5BridgeStatus } from "./mt5-types";
+import type { CalendarStatus } from "./calendar-types";
+
+export type { Mt5BridgeStatus, Mt5TickPayload } from "./mt5-types";
+export type { CalendarStatus, EconomicEvent, CalendarImpact } from "./calendar-types";
 
 export type NewsStream = "direct" | "macro" | "geopolitics";
 
@@ -29,6 +34,10 @@ export interface PriceData {
   low24h?: number;
   timestamp: string;
   source: string;
+  bid?: number;
+  ask?: number;
+  spread?: number;
+  feed?: "mt5" | "yahoo" | "spot";
 }
 
 export interface MarketQuote {
@@ -213,6 +222,8 @@ export interface MonitorSnapshot {
   tickSeq?: number;
   translating?: boolean;
   analyzingNews?: boolean;
+  mt5Bridge?: Mt5BridgeStatus;
+  calendar?: CalendarStatus;
 }
 
 export type UserRole = "admin" | "user";
