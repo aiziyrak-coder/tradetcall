@@ -10,6 +10,7 @@ release/
 _trash_*/
 _removed_*/
 scripts/_admin-screen-django.tsx
+deploy/.remote-setup-lf.sh
 .next/
 dist-server/
 dist-web/

@@ -6,6 +6,7 @@ cd /opt/trade
 git pull origin main
 sed -i 's/PORT=3010/PORT=3020/g; s/127.0.0.1:8010/127.0.0.1:8020/g' .env
 cp deploy/nginx-tradeapi.ziyrak.org.conf /etc/nginx/sites-available/tradeapi.ziyrak.org
+cp deploy/nginx-trade.ziyrak.org.conf /etc/nginx/sites-available/trade.ziyrak.org
 cp deploy/systemd/trade-django.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl restart trade-django

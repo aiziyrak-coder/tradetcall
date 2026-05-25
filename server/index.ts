@@ -37,6 +37,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const COOKIE = "xauusd_session";
 const isProd = process.env.NODE_ENV === "production";
+
+function cookieOpts() {
+  return {
+    httpOnly: true,
+    sameSite: (isProd && FRONTEND_ORIGINS.length > 0 ? "none" : "lax") as "none" | "lax",
+    secure: isProd,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
 const FRONTEND_ORIGINS = (
   process.env.FRONTEND_ORIGIN ||
   process.env.CORS_ORIGINS ||
@@ -119,18 +128,13 @@ app.post("/api/auth/login", async (req, res) => {
     res.status(401).json(r);
     return;
   }
-  res.cookie(COOKIE, r.token, {
-    httpOnly: true,
-    sameSite: isProd && FRONTEND_ORIGINS.length > 0 ? "none" : "lax",
-    secure: isProd,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie(COOKIE, r.token, cookieOpts());
   res.json({ ok: true, session: r.session });
 });
 
 app.post("/api/auth/logout", (req, res) => {
   logout(readToken(req));
-  res.clearCookie(COOKIE);
+  res.clearCookie(COOKIE, cookieOpts());
   res.json({ ok: true });
 });
 

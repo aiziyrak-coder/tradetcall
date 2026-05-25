@@ -38,14 +38,9 @@ cd django_auth
 ../venv/bin/python manage.py seed_trade_users
 cd ..
 
-echo "==> Node build"
-npm ci
-export VITE_API_BASE="$API_PUBLIC"
-npm run build
-
-if [ ! -f .env ]; then
-  SECRET=$(openssl rand -hex 32)
-  cat > .env <<EOF
+echo "==> .env"
+SECRET=$(grep -E '^SESSION_SECRET=' .env 2>/dev/null | cut -d= -f2- || openssl rand -hex 32)
+cat > .env <<EOF
 NODE_ENV=production
 PORT=3020
 SESSION_SECRET=$SECRET
@@ -57,7 +52,11 @@ CORS_ORIGINS=$FRONTEND_ORIGIN
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
 DJANGO_PUBLIC_ADMIN_URL=$API_PUBLIC/admin/
 EOF
-fi
+
+echo "==> Node build (VITE_API_BASE=$API_PUBLIC)"
+npm ci
+export VITE_API_BASE="$API_PUBLIC"
+npm run build
 
 echo "==> Systemd (yangi servislar)"
 cp deploy/systemd/trade-api.service /etc/systemd/system/
