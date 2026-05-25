@@ -1,0 +1,13 @@
+node_modules
+dist-web
+dist-server
+data
+.env
+.env.*
+.git
+*.log
+release
+dist-electron
+dist-desktop
+electron
+desktop

@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist-server/
+dist-web/
+dist-electron/
+dist-desktop/
+release/
+data/
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+Thumbs.db

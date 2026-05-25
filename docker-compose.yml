@@ -1,0 +1,13 @@
+services:
+  trade:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - trade-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  trade-data:

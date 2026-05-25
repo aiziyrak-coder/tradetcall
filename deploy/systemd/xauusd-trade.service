@@ -1,0 +1,16 @@
+[Unit]
+Description=XAUUSD Trade Web Terminal
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/xauusd-trade
+EnvironmentFile=/opt/xauusd-trade/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/xauusd-trade/dist-server/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
