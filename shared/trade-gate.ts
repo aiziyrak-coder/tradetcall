@@ -94,7 +94,7 @@ export function evaluateNewsForTrade(
   }
 
   const rec = news.recommendationUz ?? "";
-  if (/kirmang|ochmang|50%|kuting|ehtiyot/i.test(rec)) {
+  if (/tavsiya:\s*hozir\s*kirmang|tavsiya:\s*.*ochmang|savdo\s*ochmang/i.test(rec)) {
     return { ok: false, verdictUz: rec };
   }
 

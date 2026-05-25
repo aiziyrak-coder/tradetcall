@@ -35,8 +35,9 @@ export function LongStrategyBlock({ strategy, forecast, price, onForecast, forec
   const display = forecast ?? strategy;
   if (!display) return <p className="text-[9px] text-[var(--term-muted)]">Uzoq muddat yuklanmoqda…</p>;
 
-  const signal = longSignal(display, price);
+  const signal = forecast && strategy ? strategy.signal : longSignal(display, price);
   const pro = strategy;
+  const fc = forecast;
 
   return (
     <div className="space-y-1 border-b border-[var(--term-border)] pb-2">
@@ -54,13 +55,21 @@ export function LongStrategyBlock({ strategy, forecast, price, onForecast, forec
         )}
       </div>
       <SignalHeroCompact signal={signal} bias={display.bias} confidence={display.confidence} />
-      {pro?.playbookUz && (
-        <p className="rounded bg-amber-950/30 px-1.5 py-1 text-[8px] font-semibold leading-snug text-amber-100">
-          {pro.playbookUz}
-        </p>
+      {fc ? (
+        <>
+          <p className="text-[8px] font-bold text-amber-300">{fc.summaryUz}</p>
+          <p className="text-[8px] text-[var(--term-text-2)]">{fc.weekPlanUz}</p>
+          <p className="text-[8px] text-red-300/90">{fc.riskWarning}</p>
+        </>
+      ) : (
+        pro?.playbookUz && (
+          <p className="rounded bg-amber-950/30 px-1.5 py-1 text-[8px] font-semibold leading-snug text-amber-100">
+            {pro.playbookUz}
+          </p>
+        )
       )}
       <ul className="space-y-0.5">
-        {(pro?.tacticsUz ?? []).map((t, i) => (
+        {(fc ? fc.keyFactors : pro?.tacticsUz ?? []).map((t, i) => (
           <li key={i} className="text-[8px] leading-snug text-[var(--term-text-2)]">
             <span className="text-[var(--term-gold)]">▸</span> {t}
           </li>

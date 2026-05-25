@@ -57,10 +57,14 @@ export function MonitorScreen({
     const disconnect = connectMonitor({
       onUpdate: (s) => {
         setData(s);
+        setChartInterval(s.chart?.interval ?? "5m");
         setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
         setOnline(s.online);
         setWsLive(true);
         setTickFlash((n) => n + 1);
+        setTranslating(!!s.translating);
+        setAnalyzingNews(!!s.analyzingNews);
+        setError(null);
         setReady(true);
       },
       onError: (e) => setError(e.message),
@@ -104,7 +108,7 @@ export function MonitorScreen({
         drivers={data?.drivers ?? []}
         username={username}
         lastUpdate={lastUpdate}
-        online={online && wsLive}
+        online={online && (wsLive || !!data)}
         streamLive={wsLive}
         tickFlash={tickFlash}
         priceStale={data?.priceStale}
@@ -176,14 +180,14 @@ export function MonitorScreen({
             analyzing={analyzingNews}
             hasApiKey={hasApiKey}
             onDeepAnalysis={async () => {
-              setAnalyzingNews(true);
               setError(null);
               try {
-                await api.monitor.deepNewsAnalysis();
+                const { analysis } = await api.monitor.deepNewsAnalysis();
+                if (analysis) {
+                  setData((prev) => (prev ? { ...prev, newsAnalysis: analysis } : prev));
+                }
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Yangilik tahlili xatosi");
-              } finally {
-                setAnalyzingNews(false);
               }
             }}
           />
@@ -199,6 +203,7 @@ export function MonitorScreen({
             items={news.direct}
             accent="text-[var(--term-gold)]"
             highlight
+            compact
             maxItems={8}
           />
           <NewsColumn
@@ -207,6 +212,7 @@ export function MonitorScreen({
             icon="📊"
             items={news.macro}
             accent="text-[var(--term-green)]"
+            compact
             maxItems={8}
           />
           <NewsColumn
@@ -215,6 +221,7 @@ export function MonitorScreen({
             icon="🌍"
             items={news.geopolitics}
             accent="text-[var(--term-red)]"
+            compact
             maxItems={8}
           />
         </div>

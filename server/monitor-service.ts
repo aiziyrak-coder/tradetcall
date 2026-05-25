@@ -38,7 +38,10 @@ import {
 } from "./store";
 
 const FAST_TICK_MS = 1000;
+const STRATEGY_TICK_MS = 12_000;
 const CHART_TICK_MS = 6000;
+
+const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
 const NEWS_ANALYSIS_MS = 15000;
@@ -70,6 +73,8 @@ let multiTfCandles: Partial<Record<ChartInterval, import("../shared/types").Cand
   {};
 let multiTfFetchedAt = 0;
 const MULTI_TF_REFRESH_MS = 12_000;
+let lastStrategyRebuildAt = 0;
+let bootstrapPromise: Promise<void> | null = null;
 
 async function refreshMultiTimeframes(spot: number): Promise<void> {
   if (
@@ -115,6 +120,9 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
 }
 
 export function setChartInterval(interval: ChartInterval) {
+  if (!VALID_CHART_INTERVALS.includes(interval)) {
+    throw new Error(`Noto'g'ri interval: ${interval}`);
+  }
   chartInterval = interval;
   void refreshChart();
 }
@@ -147,16 +155,22 @@ function isPriceStale(): boolean {
   return Date.now() - lastPriceOkAt > PRICE_STALE_MS;
 }
 
-function publishSnapshot(partial?: Partial<MonitorSnapshot>) {
-  if (!lastSnapshot) return;
+function mergeSnapshot(partial: Partial<MonitorSnapshot>): MonitorSnapshot {
+  const base = lastSnapshot ?? emptySnapshot();
   lastSnapshot = {
-    ...lastSnapshot,
+    ...base,
     ...partial,
     timestamp: new Date().toISOString(),
     priceStale: isPriceStale(),
     translating,
     analyzingNews,
   };
+  return lastSnapshot;
+}
+
+function publishSnapshot(partial?: Partial<MonitorSnapshot>) {
+  if (!partial) return;
+  mergeSnapshot(partial);
   broadcast("monitor:update", lastSnapshot);
 }
 
@@ -206,16 +220,12 @@ function markPriceOk() {
 
 function markPriceFail(message: string) {
   priceFailCount += 1;
-  if (lastSnapshot) {
-    lastSnapshot = {
-      ...lastSnapshot,
-      timestamp: new Date().toISOString(),
+    mergeSnapshot({
       priceStale: true,
-      feedError: priceFailCount >= MAX_PRICE_FAILS ? message : lastSnapshot.feedError,
-      online: priceFailCount < MAX_PRICE_FAILS ? lastSnapshot.online : false,
-    };
+      feedError: priceFailCount >= MAX_PRICE_FAILS ? message : lastSnapshot?.feedError ?? message,
+      online: priceFailCount < MAX_PRICE_FAILS ? (lastSnapshot?.online ?? false) : false,
+    });
     broadcast("monitor:update", lastSnapshot);
-  }
 }
 
 async function refreshFastLive() {
@@ -243,20 +253,30 @@ async function refreshFastLive() {
         ? patchLastCandle(baseCandles, gold.price)
         : await fetchXAUUSDCandles(chartInterval, gold.price);
 
-    const allNews = getTranslatedNews();
-    refreshNewsAnalysisLocal();
-    await refreshMultiTimeframes(gold.price);
-    const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
-      gold,
-      candles,
-      lastSnapshot?.drivers ?? [],
-      allNews
-    );
+    const flowCandles =
+      multiTfCandles["5m"]?.length && multiTfCandles["5m"]!.length > 5
+        ? multiTfCandles["5m"]!
+        : candles;
+    const marketFlow = computeMarketFlow(flowCandles, 24, "5m");
 
-    const marketFlow = computeMarketFlow(candles);
+    const now = Date.now();
+    const rebuildStrategies = now - lastStrategyRebuildAt >= STRATEGY_TICK_MS;
+    let strategy = lastSnapshot?.strategy ?? null;
+    let shortStrategy = lastSnapshot?.shortStrategy ?? null;
+    let newsAnalysis = lastSnapshot?.newsAnalysis ?? null;
 
-    const patch: MonitorSnapshot = {
-      ...(lastSnapshot ?? emptySnapshot()),
+    if (rebuildStrategies) {
+      const allNews = getTranslatedNews();
+      refreshNewsAnalysisLocal();
+      await refreshMultiTimeframes(gold.price);
+      const built = buildStrategies(gold, candles, lastSnapshot?.drivers ?? [], allNews);
+      strategy = built.strategy;
+      shortStrategy = built.shortStrategy;
+      newsAnalysis = built.newsAnalysis;
+      lastStrategyRebuildAt = now;
+    }
+
+    mergeSnapshot({
       online: true,
       priceStale: false,
       feedError: null,
@@ -266,10 +286,7 @@ async function refreshFastLive() {
       strategy,
       shortStrategy,
       marketFlow,
-      timestamp: new Date().toISOString(),
-      translating,
-    };
-    lastSnapshot = patch;
+    });
     broadcast("monitor:update", lastSnapshot);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Xato";
@@ -324,8 +341,8 @@ async function refreshNews() {
       const allNews = getTranslatedNews();
       const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
         gold,
-        lastSnapshot.chart.candles,
-        lastSnapshot.drivers,
+        lastSnapshot.chart?.candles ?? [],
+        lastSnapshot.drivers ?? [],
         allNews
       );
       publishSnapshot({
@@ -368,8 +385,8 @@ async function refreshTranslations() {
     if (lastSnapshot?.gold) {
       const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
         lastSnapshot.gold,
-        lastSnapshot.chart.candles,
-        lastSnapshot.drivers,
+        lastSnapshot.chart?.candles ?? [],
+        lastSnapshot.drivers ?? [],
         getTranslatedNews()
       );
       publishSnapshot({ newsAnalysis, strategy, shortStrategy });
@@ -421,8 +438,11 @@ async function bootstrapSnapshot(): Promise<void> {
       allNews
     );
 
-    lastSnapshot = {
-      timestamp: new Date().toISOString(),
+    const flowCandles =
+      multiTfCandles["5m"]?.length && multiTfCandles["5m"]!.length > 5
+        ? multiTfCandles["5m"]!
+        : patched;
+    mergeSnapshot({
       online: true,
       priceStale: false,
       feedError: null,
@@ -433,9 +453,11 @@ async function bootstrapSnapshot(): Promise<void> {
       chart: { interval: chartInterval, candles: patched },
       strategy,
       shortStrategy,
+      marketFlow: computeMarketFlow(flowCandles, 24, "5m"),
       translating: false,
       analyzingNews: false,
-    };
+    });
+    lastStrategyRebuildAt = Date.now();
     broadcast("monitor:update", lastSnapshot);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Boshlang‘ich yuklash xatosi";
@@ -454,12 +476,15 @@ function startIntervals() {
     if (!lastSnapshot?.gold) return;
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot.gold;
+    const candles = lastSnapshot.chart?.candles ?? [];
+    const drivers = lastSnapshot.drivers ?? [];
     const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
       gold,
-      lastSnapshot.chart.candles,
-      lastSnapshot.drivers,
+      candles,
+      drivers,
       getTranslatedNews()
     );
+    lastStrategyRebuildAt = Date.now();
     publishSnapshot({ newsAnalysis, strategy, shortStrategy });
   }, NEWS_ANALYSIS_MS);
   newsAiInterval = setInterval(() => void refreshNewsDeepAnalysis(), NEWS_AI_MS);
@@ -468,11 +493,18 @@ function startIntervals() {
 
 export function startMonitorService(): void {
   if (fastInterval) return;
-  void bootstrapSnapshot().then(() => {
-    startIntervals();
-    void refreshTranslations();
-    void refreshNewsDeepAnalysis();
-  });
+  if (!lastSnapshot) lastSnapshot = emptySnapshot();
+  const boot = bootstrapPromise ?? bootstrapSnapshot();
+  bootstrapPromise = boot;
+  void boot
+    .then(() => {
+      startIntervals();
+      void refreshTranslations();
+      void refreshNewsDeepAnalysis();
+    })
+    .finally(() => {
+      bootstrapPromise = null;
+    });
 }
 
 export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
@@ -494,7 +526,17 @@ export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | nu
     setApiKey(key);
     const candles = lastSnapshot?.chart?.candles ?? [];
     const tech = analyzeTechnicals(
-      candles.length ? candles : [{ time: 0, open: gold.price, high: gold.price, low: gold.price, close: gold.price }]
+      candles.length
+        ? candles
+        : [
+            {
+              time: Math.floor(Date.now() / 1000),
+              open: gold.price,
+              high: gold.price,
+              low: gold.price,
+              close: gold.price,
+            },
+          ]
     );
     const items = getTranslatedNews();
     const prompt = buildNewsDeepAnalysisPrompt(
@@ -541,8 +583,8 @@ export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | nu
     if (lastSnapshot?.gold) {
       const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
         lastSnapshot.gold,
-        lastSnapshot.chart.candles,
-        lastSnapshot.drivers,
+        lastSnapshot.chart?.candles ?? [],
+        lastSnapshot.drivers ?? [],
         getTranslatedNews()
       );
       publishSnapshot({ newsAnalysis, strategy, shortStrategy });
@@ -594,7 +636,11 @@ export function getLastSnapshot(): MonitorSnapshot | null {
 }
 
 export async function buildSnapshot(): Promise<MonitorSnapshot> {
-  if (lastSnapshot) return lastSnapshot;
+  if (lastSnapshot?.gold) return lastSnapshot;
+  if (bootstrapPromise) {
+    await bootstrapPromise;
+    return lastSnapshot ?? emptySnapshot();
+  }
   await bootstrapSnapshot();
   return lastSnapshot ?? emptySnapshot();
 }

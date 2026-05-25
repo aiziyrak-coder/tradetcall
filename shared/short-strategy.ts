@@ -11,6 +11,7 @@ import type {
 import { buildSignalDetail } from "./signal-detail";
 import { analyzeTechnicals } from "./technical";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
+import { waitTradeLevels } from "./strategy-levels";
 
 const SHORT_TFS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 
@@ -107,9 +108,12 @@ export function computeShortTermStrategy(
   const longVotes = timeframes.filter((t) => t.bias === "long").length;
   const shortVotes = timeframes.filter((t) => t.bias === "short").length;
 
+  const activeTf = timeframes.length || 1;
+  const minVotes = Math.max(2, Math.ceil(activeTf * 0.75));
+
   let bias: ShortTermStrategy["bias"] = "wait";
-  if (score >= 3 && longVotes >= 3) bias = "long";
-  else if (score <= -3 && shortVotes >= 3) bias = "short";
+  if (score >= 3 && longVotes >= minVotes) bias = "long";
+  else if (score <= -3 && shortVotes >= minVotes) bias = "short";
 
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
@@ -143,7 +147,7 @@ export function computeShortTermStrategy(
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
     };
-    situationUz = `Short LONG: ${longVotes}/4 TF, yangiliklar tekshirildi. $${price}.`;
+    situationUz = `Scalp LONG: ${longVotes}/${activeTf} TF, yangiliklar tekshirildi. $${price}.`;
   } else if (bias === "short") {
     const entryFrom = round2(price + atr1 * 0.05);
     const entryTo = round2(price + atr5 * 0.5);
@@ -165,7 +169,7 @@ export function computeShortTermStrategy(
       priceFrom: round2(takeProfit - atr1 * 0.1),
       priceTo: round2(takeProfit + atr1 * 0.15),
     };
-    situationUz = `Short SHORT: ${shortVotes}/4 TF. $${price}.`;
+    situationUz = `Scalp SHORT: ${shortVotes}/${activeTf} TF. $${price}.`;
   } else {
     entry = {
       title: "KIRISH",
@@ -192,11 +196,11 @@ export function computeShortTermStrategy(
   const rewardPts = Math.abs(takeProfit - entryMid);
   const riskReward = riskPts > 0 ? round2(rewardPts / riskPts) : 0;
 
-  const tfTotal = SHORT_TFS.length;
+  const tfTotal = Math.max(activeTf, SHORT_TFS.length);
   const tfAligned = bias === "long" ? longVotes : bias === "short" ? shortVotes : 0;
   const confluencePct = Math.min(
     100,
-    Math.round((tfAligned / tfTotal) * 85 + (na?.newsCandleAligned ? 12 : 0))
+    Math.round((tfAligned / Math.max(activeTf, 1)) * 85 + (na?.newsCandleAligned ? 12 : 0))
   );
   const confidence = Math.min(92, Math.round(36 + Math.abs(score) * 7 + tfAligned * 5 + (na?.confidence ?? 0) * 0.15));
 
@@ -212,24 +216,43 @@ export function computeShortTermStrategy(
 
   const finalBias = gate.effectiveBias;
 
+  let sigEntryFrom = entryFrom;
+  let sigEntryTo = entryTo;
+  let sigExitPrice = exitPrice;
+  let sigSl = stopLoss;
+  let sigTp = takeProfit;
+
+  if (finalBias === "wait") {
+    const w = waitTradeLevels(price, sup, res, atr5);
+    entry = w.entry;
+    exit = w.exit;
+    stopLoss = w.stopLoss;
+    takeProfit = w.takeProfit;
+    sigEntryFrom = w.entryFrom;
+    sigEntryTo = w.entryTo;
+    sigExitPrice = w.exitPrice;
+    sigSl = w.stopLoss;
+    sigTp = w.takeProfit;
+  }
+
   const signal = buildSignalDetail(
     price,
     finalBias,
-    entryFrom,
-    entryTo,
-    exitPrice,
-    stopLoss,
-    takeProfit,
+    sigEntryFrom,
+    sigEntryTo,
+    sigExitPrice,
+    sigSl,
+    sigTp,
     confidence,
     confluencePct,
     atr5,
     [
       {
-        ok: tfAligned >= 3 && gate.allowed,
+        ok: tfAligned >= minVotes && gate.allowed,
         textUz:
-          tfAligned >= 3
-            ? `${tfAligned}/4 TF + yangiliklar`
-            : `TF yetarli emas (${tfAligned}/4)`,
+          tfAligned >= minVotes
+            ? `${tfAligned}/${activeTf} TF + yangiliklar`
+            : `TF yetarli emas (${tfAligned}/${activeTf})`,
       },
     ],
     gate

@@ -1,7 +1,11 @@
 import type { Candle, MarketFlow } from "./types";
 
 /** Sham hajmi va yopilish yo'nalishi bo'yicha BUY/SELL taqsimoti (spot proxy) */
-export function computeMarketFlow(candles: Candle[], window = 24): MarketFlow {
+export function computeMarketFlow(
+  candles: Candle[],
+  window = 24,
+  intervalLabel = "5m"
+): MarketFlow {
   const slice = candles.slice(-window);
   if (slice.length < 3) {
     return {
@@ -12,7 +16,7 @@ export function computeMarketFlow(candles: Candle[], window = 24): MarketFlow {
       delta: 0,
       pressure: "neutral",
       labelUz: "Ma'lumot yetarli emas",
-      windowUz: `oxirgi ${window} sham`,
+      windowUz: `oxirgi ${window} ta ${intervalLabel} sham`,
     };
   }
 
@@ -51,6 +55,6 @@ export function computeMarketFlow(candles: Candle[], window = 24): MarketFlow {
     delta,
     pressure,
     labelUz,
-    windowUz: `oxirgi ${slice.length} ta ${window <= 24 ? "5m" : ""} sham`,
+    windowUz: `oxirgi ${slice.length} ta ${intervalLabel} sham`,
   };
 }

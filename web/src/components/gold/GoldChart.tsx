@@ -83,6 +83,13 @@ export function GoldChart({ candles, interval, onIntervalChange }: Props) {
     });
     ro.observe(containerRef.current);
 
+    if (containerRef.current) {
+      chart.applyOptions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+      });
+    }
+
     return () => {
       ro.disconnect();
       chart.remove();
@@ -90,6 +97,15 @@ export function GoldChart({ candles, interval, onIntervalChange }: Props) {
       seriesRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart) {
+      chart.applyOptions({
+        timeScale: { secondsVisible: interval === "1m" },
+      });
+    }
+  }, [interval]);
 
   useEffect(() => {
     lastLenRef.current = 0;

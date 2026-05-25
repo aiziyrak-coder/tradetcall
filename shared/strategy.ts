@@ -9,6 +9,7 @@ import type {
 import { buildSignalDetail } from "./signal-detail";
 import { analyzeTechnicals } from "./technical";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
+import { waitTradeLevels } from "./strategy-levels";
 
 const DAY_UZ = [
   "yakshanba",
@@ -196,14 +197,33 @@ export function computeLongTermStrategy(
 
   const finalBias = gate.effectiveBias;
 
+  let sigEntryFrom = entryFrom;
+  let sigEntryTo = entryTo;
+  let sigExitPrice = exitPrice;
+  let sigSl = stopLoss;
+  let sigTp = takeProfit;
+
+  if (finalBias === "wait") {
+    const w = waitTradeLevels(price, sup, res, atrVal);
+    entry = w.entry;
+    exit = w.exit;
+    stopLoss = w.stopLoss;
+    takeProfit = w.takeProfit;
+    sigEntryFrom = w.entryFrom;
+    sigEntryTo = w.entryTo;
+    sigExitPrice = w.exitPrice;
+    sigSl = w.stopLoss;
+    sigTp = w.takeProfit;
+  }
+
   const signal = buildSignalDetail(
     price,
     finalBias,
-    entryFrom,
-    entryTo,
-    exitPrice,
-    stopLoss,
-    takeProfit,
+    sigEntryFrom,
+    sigEntryTo,
+    sigExitPrice,
+    sigSl,
+    sigTp,
     confidence,
     confluencePct,
     atrVal,
