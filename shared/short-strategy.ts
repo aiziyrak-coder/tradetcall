@@ -120,8 +120,8 @@ export function computeShortTermStrategy(
   const minVotes = Math.max(2, Math.ceil(activeTf * 0.75));
 
   let bias: ShortTermStrategy["bias"] = "wait";
-  if (score >= 4 && longVotes >= minVotes && longVotes >= shortVotes + 1) bias = "long";
-  else if (score <= -4 && shortVotes >= minVotes && shortVotes >= longVotes + 1) bias = "short";
+  if (score >= 4.5 && longVotes >= minVotes && longVotes >= shortVotes + 1) bias = "long";
+  else if (score <= -4.5 && shortVotes >= minVotes && shortVotes >= longVotes + 1) bias = "short";
 
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
@@ -321,7 +321,6 @@ export function computeShortTermStrategy(
     confidence,
     confluencePct,
     playbookUz,
-    extraContextUz: `${longVotes}L/${shortVotes}S TF`,
   });
 
   return {

@@ -1,6 +1,7 @@
 import type { NewsMarketAnalysis } from "./types";
 import type { CalendarStatus } from "./calendar-types";
 import type { MarketRegime } from "./market-regime";
+import { getMarketSession } from "./market-session";
 
 export type TradeMode = "longterm" | "short";
 
@@ -25,11 +26,13 @@ export interface TradeGateResult {
   newsVerdictUz: string;
 }
 
-const MIN_RR: Record<TradeMode, number> = { longterm: 2.2, short: 2 };
-const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 78, short: 85 };
-const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 68, short: 72 };
-const MIN_SCORE: Record<TradeMode, number> = { longterm: 3.2, short: 3.8 };
-const MIN_ADX: Record<TradeMode, number> = { longterm: 16, short: 20 };
+const MIN_RR: Record<TradeMode, number> = { longterm: 2.4, short: 2.2 };
+const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 82, short: 88 };
+const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 72, short: 76 };
+const MIN_SCORE: Record<TradeMode, number> = { longterm: 3.6, short: 4.2 };
+const MIN_ADX: Record<TradeMode, number> = { longterm: 18, short: 22 };
+const MIN_NEWS_CONF = 58;
+const MIN_NEWS_STRENGTH = 55;
 
 export function evaluateNewsForTrade(
   news: NewsMarketAnalysis | null,
@@ -38,7 +41,7 @@ export function evaluateNewsForTrade(
   if (!news) {
     return {
       ok: false,
-      verdictUz: "Yangiliklar tahlili hali tayyor emas — savdo ochmang, tahlil tugashini kuting.",
+      verdictUz: "Yangiliklar tahlili tayyor emas — savdo OCHMANG (kapital himoya).",
     };
   }
 
@@ -49,72 +52,54 @@ export function evaluateNewsForTrade(
     };
   }
 
-  if (news.confidence < 52) {
+  if (news.confidence < MIN_NEWS_CONF) {
     return {
       ok: false,
-      verdictUz: `Yangiliklar ishonchi past (${news.confidence}%) — faqat aniq fon bo'lganda kirish.`,
+      verdictUz: `Yangiliklar ishonchi ${news.confidence}% — kamida ${MIN_NEWS_CONF}% kerak.`,
+    };
+  }
+
+  if (!news.newsCandleAligned) {
+    return {
+      ok: false,
+      verdictUz: "Yangiliklar va shamlar MOS emas — professional trader kutadi.",
     };
   }
 
   if (intendedBias === "long") {
-    if (news.overallBias === "bearish" && news.biasStrength >= 50) {
+    if (news.overallBias !== "bullish" || news.biasStrength < MIN_NEWS_STRENGTH) {
       return {
         ok: false,
-        verdictUz: "Makro yangiliklar SHORT yo'nalishda — LONG ochish professional emas.",
-      };
-    }
-    if (!news.newsCandleAligned && news.overallBias !== "bullish") {
-      return {
-        ok: false,
-        verdictUz: "Yangiliklar va shamlar mos emas — long uchun ikkalasi ham tasdiqlanishi kerak.",
-      };
-    }
-    if (news.overallBias === "neutral" && news.biasStrength < 60) {
-      return {
-        ok: false,
-        verdictUz: "Yangiliklar neytral — katta lot ochmang, kuting.",
+        verdictUz: `Long uchun yangiliklar aniq BULLISH emas (${news.overallBias} ${news.biasStrength}%).`,
       };
     }
   }
 
   if (intendedBias === "short") {
-    if (news.overallBias === "bullish" && news.biasStrength >= 50) {
+    if (news.overallBias !== "bearish" || news.biasStrength < MIN_NEWS_STRENGTH) {
       return {
         ok: false,
-        verdictUz: "Yangiliklar LONG yo'nalishda — short ochish xavfli.",
-      };
-    }
-    if (!news.newsCandleAligned && news.overallBias !== "bearish") {
-      return {
-        ok: false,
-        verdictUz: "Yangiliklar va shamlar short uchun mos emas — kuting.",
-      };
-    }
-    if (news.overallBias === "neutral" && news.biasStrength < 60) {
-      return {
-        ok: false,
-        verdictUz: "Yangiliklar aniq emas — short uchun kuting.",
+        verdictUz: `Short uchun yangiliklar aniq BEARISH emas (${news.overallBias} ${news.biasStrength}%).`,
       };
     }
   }
 
   const rec = news.recommendationUz ?? "";
-  if (/tavsiya:\s*hozir\s*kirmang|tavsiya:\s*.*ochmang|savdo\s*ochmang/i.test(rec)) {
+  if (/tavsiya:\s*hozir\s*kirmang|tavsiya:\s*.*ochmang|savdo\s*ochmang|hukm:\s*kuting/i.test(rec)) {
     return { ok: false, verdictUz: rec };
   }
 
   return {
     ok: true,
     verdictUz:
-      news.aiDiscussionUz?.slice(0, 120) ||
-      news.recommendationUz ||
-      `Yangiliklar: ${news.overallBias}, kuch ${news.biasStrength}% — ${news.newsCandleAligned ? "shamlar bilan MOS" : "qo'shimcha tasdiq kerak"}.`,
+      news.recommendationUz?.slice(0, 120) ||
+      `Yangiliklar MOS: ${news.overallBias} ${news.biasStrength}%, ishonch ${news.confidence}%.`,
   };
 }
 
 export function applyTradeGate(input: TradeGateInput): TradeGateResult {
   const capitalRuleUz =
-    "PRO QOIDA: Kapitalni himoya qiling — har bir lotda SL majburiy, R:R past bo'lsa KIRMANG, yangiliklar zid bo'lsa KIRMANG, CPI/NFP atrofida KIRMANG.";
+    "KAPITAL HIMOYA: Faqat barcha filter MOS bo'lganda BUY/SELL. SL majburiy. Shubha bo'lsa HOLD — zarar kamaytirish birinchi.";
 
   if (input.calendar?.inHighImpactWindow) {
     return {
@@ -130,28 +115,39 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Texnik va yangiliklar hali bir yo'nalish bermadi.",
+      reasonUz: "Texnik va yangiliklar bir yo'nalish bermadi.",
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? "Kuting.",
     };
   }
 
+  const session = getMarketSession();
+  if (input.mode === "short" && !session.primeWindow && session.volatility === "past") {
+    return {
+      allowed: false,
+      effectiveBias: "wait",
+      reasonUz: "Scalp uchun London/NY faol sessiyasi kerak — hozir sokin vaqt.",
+      capitalRuleUz,
+      newsVerdictUz: input.news?.recommendationUz ?? session.hintUz,
+    };
+  }
+
   const regime = input.regime;
   if (regime) {
-    if (input.bias === "long" && regime.goldLongAdjust <= -1.2) {
+    if (input.bias === "long" && regime.goldLongAdjust <= -1) {
       return {
         allowed: false,
         effectiveBias: "wait",
-        reasonUz: `Makro rejim longga qarshi: ${regime.summaryUz}`,
+        reasonUz: `Makro longga qarshi: ${regime.summaryUz}`,
         capitalRuleUz,
         newsVerdictUz: input.news?.recommendationUz ?? regime.summaryUz,
       };
     }
-    if (input.bias === "short" && regime.goldLongAdjust >= 1.2) {
+    if (input.bias === "short" && regime.goldLongAdjust >= 1) {
       return {
         allowed: false,
         effectiveBias: "wait",
-        reasonUz: `Makro rejim shortga qarshi: ${regime.summaryUz}`,
+        reasonUz: `Makro shortga qarshi: ${regime.summaryUz}`,
         capitalRuleUz,
         newsVerdictUz: input.news?.recommendationUz ?? regime.summaryUz,
       };
@@ -163,7 +159,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Trend kuchi past (ADX ${adx}) — range bozorida signal yolg'on bo'ladi.`,
+      reasonUz: `Trend kuchi past (ADX ${adx}) — range, signal ishonchsiz.`,
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? "ADX past.",
     };
@@ -184,7 +180,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Risk/Foyda 1:${input.riskReward} — minimum 1:${MIN_RR[input.mode]} kerak. Lot ochish bekorga.`,
+      reasonUz: `Risk/Foyda 1:${input.riskReward} — minimum 1:${MIN_RR[input.mode]}.`,
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -194,7 +190,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Moslik ${input.confluencePct}% — kamida ${MIN_CONFLUENCE[input.mode]}% bo'lishi kerak.`,
+      reasonUz: `Moslik ${input.confluencePct}% — kamida ${MIN_CONFLUENCE[input.mode]}% kerak.`,
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -204,7 +200,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Ishonch ${input.confidence}% — professional kirish uchun ${MIN_CONFIDENCE[input.mode]}%+ kerak.`,
+      reasonUz: `Ishonch ${input.confidence}% — minimum ${MIN_CONFIDENCE[input.mode]}%.`,
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -214,7 +210,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Texnik kuch yetarli emas — faqat kuchli signalda kiradi.",
+      reasonUz: "Texnik kuch yetarli emas — faqat kuchli setup.",
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -225,8 +221,8 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     effectiveBias: input.bias,
     reasonUz:
       input.mode === "short"
-        ? "Qisqa muddat: yangiliklar + TF + R:R + makro professional mezonlarda."
-        : "Uzoq muddat: yangiliklar, texnik va makro MOS — swing kirish mumkin (SL qat'iy).",
+        ? "Barcha filter MOS — qisqa muddat (yangiliklar + TF + R:R + sessiya)."
+        : "Barcha filter MOS — swing (yangiliklar + texnik + makro).",
     capitalRuleUz,
     newsVerdictUz: newsCheck.verdictUz,
   };

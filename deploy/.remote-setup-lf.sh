@@ -40,18 +40,28 @@ cd ..
 
 echo "==> .env"
 SECRET=$(grep -E '^SESSION_SECRET=' .env 2>/dev/null | cut -d= -f2- || openssl rand -hex 32)
+MT5_SEC=$(grep -E '^MT5_BRIDGE_SECRET=' .env 2>/dev/null | cut -d= -f2- || true)
+TE_KEY=$(grep -E '^TRADING_ECONOMICS_API_KEY=' .env 2>/dev/null | cut -d= -f2- || true)
+FH_KEY=$(grep -E '^FINNHUB_API_KEY=' .env 2>/dev/null | cut -d= -f2- || true)
+ANTH_KEY=$(grep -E '^ANTHROPIC_API_KEY=' .env 2>/dev/null | cut -d= -f2- || true)
 cat > .env <<EOF
 NODE_ENV=production
-PORT=3020
+PORT=3070
 SESSION_SECRET=$SECRET
 DJANGO_SECRET_KEY=$SECRET
 DATA_DIR=$APP_DIR/data
-DJANGO_AUTH_URL=http://127.0.0.1:8020
+DJANGO_AUTH_URL=http://127.0.0.1:8070
 FRONTEND_ORIGIN=$FRONTEND_ORIGIN
 CORS_ORIGINS=$FRONTEND_ORIGIN
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
 DJANGO_PUBLIC_ADMIN_URL=$API_PUBLIC/admin/
+COOKIE_DOMAIN=.ziyrak.org
 EOF
+[ -n "$MT5_SEC" ] && echo "MT5_BRIDGE_SECRET=$MT5_SEC" >> .env
+[ -n "$TE_KEY" ] && echo "TRADING_ECONOMICS_API_KEY=$TE_KEY" >> .env
+[ -n "$FH_KEY" ] && echo "FINNHUB_API_KEY=$FH_KEY" >> .env
+[ -n "$ANTH_KEY" ] && echo "ANTHROPIC_API_KEY=$ANTH_KEY" >> .env
+grep -q '^MT5_STALE_MS=' .env 2>/dev/null || echo "MT5_STALE_MS=8000" >> .env
 
 echo "==> Node build (VITE_API_BASE=$API_PUBLIC)"
 npm ci
@@ -83,4 +93,4 @@ fi
 
 echo "==> Tayyor"
 systemctl is-active trade-django trade-api nginx
-curl -sS -o /dev/null -w "API health: %{http_code}\n" http://127.0.0.1:3020/api/health || true
+curl -sS -o /dev/null -w "API health: %{http_code}\n" http://127.0.0.1:3070/api/health || true

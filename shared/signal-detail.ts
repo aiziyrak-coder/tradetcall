@@ -138,13 +138,13 @@ export function buildSignalDetail(
       textUz: bias !== "wait" ? "Yo'nalish aniq" : "Yo'nalish yo'q — kuting",
     },
     {
-      ok: confluencePct >= 78,
+      ok: confluencePct >= 82,
       textUz:
-        confluencePct >= 85
+        confluencePct >= 88
           ? `Konfluens ${confluencePct}% — yuqori`
-          : confluencePct >= 78
-            ? `Konfluens ${confluencePct}% — professional minimum`
-            : `Konfluens ${confluencePct}% — 78%+ kerak`,
+          : confluencePct >= 82
+            ? `Konfluens ${confluencePct}% — minimum OK`
+            : `Konfluens ${confluencePct}% — 82%+ kerak`,
     },
     {
       ok: riskReward >= 2,

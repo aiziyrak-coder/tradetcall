@@ -92,8 +92,8 @@ export function computeLongTermStrategy(
   score += newsScoreFromAnalysis(na);
 
   let bias: LongTermStrategy["bias"] = "wait";
-  if (score >= 3.2) bias = "long";
-  else if (score <= -3.2) bias = "short";
+  if (score >= 3.8) bias = "long";
+  else if (score <= -3.8) bias = "short";
 
   const sup = tech.support[0] ?? price - atrVal * 2;
   const res = tech.resistance[0] ?? price + atrVal * 2;

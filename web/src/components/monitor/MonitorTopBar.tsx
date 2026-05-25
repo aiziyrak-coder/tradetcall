@@ -22,7 +22,6 @@ interface Props {
   priceStale?: boolean;
   feedError?: string | null;
   translating: boolean;
-  newsReady?: boolean;
   mt5Bridge?: Mt5BridgeStatus | null;
   goldFeed?: string;
   isAdmin?: boolean;
@@ -44,7 +43,6 @@ export function MonitorTopBar({
   priceStale,
   feedError,
   translating,
-  newsReady,
   mt5Bridge,
   goldFeed,
   isAdmin,
@@ -98,10 +96,6 @@ export function MonitorTopBar({
             </span>
           </div>
         )}
-        {newsReady === false && (
-          <span className="text-[8px] font-bold text-amber-500">Yangiliklar ⏳</span>
-        )}
-
         <span className="text-[8px] text-[var(--term-muted)]">{session.nameUz}</span>
 
         {shortStrategy?.verdict && (

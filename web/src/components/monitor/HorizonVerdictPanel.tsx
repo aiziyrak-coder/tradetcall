@@ -20,6 +20,7 @@ interface Props {
 export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props) {
   const border = accent === "amber" ? "border-amber-500/40" : "border-cyan-500/40";
   const labelColor = accent === "amber" ? "text-amber-400" : "text-cyan-400";
+  const trusted = verdict.action !== "HOLD" && verdict.gateAllowed;
 
   return (
     <div className="space-y-1.5">
@@ -31,9 +32,11 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[8px] text-[var(--term-muted)]">{verdict.horizonLabelUz}</p>
-          <p className={`font-mono-ui text-[10px] font-bold ${labelColor}`}>Kuch {verdict.strength}%</p>
+          <p className={`font-mono-ui text-[10px] font-bold ${trusted ? "text-emerald-400" : "text-amber-400"}`}>
+            {verdict.reliabilityUz}
+          </p>
           <p className="text-[7px] text-[var(--term-muted)]">
-            Yangiliklar {verdict.newsWeightPct}% · Texnik {verdict.techWeightPct}%
+            Kuch {verdict.strength}% · Yangiliklar {verdict.newsWeightPct}%
           </p>
         </div>
       </div>
@@ -46,7 +49,11 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
             title={p.noteUz}
           >
             <p className="text-[6px] uppercase text-[var(--term-muted)]">{p.label}</p>
-            <p className={`font-mono-ui text-[9px] font-bold ${p.score >= 70 ? "text-emerald-400" : p.score >= 45 ? "text-amber-300" : "text-zinc-500"}`}>
+            <p
+              className={`font-mono-ui text-[9px] font-bold ${
+                p.score >= 70 ? "text-emerald-400" : p.score >= 45 ? "text-amber-300" : "text-zinc-500"
+              }`}
+            >
               {Math.round(p.score)}
             </p>
           </div>
@@ -54,7 +61,7 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
       </div>
 
       <section className={`rounded border ${border} bg-[var(--term-bg)] p-1.5`}>
-        <p className={`mb-0.5 text-[7px] font-bold uppercase ${labelColor}`}>① Tahlil</p>
+        <p className={`mb-0.5 text-[7px] font-bold uppercase ${labelColor}`}>① Tahlil (yangiliklar asosiy)</p>
         <p className="text-[8px] leading-snug text-[var(--term-text)]">{verdict.analysisUz}</p>
       </section>
 
@@ -63,7 +70,9 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
         <p className="text-[8px] leading-snug text-[var(--term-text-2)]">{verdict.forecastUz}</p>
       </section>
 
-      <section className={`rounded border ${border} p-1.5 ${verdict.gateAllowed ? "bg-emerald-950/20" : "bg-amber-950/25"}`}>
+      <section
+        className={`rounded border ${border} p-1.5 ${trusted ? "bg-emerald-950/25" : "bg-amber-950/25"}`}
+      >
         <p className={`mb-0.5 text-[7px] font-bold uppercase ${labelColor}`}>③ Signal</p>
         <p className="font-mono-ui text-[9px] font-bold leading-snug text-[var(--term-text)]">
           {verdict.signalUz}
@@ -82,7 +91,7 @@ export function HorizonVerdictPanel({ verdict, signal, accent, children }: Props
       </section>
 
       <SignalChecklist items={verdict.checklist} />
-      {verdict.action !== "HOLD" && <RiskCalculatorCompact signal={signal} />}
+      {trusted && <RiskCalculatorCompact signal={signal} />}
       {children}
     </div>
   );

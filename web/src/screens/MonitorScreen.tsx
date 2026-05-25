@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { LongTermForecast, MonitorSnapshot } from "../../../shared/types";
+import type { MonitorSnapshot } from "../../../shared/types";
 import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
@@ -28,12 +28,9 @@ export function MonitorScreen({
 }: Props) {
   const [data, setData] = useState<MonitorSnapshot | null>(null);
   const [ready, setReady] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
   const [lastUpdate, setLastUpdate] = useState("—");
   const [tickFlash, setTickFlash] = useState(0);
   const [chartInterval, setChartInterval] = useState("5m");
-  const [forecast, setForecast] = useState<LongTermForecast | null>(null);
-  const [forecastLoading, setForecastLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [analyzingNews, setAnalyzingNews] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +39,6 @@ export function MonitorScreen({
   const [lastStreamAt, setLastStreamAt] = useState(0);
 
   useEffect(() => {
-    void api.status().then((r) => setHasApiKey(r.hasKey));
-
     void api.monitor
       .getSnapshot()
       .then((s) => {
@@ -135,7 +130,6 @@ export function MonitorScreen({
         priceStale={data?.priceStale}
         feedError={data?.feedError}
         translating={translating || analyzingNews}
-        newsReady={!!data?.newsAnalysis}
         mt5Bridge={data?.mt5Bridge ?? null}
         goldFeed={data?.gold?.feed}
         isAdmin={isAdmin}
@@ -177,21 +171,6 @@ export function MonitorScreen({
           <StrategiesStackPanel
             longStrategy={data?.strategy ?? null}
             shortStrategy={data?.shortStrategy ?? null}
-            forecast={forecast}
-            forecastLoading={forecastLoading}
-            hasApiKey={hasApiKey}
-            price={price}
-            onForecast={async () => {
-              setForecastLoading(true);
-              setError(null);
-              try {
-                setForecast(await api.monitor.forecast());
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Strategiya xatosi");
-              } finally {
-                setForecastLoading(false);
-              }
-            }}
           />
         </div>
 
@@ -212,23 +191,7 @@ export function MonitorScreen({
         </div>
 
         <div style={{ gridArea: "intel" }} className="min-h-0 overflow-hidden">
-          <IntelligenceHub
-            analysis={data?.newsAnalysis ?? null}
-            drivers={data?.drivers ?? []}
-            analyzing={analyzingNews}
-            hasApiKey={hasApiKey}
-            onDeepAnalysis={async () => {
-              setError(null);
-              try {
-                const { analysis } = await api.monitor.deepNewsAnalysis();
-                if (analysis) {
-                  setData((prev) => (prev ? { ...prev, newsAnalysis: analysis } : prev));
-                }
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Yangilik tahlili xatosi");
-              }
-            }}
-          />
+          <IntelligenceHub analysis={data?.newsAnalysis ?? null} drivers={data?.drivers ?? []} />
         </div>
 
         <div

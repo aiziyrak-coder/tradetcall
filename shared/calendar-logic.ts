@@ -98,10 +98,7 @@ export function computeCalendarStatus(
     inHighImpactWindow: false,
     eventNameUz: null,
     minutesUntil: null,
-    hintUz:
-      source === "heuristic"
-        ? "Taxminiy taqvim — TE/Finnhub kalit qo'shsangiz aniqroq bo'ladi."
-        : "Yaqin yuqori ta'sirli voqea yo'q — standart risk qoidalari.",
+    hintUz: "Bepul taqvim (NFP/CPI/FOMC oynalari) — yuqori ta'sir atrofida avtomatik HOLD.",
     source,
     upcoming,
   };

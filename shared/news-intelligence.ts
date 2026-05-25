@@ -224,8 +224,8 @@ export function computeNewsIntelligence(
   const futureFactors = analyzeFactors(items);
 
   let overallBias: NewsMarketAnalysis["overallBias"] = "neutral";
-  if (totalScore >= 4 || bullCount >= bearCount + 5) overallBias = "bullish";
-  else if (totalScore <= -4 || bearCount >= bullCount + 5) overallBias = "bearish";
+  if (totalScore >= 5 || bullCount >= bearCount + 6) overallBias = "bullish";
+  else if (totalScore <= -5 || bearCount >= bullCount + 6) overallBias = "bearish";
 
   const biasStrength = Math.min(
     100,
@@ -304,13 +304,13 @@ export function computeNewsIntelligence(
   const recommendationUz =
     contradictions.length > 0
       ? `TAVSIYA: HOZIR KIRMANG. Zid signal: ${contradictions[0]} Professional trader bu paytda kutadi.`
-      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 50
-        ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat LONG rejasi, SL majburiy, R:R ≥ 1:2. Kichik lot."
-        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 50
-          ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat SHORT yoki kutish. SL qat'iy."
-          : items.length < 5
-            ? "TAVSIYA: Yangiliklar yetarli emas — savdo OCHMANG, tahlil yangilansin."
-            : "TAVSIYA: Aniq yo'nalish yo'q — KUTING. Kapitalni himoya qiling, bekorga lot ochmang.";
+      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 58
+        ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat LONG, SL majburiy, kichik lot."
+        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 58
+          ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat SHORT, SL qat'iy."
+          : items.length < 8
+            ? "TAVSIYA: Yangiliklar yetarli emas — savdo OCHMANG."
+            : "TAVSIYA: Aniq yo'nalish yo'q — KUTING. Kapital himoya.";
 
   const confidence = Math.min(
     98,
@@ -325,11 +325,11 @@ export function computeNewsIntelligence(
   const tradeVerdictUz =
     contradictions.length > 0
       ? `HUKM: KUTING — ${contradictions[0].slice(0, 90)}`
-      : overallBias === "bullish" && candleAlign.aligned
-        ? `HUKM: LONG moyil (${biasStrength}%) — kirish $${tech.support[0] ?? price - 15}–${price}, TP $${tech.resistance[0] ?? price + 25}`
-        : overallBias === "bearish" && candleAlign.aligned
-          ? `HUKM: SHORT moyil (${biasStrength}%) — qarshilik $${tech.resistance[0] ?? price + 15} sinovi`
-          : `HUKM: NEYTRAL — aniq signal yo'q, ${items.length} yangilik, ishonch ${confidence}%`;
+      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 58
+        ? `HUKM: LONG moyil (${biasStrength}%) — faqat MOS shartlarda kirish`
+        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 58
+          ? `HUKM: SHORT moyil (${biasStrength}%) — faqat MOS shartlarda`
+          : `HUKM: KUTING — ${items.length} yangilik, ishonch ${confidence}%`;
 
   const forecastUz =
     `${overallBias === "bullish" ? "▲" : overallBias === "bearish" ? "▼" : "◆"} 24–72s: ` +

@@ -1,4 +1,3 @@
-import { clearEnvApiKeys, setApiKey, askClaude } from "../shared/anthropic";
 import { emitMonitorEvent } from "./events";
 import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
@@ -9,23 +8,15 @@ import { getCalendarStatus } from "../shared/economic-calendar";
 import { getBestGoldPrice } from "./price-feed";
 import { getMt5BridgeStatus } from "./mt5-bridge";
 import { startCalendarService, stopCalendarService } from "./calendar-service";
-import { extractJSON } from "../shared/parse-json";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
-import {
-  SYSTEM_ANALYST,
-  SYSTEM_NEWS_ANALYST,
-  buildForecastPrompt,
-  buildNewsDeepAnalysisPrompt,
-} from "../shared/prompts";
 import { computeLongTermStrategy } from "../shared/strategy";
-import { analyzeTechnicals } from "../shared/technical";
 import {
   computeShortTermStrategy,
   SHORT_STRATEGY_INTERVALS,
 } from "../shared/short-strategy";
 import {
   applyNewsTranslations,
-  translateNewsBatch,
+  mergeTranslationCache,
 } from "../shared/translate";
 import type {
   GoldNewsBundle,
@@ -34,11 +25,7 @@ import type {
   NewsMarketAnalysis,
 } from "../shared/types";
 import { checkInternet } from "./network";
-import {
-  getApiKey,
-  getTranslationCache,
-  setTranslationCache,
-} from "./store";
+import { getTranslationCache, setTranslationCache } from "./store";
 
 const PRICE_TICK_MS = 800;
 const STRATEGY_TICK_MS = 10_000;
@@ -50,8 +37,6 @@ const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 const DRIVERS_TICK_MS = 20000;
 const NEWS_TICK_MS = 120000;
 const NEWS_ANALYSIS_MS = 20000;
-const NEWS_AI_MS = 60000;
-const TRANSLATE_TICK_MS = 25000;
 const PRICE_STALE_MS = 15_000;
 const MAX_PRICE_FAILS = 5;
 
@@ -63,8 +48,6 @@ let chartIntervalTimer: ReturnType<typeof setInterval> | null = null;
 let driversInterval: ReturnType<typeof setInterval> | null = null;
 let newsInterval: ReturnType<typeof setInterval> | null = null;
 let newsAnalysisInterval: ReturnType<typeof setInterval> | null = null;
-let newsAiInterval: ReturnType<typeof setInterval> | null = null;
-let translateInterval: ReturnType<typeof setInterval> | null = null;
 
 let priceBusy = false;
 let strategyBusy = false;
@@ -155,12 +138,10 @@ function newsWithCache(): GoldNewsBundle {
   return applyNewsTranslations(rawNews, cache);
 }
 
-function ensureApiKey() {
-  const key = getApiKey();
-  if (key) {
-    clearEnvApiKeys();
-    setApiKey(key);
-  }
+function syncFreeNewsCache(): void {
+  const items = allGoldNewsItems(rawNews);
+  const cache = mergeTranslationCache(getTranslationCache(), items);
+  setTranslationCache(cache);
 }
 
 function isPriceStale(): boolean {
@@ -305,7 +286,6 @@ async function refreshStrategyLive() {
   if (strategyBusy || !lastSnapshot?.gold) return;
   strategyBusy = true;
   try {
-    ensureApiKey();
     const gold = lastSnapshot.gold;
     const candles = lastSnapshot.chart?.candles ?? [];
     if (!candles.length) return;
@@ -370,23 +350,11 @@ async function refreshDrivers() {
   }
 }
 
-async function translateAllNewsNow(): Promise<void> {
-  const key = getApiKey();
-  if (!key) return;
-  clearEnvApiKeys();
-  setApiKey(key);
-  const items = allGoldNewsItems(rawNews);
-  if (!items.length) return;
-  let cache = getTranslationCache();
-  cache = await translateNewsBatch(items, cache, 32);
-  setTranslationCache(cache);
-}
-
 async function refreshNews() {
   try {
     if (!(await checkInternet())) return;
     rawNews = await fetchGoldNews();
-    await translateAllNewsNow();
+    syncFreeNewsCache();
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
@@ -408,46 +376,10 @@ async function refreshNews() {
     } else {
       publishSnapshot({ news: newsWithCache(), online: true, feedError: null });
     }
-    void refreshNewsDeepAnalysis();
   } catch (e) {
     broadcast("monitor:error", {
       message: e instanceof Error ? e.message : "Yangiliklar xatosi",
     });
-  }
-}
-
-async function refreshTranslations() {
-  const key = getApiKey();
-  if (!key || translating) return;
-
-  clearEnvApiKeys();
-  setApiKey(key);
-  translating = true;
-  broadcast("monitor:translating", true);
-
-  try {
-    let cache = getTranslationCache();
-    const items = allGoldNewsItems(rawNews);
-    if (items.length === 0) return;
-    cache = await translateNewsBatch(items, cache, 32);
-    setTranslationCache(cache);
-    const translated = applyNewsTranslations(rawNews, cache);
-    publishSnapshot({ news: translated });
-    refreshNewsAnalysisLocal();
-    if (lastSnapshot?.gold) {
-      const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
-        lastSnapshot.gold,
-        lastSnapshot.chart?.candles ?? [],
-        lastSnapshot.drivers ?? [],
-        getTranslatedNews()
-      );
-      publishSnapshot({ newsAnalysis, strategy, shortStrategy });
-    }
-  } catch {
-    /* tarjima ixtiyoriy */
-  } finally {
-    translating = false;
-    broadcast("monitor:translating", false);
   }
 }
 
@@ -459,7 +391,6 @@ async function bootstrapSnapshot(): Promise<void> {
     return;
   }
 
-  ensureApiKey();
   try {
     const gold = await getXAUUSDPrice().catch((e) => {
       throw e;
@@ -472,7 +403,7 @@ async function bootstrapSnapshot(): Promise<void> {
       getGoldDrivers(gold),
     ]);
     rawNews = news;
-    await translateAllNewsNow();
+    syncFreeNewsCache();
     const patched =
       candles.length > 0 ? patchLastCandle(candles, gold.price) : candles;
     const allNews = getTranslatedNews();
@@ -542,8 +473,6 @@ function startIntervals() {
       shortStrategy: built.shortStrategy,
     });
   }, NEWS_ANALYSIS_MS);
-  newsAiInterval = setInterval(() => void refreshNewsDeepAnalysis(), NEWS_AI_MS);
-  translateInterval = setInterval(refreshTranslations, TRANSLATE_TICK_MS);
 }
 
 export function startMonitorService(): void {
@@ -556,108 +485,19 @@ export function startMonitorService(): void {
     .then(() => {
       startIntervals();
       void refreshStrategyLive();
-      void refreshTranslations();
-      void refreshNewsDeepAnalysis();
     })
     .finally(() => {
       bootstrapPromise = null;
     });
 }
 
+/** Bepul rejim — pullik AI o'chirilgan */
 export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
-  const key = getApiKey();
-  if (!key || analyzingNews) return lastNewsAnalysis;
-
-  const gold = lastSnapshot?.gold ?? (await getXAUUSDPrice().catch(() => null));
-  if (!gold) return null;
-
-  const base = refreshNewsAnalysisLocal();
-  if (!base) return null;
-
-  analyzingNews = true;
-  broadcast("monitor:analyzingNews", true);
-  publishSnapshot({ analyzingNews: true });
-
-  try {
-    clearEnvApiKeys();
-    setApiKey(key);
-    const candles = lastSnapshot?.chart?.candles ?? [];
-    const tech = analyzeTechnicals(
-      candles.length
-        ? candles
-        : [
-            {
-              time: Math.floor(Date.now() / 1000),
-              open: gold.price,
-              high: gold.price,
-              low: gold.price,
-              close: gold.price,
-            },
-          ]
-    );
-    const items = getTranslatedNews();
-    const prompt = buildNewsDeepAnalysisPrompt(
-      gold.price,
-      gold.changePercent,
-      tech,
-      base,
-      items.map((n) => ({
-        title: n.titleUz ?? n.title,
-        summary: n.summaryUz ?? n.summary,
-        stream: n.stream,
-      }))
-    );
-    const text = await askClaude(SYSTEM_NEWS_ANALYST, prompt, 6000);
-    const ai = extractJSON<{
-      aiDiscussionUz: string;
-      aiFutureOutlookUz: string;
-      overallBias?: NewsMarketAnalysis["overallBias"];
-      biasStrength?: number;
-      trendOutlookUz?: string;
-      recommendationUz?: string;
-      tradeVerdictUz?: string;
-      contradictionsUz?: string | null;
-      keyRisks?: string[];
-      keyOpportunities?: string[];
-    }>(text);
-
-    lastNewsAnalysis = {
-      ...base,
-      aiDiscussionUz: ai.aiDiscussionUz,
-      aiFutureOutlookUz: ai.aiFutureOutlookUz,
-      overallBias: ai.overallBias ?? base.overallBias,
-      biasStrength: ai.biasStrength ?? base.biasStrength,
-      trendOutlookUz: ai.trendOutlookUz ?? base.trendOutlookUz,
-      recommendationUz: ai.recommendationUz ?? base.recommendationUz,
-      tradeVerdictUz: ai.tradeVerdictUz ?? base.tradeVerdictUz,
-      forecastUz: (ai.aiFutureOutlookUz ?? base.forecastUz)?.slice(0, 220),
-      contradictionsUz: ai.contradictionsUz ?? base.contradictionsUz,
-      narrativeUz: base.narrativeUz + " " + (ai.aiDiscussionUz?.slice(0, 200) ?? ""),
-      risksUz: [...base.risksUz, ...(ai.keyRisks ?? [])].slice(0, 8),
-      opportunitiesUz: [...base.opportunitiesUz, ...(ai.keyOpportunities ?? [])].slice(0, 8),
-    };
-
-    if (lastSnapshot?.gold) {
-      const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
-        lastSnapshot.gold,
-        lastSnapshot.chart?.candles ?? [],
-        lastSnapshot.drivers ?? [],
-        getTranslatedNews()
-      );
-      publishSnapshot({ newsAnalysis, strategy, shortStrategy });
-    }
-    return lastNewsAnalysis;
-  } catch {
-    return lastNewsAnalysis;
-  } finally {
-    analyzingNews = false;
-    broadcast("monitor:analyzingNews", false);
-    publishSnapshot({ analyzingNews: false });
-  }
+  return refreshNewsAnalysisLocal();
 }
 
 export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
-  return refreshNewsDeepAnalysis();
+  return Promise.resolve(refreshNewsAnalysisLocal());
 }
 
 export function stopMonitorService(): void {
@@ -670,8 +510,6 @@ export function stopMonitorService(): void {
   if (driversInterval) clearInterval(driversInterval);
   if (newsInterval) clearInterval(newsInterval);
   if (newsAnalysisInterval) clearInterval(newsAnalysisInterval);
-  if (newsAiInterval) clearInterval(newsAiInterval);
-  if (translateInterval) clearInterval(translateInterval);
   priceInterval = null;
   strategyInterval = null;
   heartbeatInterval = null;
@@ -682,8 +520,6 @@ export function stopMonitorService(): void {
   driversInterval = null;
   newsInterval = null;
   newsAnalysisInterval = null;
-  newsAiInterval = null;
-  translateInterval = null;
   chartBusy = false;
   driversBusy = false;
   translating = false;
@@ -710,12 +546,8 @@ export async function buildSnapshot(): Promise<MonitorSnapshot> {
   return lastSnapshot ?? emptySnapshot();
 }
 
+/** Bepul rejim — strategiya verdict.allaqachon bashorat beradi */
 export async function runForecast(): Promise<LongTermForecast> {
-  const key = getApiKey();
-  if (!key) throw new Error("API kalit kiritilmagan");
-  clearEnvApiKeys();
-  setApiKey(key);
-
   const gold = await getXAUUSDPrice();
   const candles = await fetchXAUUSDCandles(chartInterval, gold.price);
   const items = allGoldNewsItems(rawNews).slice(0, 12);
@@ -727,25 +559,20 @@ export async function runForecast(): Promise<LongTermForecast> {
     items,
     lastNewsAnalysis
   );
-
-  const newsBrief = lastNewsAnalysis
-    ? `${lastNewsAnalysis.narrativeUz}\n${lastNewsAnalysis.aiDiscussionUz ?? ""}\n${lastNewsAnalysis.recommendationUz}`
-    : undefined;
-
-  const prompt = buildForecastPrompt(
-    gold.price,
-    gold.change,
-    gold.changePercent,
-    gold.high24h,
-    gold.low24h,
-    base.technical,
-    base,
-    items.map((n) => ({
-      title: n.titleUz ?? n.title,
-      summary: n.summaryUz ?? n.summary,
-    })),
-    newsBrief
-  );
-  const text = await askClaude(SYSTEM_ANALYST, prompt, 4096);
-  return extractJSON<LongTermForecast>(text);
+  const v = base.verdict;
+  return {
+    bias: base.bias,
+    horizonUz: base.horizonUz,
+    confidence: base.confidence,
+    situationUz: v.analysisUz,
+    entry: base.entry,
+    exit: base.exit,
+    stopLoss: base.stopLoss,
+    takeProfit: base.takeProfit,
+    invalidationUz: base.invalidationUz,
+    weekPlanUz: v.forecastUz,
+    keyFactors: base.tacticsUz.slice(0, 5),
+    riskWarning: v.reliabilityUz,
+    summaryUz: `${v.action} — ${v.reliabilityUz}`,
+  };
 }
