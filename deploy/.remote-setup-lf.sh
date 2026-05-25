@@ -47,11 +47,11 @@ if [ ! -f .env ]; then
   SECRET=$(openssl rand -hex 32)
   cat > .env <<EOF
 NODE_ENV=production
-PORT=3020
+PORT=3010
 SESSION_SECRET=$SECRET
 DJANGO_SECRET_KEY=$SECRET
 DATA_DIR=$APP_DIR/data
-DJANGO_AUTH_URL=http://127.0.0.1:8020
+DJANGO_AUTH_URL=http://127.0.0.1:8010
 FRONTEND_ORIGIN=$FRONTEND_ORIGIN
 CORS_ORIGINS=$FRONTEND_ORIGIN
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
@@ -84,4 +84,4 @@ fi
 
 echo "==> Tayyor"
 systemctl is-active trade-django trade-api nginx
-curl -sS -o /dev/null -w "API health: %{http_code}\n" http://127.0.0.1:3020/api/health || true
+curl -sS -o /dev/null -w "API health: %{http_code}\n" http://127.0.0.1:3010/api/health || true
