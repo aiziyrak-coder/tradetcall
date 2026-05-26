@@ -46,6 +46,7 @@ export function HorizonVerdictPanel({
           </p>
           <p className="text-[7px] text-[var(--term-muted)]">
             Kuch {verdict.strength}% · Yangiliklar {verdict.newsWeightPct}%
+            {verdict.tfSummaryUz ? ` · ${verdict.tfSummaryUz}` : ""}
           </p>
         </div>
       </div>

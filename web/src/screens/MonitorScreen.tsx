@@ -13,6 +13,17 @@ import { useSignalNotifications } from "../hooks/useSignalNotifications";
 import { requestNotificationPermission } from "../lib/notifications";
 import { UZ } from "../lib/uz";
 
+function formatLiveTime(s: MonitorSnapshot): string {
+  const t = s.priceUpdatedAt ?? s.timestamp;
+  const d = new Date(t);
+  const clock = d.toLocaleTimeString("uz-UZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return s.tickSeq ? `${clock} · #${s.tickSeq}` : clock;
+}
+
 interface Props {
   username: string;
   isAdmin?: boolean;
@@ -52,7 +63,7 @@ export function MonitorScreen({
       .then((s) => {
         setData(s);
         setChartInterval(s.chart?.interval ?? "5m");
-        setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
+        setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
         setReady(true);
       })
@@ -65,7 +76,7 @@ export function MonitorScreen({
       onUpdate: (s) => {
         setData(s);
         setChartInterval(s.chart?.interval ?? "5m");
-        setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
+        setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
         setWsLive(true);
         setLastStreamAt(Date.now());
@@ -87,17 +98,17 @@ export function MonitorScreen({
 
   useEffect(() => {
     const poll = setInterval(() => {
-      if (Date.now() - lastStreamAt < 3000) return;
+      if (Date.now() - lastStreamAt < 1500) return;
       void api.monitor
         .getSnapshot()
         .then((s) => {
           setData(s);
           setLastStreamAt(Date.now());
-          setLastUpdate(new Date(s.timestamp).toLocaleTimeString("uz-UZ"));
+          setLastUpdate(formatLiveTime(s));
           setOnline(s.online);
         })
         .catch(() => {});
-    }, 2000);
+    }, 1000);
     return () => clearInterval(poll);
   }, [lastStreamAt]);
 

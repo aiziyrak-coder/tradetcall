@@ -87,7 +87,11 @@ if (!monitorTs.includes("computeMarketFlow") && !existsSync(resolve(root, "share
   fail("monitor: fake buy/sell", "remove market-flow proxy");
 }
 
-if (monitorTs.includes("refreshPriceLive") && monitorTs.includes("HEARTBEAT_MS")) {
+if (
+  monitorTs.includes("refreshPriceFast") &&
+  monitorTs.includes("fetchAndPublishPrice") &&
+  monitorTs.includes("HEARTBEAT_MS")
+) {
   ok("monitor: split price/strategy stream");
 } else {
   fail("monitor: split price/strategy stream", "price tick blocked by strategy");
@@ -127,7 +131,9 @@ if (indexTs2.includes("/api/mt5/tick") && indexTs2.includes("ingestMt5Tick")) {
   fail("api: mt5 tick bridge", "missing POST /api/mt5/tick");
 }
 
-const priceFeed = readFileSync(resolve(root, "server/price-feed.ts"), "utf8");
+const priceFeed =
+  readFileSync(resolve(root, "server/price-stream.ts"), "utf8") +
+  readFileSync(resolve(root, "server/price-feed.ts"), "utf8");
 if (priceFeed.includes("getMt5PriceData")) {
   ok("price: mt5 priority feed");
 } else {

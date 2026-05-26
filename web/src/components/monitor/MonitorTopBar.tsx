@@ -83,7 +83,7 @@ export function MonitorTopBar({
         {translating && <span className="text-[8px] text-cyan-400">{UZ.translating}</span>}
 
         {gold && (
-          <div className="font-mono-ui flex items-baseline gap-1.5" key={gold.timestamp}>
+          <div className="font-mono-ui flex items-baseline gap-1.5" key={`${gold.timestamp}-${tickFlash}`}>
             <span className="text-base font-bold text-[var(--term-gold)]">${gold.price.toFixed(2)}</span>
             <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
               {up ? "▲" : "▼"} {changeLabel}

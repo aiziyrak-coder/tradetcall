@@ -223,6 +223,8 @@ export interface MonitorSnapshot {
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
   tickSeq?: number;
+  priceUpdatedAt?: string;
+  signalUpdatedAt?: string;
   translating?: boolean;
   analyzingNews?: boolean;
   mt5Bridge?: Mt5BridgeStatus;
