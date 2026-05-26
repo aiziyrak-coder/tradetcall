@@ -39,13 +39,13 @@ const MIN_CONFLUENCE: Record<TradeMode, number> = {
 };
 const MIN_CONFIDENCE: Record<TradeMode, number> = {
   longterm: LONG_THRESHOLDS.minNewsConfidence + 10,
-  short: SHORT_THRESHOLDS.minNewsConfidence + 12,
+  short: SHORT_THRESHOLDS.minNewsConfidence + 6,
 };
 const MIN_SCORE: Record<TradeMode, number> = {
   longterm: LONG_THRESHOLDS.minBiasScore,
-  short: SHORT_THRESHOLDS.minBiasScore,
+  short: SHORT_THRESHOLDS.minBiasScore * 0.85,
 };
-const MIN_ADX: Record<TradeMode, number> = { longterm: 12, short: 14 };
+const MIN_ADX: Record<TradeMode, number> = { longterm: 12, short: 10 };
 
 export function evaluateNewsForTrade(
   news: NewsMarketAnalysis | null,
@@ -59,10 +59,12 @@ export function evaluateNewsForTrade(
       : LONG_THRESHOLDS;
 
   if (!news) {
-    if (tfTotal > 0 && tfAligned / tfTotal >= 0.75) {
+    const tfRatio = tfTotal > 0 ? tfAligned / tfTotal : 0;
+    const minTf = intendedBias === "short" ? SHORT_THRESHOLDS.minTfVoteRatio : 0.75;
+    if (tfRatio >= minTf) {
       return {
         ok: true,
-        verdictUz: "TF kuchli mos — yangiliklar zaif, texnik ustun.",
+        verdictUz: "TF impuls — yangiliklar ixtiyoriy (scalp).",
       };
     }
     return {
@@ -79,7 +81,8 @@ export function evaluateNewsForTrade(
   }
 
   if (news.confidence < cfg.minNewsConfidence) {
-    const tfOk = tfTotal > 0 && tfAligned / tfTotal >= 0.6;
+    const tfMin = intendedBias === "short" ? SHORT_THRESHOLDS.minTfVoteRatio : 0.6;
+    const tfOk = tfTotal > 0 && tfAligned / tfTotal >= tfMin;
     if (!tfOk) {
       return {
         ok: false,
@@ -91,7 +94,8 @@ export function evaluateNewsForTrade(
   const tfOk = tfTotal > 0 && tfAligned / tfTotal >= SHORT_THRESHOLDS.minTfVoteRatio;
   const softAlign = news.newsCandleAligned || tfOk;
 
-  if (!softAlign && news.confidence < 55) {
+  const minConfSoft = intendedBias === "short" ? 42 : 55;
+  if (!softAlign && news.confidence < minConfSoft) {
     return {
       ok: false,
       verdictUz: "Yangiliklar va shamlar/TF mos emas.",
@@ -113,8 +117,9 @@ export function evaluateNewsForTrade(
   if (intendedBias === "short") {
     const bearOk =
       (news.overallBias === "bearish" && news.biasStrength >= cfg.minNewsStrength) ||
-      (news.overallBias === "neutral" && news.confidence >= 48 && tfOk);
-    if (!bearOk && news.overallBias === "bullish" && news.biasStrength >= 50) {
+      (news.overallBias === "neutral" && news.confidence >= 40 && tfOk) ||
+      (tfOk && news.overallBias !== "bullish");
+    if (!bearOk && news.overallBias === "bullish" && news.biasStrength >= 55) {
       return {
         ok: false,
         verdictUz: `Short uchun bullish yangiliklar kuchli: ${news.biasStrength}%.`,
@@ -248,7 +253,14 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     };
   }
 
-  if (input.confidence < MIN_CONFIDENCE[input.mode]) {
+  const tfRatio =
+    (input.tfTotal ?? 0) > 0 ? (input.tfAligned ?? 0) / (input.tfTotal ?? 1) : 0;
+  const scalpMomentum =
+    input.mode === "short" &&
+    tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio &&
+    (input.adx ?? 0) >= MIN_ADX.short;
+
+  if (input.confidence < MIN_CONFIDENCE[input.mode] && !scalpMomentum) {
     return {
       allowed: false,
       effectiveBias: "wait",
@@ -258,7 +270,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     };
   }
 
-  if (Math.abs(input.techScore) < MIN_SCORE[input.mode]) {
+  if (Math.abs(input.techScore) < MIN_SCORE[input.mode] && !scalpMomentum) {
     return {
       allowed: false,
       effectiveBias: "wait",

@@ -19,20 +19,34 @@ export async function requestNotificationPermission(): Promise<NotifyPermission>
   }
 }
 
-function playSignalTone(): void {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Yangi BUY/SELL — 3 marta qisqa signal tovushi */
+export async function playTripleSignalAlert(action: "BUY" | "SELL"): Promise<void> {
+  if (typeof window === "undefined") return;
   try {
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    gain.gain.value = 0.08;
-    osc.start();
-    osc.stop(ctx.currentTime + 0.15);
-    setTimeout(() => void ctx.close(), 300);
+    const freqs = action === "BUY" ? [880, 1040, 1240] : [620, 520, 440];
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freqs[i];
+      const t0 = ctx.currentTime;
+      gain.gain.setValueAtTime(0.001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.14, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.11);
+      osc.start(t0);
+      osc.stop(t0 + 0.12);
+      if (i < 2) await sleep(140);
+    }
+    setTimeout(() => void ctx.close(), 400);
   } catch {
-    /* ignore */
+    /* brauzer ovozni bloklagan bo'lishi mumkin */
   }
 }
 
@@ -40,22 +54,16 @@ export function showSignalNotification(title: string, body: string, tag: string)
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
 
-  playSignalTone();
-
   const opts: NotificationOptions = {
     body,
     tag,
     icon: ICON,
     badge: ICON,
     requireInteraction: true,
-    silent: false,
+    silent: true,
   };
 
   try {
-    if (document.visibilityState === "hidden" || !document.hasFocus()) {
-      new Notification(title, opts);
-      return;
-    }
     new Notification(title, opts);
   } catch {
     /* Safari eski versiyalar */

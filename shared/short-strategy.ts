@@ -131,13 +131,25 @@ export function computeShortTermStrategy(
   const shortVotes = timeframes.filter((t) => t.bias === "short").length;
 
   const activeTf = timeframes.length || 1;
-  const minVotes = Math.max(2, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
+  const atrPct = price > 0 ? (atr5 / price) * 100 : 0;
+  const volatile =
+    atrPct >= 0.055 ||
+    tech5.adx >= 16 ||
+    Math.abs(tech5.rsi - 50) >= 11 ||
+    session.primeWindow;
+
+  let minVotes = Math.max(1, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
+  let minScore = SHORT_THRESHOLDS.minBiasScore;
+  if (volatile) {
+    minVotes = Math.max(1, minVotes - 1);
+    minScore *= 0.75;
+  }
 
   const tf5 = timeframes.find((t) => t.interval === "5m");
   const tf15 = timeframes.find((t) => t.interval === "15m");
+  const tf1 = timeframes.find((t) => t.interval === "1m");
 
   let bias: ShortTermStrategy["bias"] = "wait";
-  const minScore = SHORT_THRESHOLDS.minBiasScore;
   if (score >= minScore && longVotes >= minVotes && longVotes >= shortVotes) bias = "long";
   else if (score <= -minScore && shortVotes >= minVotes && shortVotes >= longVotes) bias = "short";
   else if (
@@ -145,9 +157,15 @@ export function computeShortTermStrategy(
     tf15 &&
     tf5.bias === tf15.bias &&
     tf5.bias !== "neutral" &&
-    Math.abs(score) >= minScore - 0.3
+    Math.abs(score) >= minScore - 0.25
   ) {
     bias = tf5.bias === "long" ? "long" : "short";
+  } else if (volatile && tf5 && tf5.bias !== "neutral") {
+    const impulsScore = minScore * 0.55;
+    if (tf5.bias === "long" && score >= impulsScore && longVotes >= shortVotes) bias = "long";
+    else if (tf5.bias === "short" && score <= -impulsScore && shortVotes >= longVotes) bias = "short";
+  } else if (volatile && tf1 && tf5 && tf1.bias === tf5.bias && tf1.bias !== "neutral") {
+    bias = tf1.bias === "long" ? "long" : "short";
   }
 
   const leadTimeframeUz = pickLeadTimeframe(timeframes, bias);
@@ -176,7 +194,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.min(sup - atr5 * 0.4, price - atr5 * 1.05));
     takeProfit = round2(price + Math.max(atr5 * 1.25, atr1 * 2));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", 2);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", SHORT_THRESHOLDS.minRiskReward);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy} · 30 daqiqa`,
@@ -198,7 +216,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.max(res + atr5 * 0.4, price + atr5 * 1.05));
     takeProfit = round2(price - Math.max(atr5 * 1.25, atr1 * 2));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", 2);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", SHORT_THRESHOLDS.minRiskReward);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy}`,

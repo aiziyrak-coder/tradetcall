@@ -54,14 +54,15 @@ function applyCapitalProtection(
       ? news?.overallBias !== "bearish" || (news?.biasStrength ?? 0) < 35
       : news?.overallBias !== "bullish" || (news?.biasStrength ?? 0) < 35;
 
+  const shortRelaxed = horizon === "short";
   const checks = [
     gate.allowed,
-    !!news && news.confidence >= cfg.minNewsConfidence,
-    news?.newsCandleAligned === true || tfOk || newsDirOk,
+    !news || news.confidence >= cfg.minNewsConfidence || (shortRelaxed && tfOk),
+    news?.newsCandleAligned === true || tfOk || newsDirOk || (shortRelaxed && !news),
     !news?.contradictionsUz,
     signal.riskReward >= cfg.minRiskReward,
-    confluencePct >= cfg.minConfluence,
-    strength >= cfg.minStrength,
+    confluencePct >= (shortRelaxed ? cfg.minConfluence - 5 : cfg.minConfluence),
+    strength >= (shortRelaxed ? cfg.minStrength - 4 : cfg.minStrength),
   ];
   const passed = checks.filter(Boolean).length;
   if (passed < cfg.minFilters) {
@@ -117,9 +118,15 @@ export function buildHorizonVerdict(input: {
   const tfAligned = input.tfAligned ?? (forLong ? (finalBias === "long" ? 1 : finalBias === "short" ? 1 : 0) : 0);
   const tfTotal = input.tfTotal ?? (forLong ? 1 : 4);
 
+  const tfRatio = tfTotal > 0 ? tfAligned / tfTotal : 0;
+  const shortScalp =
+    horizon === "short" &&
+    tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio &&
+    input.confidence >= SHORT_THRESHOLDS.minNewsConfidence;
+
   let action: TradeAction = "HOLD";
-  if (gate.allowed && finalBias === "long") action = "BUY";
-  else if (gate.allowed && finalBias === "short") action = "SELL";
+  if (finalBias === "long" && (gate.allowed || shortScalp)) action = "BUY";
+  else if (finalBias === "short" && (gate.allowed || shortScalp)) action = "SELL";
 
   const newsDir = newsDirectionScore(news, forLong);
   const techDir =

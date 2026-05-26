@@ -1,4 +1,4 @@
-/** Signal qattiqligi — uzoq yumsharoq, yaqin TF asosida */
+/** Signal qattiqligi — uzoq yumsharoq, yaqin TF + impuls uchun yumshoq */
 
 export const LONG_THRESHOLDS = {
   minFilters: 5,
@@ -11,14 +11,15 @@ export const LONG_THRESHOLDS = {
   minBiasScore: 2.4,
 };
 
+/** Yaqin (scalp) — tez bozor harakatida signal berish uchun yumshoq */
 export const SHORT_THRESHOLDS = {
-  minFilters: 5,
+  minFilters: 4,
   filterTotal: 7,
-  minStrength: 58,
-  minConfluence: 68,
-  minRiskReward: 1.9,
-  minNewsConfidence: 46,
-  minNewsStrength: 40,
-  minBiasScore: 2.2,
-  minTfVoteRatio: 0.5,
+  minStrength: 48,
+  minConfluence: 55,
+  minRiskReward: 1.6,
+  minNewsConfidence: 36,
+  minNewsStrength: 28,
+  minBiasScore: 1.4,
+  minTfVoteRatio: 0.26,
 };
