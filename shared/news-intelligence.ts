@@ -304,13 +304,17 @@ export function computeNewsIntelligence(
   const recommendationUz =
     contradictions.length > 0
       ? `TAVSIYA: HOZIR KIRMANG. Zid signal: ${contradictions[0]} Professional trader bu paytda kutadi.`
-      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 58
-        ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat LONG, SL majburiy, kichik lot."
-        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 58
-          ? "TAVSIYA: Yangiliklar + shamlar MOS — faqat SHORT, SL qat'iy."
-          : items.length < 8
-            ? "TAVSIYA: Yangiliklar yetarli emas — savdo OCHMANG."
-            : "TAVSIYA: Aniq yo'nalish yo'q — KUTING. Kapital himoya.";
+      : overallBias === "bullish" && biasStrength >= 45
+        ? candleAlign.aligned
+          ? "TAVSIYA: LONG moyil — yangiliklar + sham MOS, SL majburiy."
+          : "TAVSIYA: LONG ehtiyotkor — yangiliklar bullish, TF tasdiqini kuting."
+        : overallBias === "bearish" && biasStrength >= 45
+          ? candleAlign.aligned
+            ? "TAVSIYA: SHORT moyil — yangiliklar + sham MOS, SL qat'iy."
+            : "TAVSIYA: SHORT ehtiyotkor — yangiliklar bearish, TF tasdiqini kuting."
+          : items.length < 5
+            ? "TAVSIYA: Yangiliklar kam — faqat kuchli TF setupda kiring."
+            : "TAVSIYA: Neytral — uzoq HOLD, yaqin faqat TF mos bo'lsa.";
 
   const confidence = Math.min(
     98,
@@ -325,11 +329,11 @@ export function computeNewsIntelligence(
   const tradeVerdictUz =
     contradictions.length > 0
       ? `HUKM: KUTING — ${contradictions[0].slice(0, 90)}`
-      : overallBias === "bullish" && candleAlign.aligned && biasStrength >= 58
-        ? `HUKM: LONG moyil (${biasStrength}%) — faqat MOS shartlarda kirish`
-        : overallBias === "bearish" && candleAlign.aligned && biasStrength >= 58
-          ? `HUKM: SHORT moyil (${biasStrength}%) — faqat MOS shartlarda`
-          : `HUKM: KUTING — ${items.length} yangilik, ishonch ${confidence}%`;
+      : overallBias === "bullish" && biasStrength >= 45
+        ? `HUKM: LONG moyil (${biasStrength}%) — swing yoki TF tasdiq`
+        : overallBias === "bearish" && biasStrength >= 45
+          ? `HUKM: SHORT moyil (${biasStrength}%) — swing yoki TF tasdiq`
+          : `HUKM: NEYTRAL — ${items.length} yangilik, ishonch ${confidence}%`;
 
   const forecastUz =
     `${overallBias === "bullish" ? "▲" : overallBias === "bearish" ? "▼" : "◆"} 24–72s: ` +

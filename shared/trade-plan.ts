@@ -1,5 +1,6 @@
 import type { HorizonVerdict } from "./horizon-verdict";
 import { calcPositionSize } from "./risk-calculator";
+import { LONG_THRESHOLDS, SHORT_THRESHOLDS } from "./signal-thresholds";
 import type { SignalDetail } from "./signal-detail";
 
 export interface TradePlanInput {
@@ -43,13 +44,14 @@ export function formatHoldUz(minutes: number): string {
 
 export function buildTradePlan(input: TradePlanInput): TradePlan {
   const { verdict, signal, horizon } = input;
-  const filterTotal = verdict.checklist.length || 7;
+  const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
+  const filterTotal = verdict.checklist.length || cfg.filterTotal;
   const filterPassed = verdict.checklist.filter((c) => c.ok).length;
   const trusted =
     verdict.action !== "HOLD" &&
     verdict.gateAllowed &&
-    filterPassed >= 7 &&
-    verdict.strength >= 82;
+    filterPassed >= cfg.minFilters &&
+    verdict.strength >= cfg.minStrength;
 
   const holdMinutes =
     input.maxHoldMinutes ?? (horizon === "short" ? 30 : 28 * 24 * 60);
@@ -99,9 +101,9 @@ export function buildTradePlan(input: TradePlanInput): TradePlan {
   });
 
   let lots = risk.suggestedLots;
-  if (filterPassed === 7 && verdict.strength >= 88) {
+  if (filterPassed >= cfg.filterTotal && verdict.strength >= cfg.minStrength + 10) {
     lots = risk.suggestedLots;
-  } else if (filterPassed >= 6) {
+  } else if (filterPassed >= cfg.minFilters) {
     lots = Math.round(risk.suggestedLots * 0.5 * 100) / 100;
   } else {
     lots = 0;

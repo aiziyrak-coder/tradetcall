@@ -28,7 +28,7 @@ export function StrategiesStackPanel({ longStrategy, shortStrategy }: Props) {
           Signal markazi
         </h2>
         <p className="text-[7px] text-[var(--term-muted)]">
-          Faqat ishonchli BUY/SELL — 7/7 filter
+          Uzoq: kuniga 0–1 · Yaqin: TF asosida aniq signal
         </p>
         <div className="mt-1 flex gap-1">
           <button

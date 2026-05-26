@@ -2,6 +2,7 @@ import type { NewsMarketAnalysis } from "./types";
 import type { CalendarStatus } from "./calendar-types";
 import type { MarketRegime } from "./market-regime";
 import { getMarketSession } from "./market-session";
+import { LONG_THRESHOLDS, SHORT_THRESHOLDS } from "./signal-thresholds";
 
 export type TradeMode = "longterm" | "short";
 
@@ -16,6 +17,8 @@ export interface TradeGateInput {
   regime?: MarketRegime | null;
   calendar?: CalendarStatus | null;
   adx?: number;
+  tfAligned?: number;
+  tfTotal?: number;
 }
 
 export interface TradeGateResult {
@@ -26,22 +29,45 @@ export interface TradeGateResult {
   newsVerdictUz: string;
 }
 
-const MIN_RR: Record<TradeMode, number> = { longterm: 2.4, short: 2.2 };
-const MIN_CONFLUENCE: Record<TradeMode, number> = { longterm: 82, short: 88 };
-const MIN_CONFIDENCE: Record<TradeMode, number> = { longterm: 72, short: 76 };
-const MIN_SCORE: Record<TradeMode, number> = { longterm: 3.6, short: 4.2 };
-const MIN_ADX: Record<TradeMode, number> = { longterm: 18, short: 22 };
-const MIN_NEWS_CONF = 58;
-const MIN_NEWS_STRENGTH = 55;
+const MIN_RR: Record<TradeMode, number> = {
+  longterm: LONG_THRESHOLDS.minRiskReward,
+  short: SHORT_THRESHOLDS.minRiskReward,
+};
+const MIN_CONFLUENCE: Record<TradeMode, number> = {
+  longterm: LONG_THRESHOLDS.minConfluence,
+  short: SHORT_THRESHOLDS.minConfluence,
+};
+const MIN_CONFIDENCE: Record<TradeMode, number> = {
+  longterm: LONG_THRESHOLDS.minNewsConfidence + 10,
+  short: SHORT_THRESHOLDS.minNewsConfidence + 12,
+};
+const MIN_SCORE: Record<TradeMode, number> = {
+  longterm: LONG_THRESHOLDS.minBiasScore,
+  short: SHORT_THRESHOLDS.minBiasScore,
+};
+const MIN_ADX: Record<TradeMode, number> = { longterm: 12, short: 14 };
 
 export function evaluateNewsForTrade(
   news: NewsMarketAnalysis | null,
-  intendedBias: "long" | "short" | "wait"
+  intendedBias: "long" | "short" | "wait",
+  tfAligned = 0,
+  tfTotal = 0
 ): { ok: boolean; verdictUz: string } {
+  const cfg =
+    intendedBias === "short" || intendedBias === "wait"
+      ? SHORT_THRESHOLDS
+      : LONG_THRESHOLDS;
+
   if (!news) {
+    if (tfTotal > 0 && tfAligned / tfTotal >= 0.75) {
+      return {
+        ok: true,
+        verdictUz: "TF kuchli mos — yangiliklar zaif, texnik ustun.",
+      };
+    }
     return {
       ok: false,
-      verdictUz: "Yangiliklar tahlili tayyor emas — savdo OCHMANG, kapital himoya.",
+      verdictUz: "Yangiliklar tahlili tayyor emas — kuting yoki faqat TF.",
     };
   }
 
@@ -52,40 +78,52 @@ export function evaluateNewsForTrade(
     };
   }
 
-  if (news.confidence < MIN_NEWS_CONF) {
-    return {
-      ok: false,
-      verdictUz: `Yangiliklar ishonchi ${news.confidence}% — kamida ${MIN_NEWS_CONF}% kerak.`,
-    };
+  if (news.confidence < cfg.minNewsConfidence) {
+    const tfOk = tfTotal > 0 && tfAligned / tfTotal >= 0.6;
+    if (!tfOk) {
+      return {
+        ok: false,
+        verdictUz: `Yangiliklar ishonchi ${news.confidence}% — past.`,
+      };
+    }
   }
 
-  if (!news.newsCandleAligned) {
+  const tfOk = tfTotal > 0 && tfAligned / tfTotal >= SHORT_THRESHOLDS.minTfVoteRatio;
+  const softAlign = news.newsCandleAligned || tfOk;
+
+  if (!softAlign && news.confidence < 55) {
     return {
       ok: false,
-      verdictUz: "Yangiliklar va shamlar MOS emas — professional trader kutadi.",
+      verdictUz: "Yangiliklar va shamlar/TF mos emas.",
     };
   }
 
   if (intendedBias === "long") {
-    if (news.overallBias !== "bullish" || news.biasStrength < MIN_NEWS_STRENGTH) {
+    const bullOk =
+      (news.overallBias === "bullish" && news.biasStrength >= cfg.minNewsStrength) ||
+      (news.overallBias === "neutral" && news.confidence >= 50 && tfOk);
+    if (!bullOk && news.overallBias === "bearish" && news.biasStrength >= 50) {
       return {
         ok: false,
-        verdictUz: `Long uchun yangiliklar aniq BULLISH emas: ${news.overallBias} ${news.biasStrength}%.`,
+        verdictUz: `Long uchun bearish yangiliklar kuchli: ${news.biasStrength}%.`,
       };
     }
   }
 
   if (intendedBias === "short") {
-    if (news.overallBias !== "bearish" || news.biasStrength < MIN_NEWS_STRENGTH) {
+    const bearOk =
+      (news.overallBias === "bearish" && news.biasStrength >= cfg.minNewsStrength) ||
+      (news.overallBias === "neutral" && news.confidence >= 48 && tfOk);
+    if (!bearOk && news.overallBias === "bullish" && news.biasStrength >= 50) {
       return {
         ok: false,
-        verdictUz: `Short uchun yangiliklar aniq BEARISH emas: ${news.overallBias} ${news.biasStrength}%.`,
+        verdictUz: `Short uchun bullish yangiliklar kuchli: ${news.biasStrength}%.`,
       };
     }
   }
 
   const rec = news.recommendationUz ?? "";
-  if (/tavsiya:\s*hozir\s*kirmang|tavsiya:\s*.*ochmang|savdo\s*ochmang|hukm:\s*kuting/i.test(rec)) {
+  if (/tavsiya:\s*hozir\s*kirmang|savdo\s*ochmang/i.test(rec) && !tfOk) {
     return { ok: false, verdictUz: rec };
   }
 
@@ -93,13 +131,13 @@ export function evaluateNewsForTrade(
     ok: true,
     verdictUz:
       news.recommendationUz?.slice(0, 120) ||
-      `Yangiliklar MOS: ${news.overallBias} ${news.biasStrength}%, ishonch ${news.confidence}%.`,
+      `Yangiliklar: ${news.overallBias} ${news.biasStrength}%, ishonch ${news.confidence}%.`,
   };
 }
 
 export function applyTradeGate(input: TradeGateInput): TradeGateResult {
   const capitalRuleUz =
-    "KAPITAL HIMOYA: Faqat barcha filter MOS bo'lganda BUY/SELL. SL majburiy. Shubha bo'lsa HOLD — zarar kamaytirish birinchi.";
+    "Uzoq: kuniga 0–1 setup. Yaqin: TF mos kelganda signal. SL majburiy.";
 
   if (input.calendar?.inHighImpactWindow) {
     return {
@@ -115,18 +153,22 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Texnik va yangiliklar bir yo'nalish bermadi.",
+      reasonUz: "TF va texnik bir yo'nalish bermadi.",
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? "Kuting.",
     };
   }
 
   const session = getMarketSession();
-  if (input.mode === "short" && !session.primeWindow && session.volatility === "past") {
+  if (
+    input.mode === "short" &&
+    !session.active &&
+    session.volatility === "past"
+  ) {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Scalp uchun London/NY faol sessiyasi kerak — hozir sokin vaqt.",
+      reasonUz: "Scalp uchun bozor faol emas — London/NY ochilishini kuting.",
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? session.hintUz,
     };
@@ -134,7 +176,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
 
   const regime = input.regime;
   if (regime) {
-    if (input.bias === "long" && regime.goldLongAdjust <= -1) {
+    if (input.bias === "long" && regime.goldLongAdjust <= -2) {
       return {
         allowed: false,
         effectiveBias: "wait",
@@ -143,7 +185,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
         newsVerdictUz: input.news?.recommendationUz ?? regime.summaryUz,
       };
     }
-    if (input.bias === "short" && regime.goldLongAdjust >= 1) {
+    if (input.bias === "short" && regime.goldLongAdjust >= 2) {
       return {
         allowed: false,
         effectiveBias: "wait",
@@ -156,16 +198,26 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
 
   const adx = input.adx ?? 0;
   if (adx > 0 && adx < MIN_ADX[input.mode]) {
-    return {
-      allowed: false,
-      effectiveBias: "wait",
-      reasonUz: `Trend kuchi past, ADX ${adx} — range, signal ishonchsiz.`,
-      capitalRuleUz,
-      newsVerdictUz: input.news?.recommendationUz ?? "ADX past.",
-    };
+    const tfStrong =
+      (input.tfTotal ?? 0) > 0 &&
+      (input.tfAligned ?? 0) / (input.tfTotal ?? 1) >= 0.75;
+    if (!tfStrong) {
+      return {
+        allowed: false,
+        effectiveBias: "wait",
+        reasonUz: `ADX ${adx} past — trend zaif.`,
+        capitalRuleUz,
+        newsVerdictUz: input.news?.recommendationUz ?? "ADX past.",
+      };
+    }
   }
 
-  const newsCheck = evaluateNewsForTrade(input.news, input.bias);
+  const newsCheck = evaluateNewsForTrade(
+    input.news,
+    input.bias,
+    input.tfAligned ?? 0,
+    input.tfTotal ?? 0
+  );
   if (!newsCheck.ok) {
     return {
       allowed: false,
@@ -180,7 +232,7 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Risk/Foyda 1:${input.riskReward} — minimum 1:${MIN_RR[input.mode]}.`,
+      reasonUz: `R:R 1:${input.riskReward} — minimum 1:${MIN_RR[input.mode]}.`,
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -210,19 +262,24 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Texnik kuch yetarli emas — faqat kuchli setup.",
+      reasonUz: "Texnik/TF kuchi yetarli emas.",
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
   }
+
+  const leadTf =
+    input.mode === "short" && input.tfTotal
+      ? `${input.tfAligned}/${input.tfTotal} TF`
+      : "swing";
 
   return {
     allowed: true,
     effectiveBias: input.bias,
     reasonUz:
       input.mode === "short"
-        ? "Barcha filter MOS — qisqa muddat: yangiliklar + TF + R:R + sessiya."
-        : "Barcha filter MOS — swing: yangiliklar + texnik + makro.",
+        ? `Signal: ${leadTf} + yangiliklar + R:R MOS.`
+        : "Swing signal: texnik + yangiliklar + makro.",
     capitalRuleUz,
     newsVerdictUz: newsCheck.verdictUz,
   };

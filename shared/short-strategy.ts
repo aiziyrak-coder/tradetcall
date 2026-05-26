@@ -14,6 +14,7 @@ import { getCalendarStatus } from "./economic-calendar";
 import { evaluateMarketRegime } from "./market-regime";
 import { getMarketSession } from "./market-session";
 import { analyzeTechnicals } from "./technical";
+import { SHORT_THRESHOLDS } from "./signal-thresholds";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
 
@@ -36,6 +37,19 @@ function tfBias(tech: ReturnType<typeof analyzeTechnicals>): TimeframeSignal["bi
   if (tech.rsi > 70) return "short";
   if (tech.rsi < 30) return "long";
   return "neutral";
+}
+
+function pickLeadTimeframe(
+  timeframes: TimeframeSignal[],
+  bias: "long" | "short" | "wait"
+): string {
+  if (bias === "wait") return "5 daqiqa";
+  const order: ChartInterval[] = ["5m", "15m", "1m", "1h"];
+  for (const id of order) {
+    const t = timeframes.find((x) => x.interval === id);
+    if (t?.bias === bias) return t.labelUz;
+  }
+  return timeframes[0]?.labelUz ?? "5 daqiqa";
 }
 
 function formatClockOffset(minutes: number): string {
@@ -117,11 +131,26 @@ export function computeShortTermStrategy(
   const shortVotes = timeframes.filter((t) => t.bias === "short").length;
 
   const activeTf = timeframes.length || 1;
-  const minVotes = Math.max(2, Math.ceil(activeTf * 0.75));
+  const minVotes = Math.max(2, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
+
+  const tf5 = timeframes.find((t) => t.interval === "5m");
+  const tf15 = timeframes.find((t) => t.interval === "15m");
 
   let bias: ShortTermStrategy["bias"] = "wait";
-  if (score >= 4.5 && longVotes >= minVotes && longVotes >= shortVotes + 1) bias = "long";
-  else if (score <= -4.5 && shortVotes >= minVotes && shortVotes >= longVotes + 1) bias = "short";
+  const minScore = SHORT_THRESHOLDS.minBiasScore;
+  if (score >= minScore && longVotes >= minVotes && longVotes >= shortVotes) bias = "long";
+  else if (score <= -minScore && shortVotes >= minVotes && shortVotes >= longVotes) bias = "short";
+  else if (
+    tf5 &&
+    tf15 &&
+    tf5.bias === tf15.bias &&
+    tf5.bias !== "neutral" &&
+    Math.abs(score) >= minScore - 0.3
+  ) {
+    bias = tf5.bias === "long" ? "long" : "short";
+  }
+
+  const leadTimeframeUz = pickLeadTimeframe(timeframes, bias);
 
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
@@ -223,6 +252,8 @@ export function computeShortTermStrategy(
     regime,
     calendar,
     adx: tech5.adx,
+    tfAligned,
+    tfTotal: activeTf,
   });
 
   const finalBias = gate.effectiveBias;
@@ -321,6 +352,9 @@ export function computeShortTermStrategy(
     confidence,
     confluencePct,
     playbookUz,
+    tfAligned,
+    tfTotal: activeTf,
+    leadTimeframeUz,
   });
 
   return {

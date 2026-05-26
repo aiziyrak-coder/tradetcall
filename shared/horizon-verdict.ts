@@ -1,12 +1,9 @@
 import type { SignalCheckItem, SignalDetail } from "./signal-detail";
+import { LONG_THRESHOLDS, SHORT_THRESHOLDS } from "./signal-thresholds";
 import type { TradeGateResult } from "./trade-gate";
 import type { NewsMarketAnalysis, TechnicalAnalysis } from "./types";
 
 export type TradeAction = "BUY" | "SELL" | "HOLD";
-
-/** BUY/SELL faqat shu kuchdan yuqori */
-const MIN_TRADE_STRENGTH = 82;
-const MIN_PILLAR_SCORE = 70;
 
 export interface HorizonVerdict {
   horizon: "long" | "short";
@@ -30,40 +27,57 @@ export interface HorizonVerdict {
   inEntryZone: boolean;
   checklist: SignalCheckItem[];
   pillars: { label: string; score: number; noteUz: string }[];
+  leadTimeframeUz?: string;
+  tfSummaryUz?: string;
 }
 
 function applyCapitalProtection(
+  horizon: "long" | "short",
   action: TradeAction,
   strength: number,
   gate: TradeGateResult,
   news: NewsMarketAnalysis | null,
   signal: SignalDetail,
-  confluencePct: number
+  confluencePct: number,
+  tfAligned: number,
+  tfTotal: number
 ): { action: TradeAction; reliabilityUz: string } {
+  const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
+
   if (action === "HOLD") {
     return { action: "HOLD", reliabilityUz: "Kutiling — setup tayyor emas" };
   }
 
+  const tfOk = tfTotal > 0 && tfAligned / tfTotal >= SHORT_THRESHOLDS.minTfVoteRatio;
+  const newsDirOk =
+    horizon === "long"
+      ? news?.overallBias !== "bearish" || (news?.biasStrength ?? 0) < 35
+      : news?.overallBias !== "bullish" || (news?.biasStrength ?? 0) < 35;
+
   const checks = [
     gate.allowed,
-    !!news && news.confidence >= 58,
-    news?.newsCandleAligned === true,
+    !!news && news.confidence >= cfg.minNewsConfidence,
+    news?.newsCandleAligned === true || tfOk || newsDirOk,
     !news?.contradictionsUz,
-    signal.riskReward >= 2.2,
-    confluencePct >= 82,
-    strength >= MIN_TRADE_STRENGTH,
+    signal.riskReward >= cfg.minRiskReward,
+    confluencePct >= cfg.minConfluence,
+    strength >= cfg.minStrength,
   ];
   const passed = checks.filter(Boolean).length;
-  if (passed < 7) {
+  if (passed < cfg.minFilters) {
     return {
       action: "HOLD",
-      reliabilityUz: `Ishonchli emas — ${passed}/7 filter — savdo qilmang`,
+      reliabilityUz: `Aniq emas — ${passed}/${cfg.filterTotal} filter — kichik lot yoki kuting`,
     };
   }
 
+  const tier =
+    passed >= cfg.filterTotal && strength >= cfg.minStrength + 8
+      ? "Kuchli"
+      : "Aniq";
   return {
     action,
-    reliabilityUz: "Ishonchli signal — barcha filter MOS, SL majburiy",
+    reliabilityUz: `${tier} signal — ${passed}/${cfg.filterTotal} filter MOS, SL majburiy`,
   };
 }
 
@@ -72,12 +86,14 @@ function newsDirectionScore(na: NewsMarketAnalysis | null, forLong: boolean): nu
   let s = 0;
   if (na.overallBias === "bullish") s += na.biasStrength * 0.5;
   if (na.overallBias === "bearish") s -= na.biasStrength * 0.5;
-  if (!na.newsCandleAligned) s *= 0.2;
+  if (!na.newsCandleAligned) s *= 0.45;
   if (na.contradictionsUz) return 0;
-  s += (na.confidence - 50) * 0.25;
+  s += (na.confidence - 50) * 0.3;
   const dirOk =
-    forLong ? na.overallBias === "bullish" : na.overallBias === "bearish";
-  if (!dirOk) s *= 0.35;
+    forLong
+      ? na.overallBias !== "bearish"
+      : na.overallBias !== "bullish";
+  if (!dirOk && na.biasStrength > 50) s *= 0.5;
   return Math.max(-100, Math.min(100, Math.round(s)));
 }
 
@@ -91,9 +107,15 @@ export function buildHorizonVerdict(input: {
   confidence: number;
   confluencePct: number;
   playbookUz?: string;
+  tfAligned?: number;
+  tfTotal?: number;
+  leadTimeframeUz?: string;
 }): HorizonVerdict {
   const { horizon, finalBias, gate, news, tech, signal } = input;
+  const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
   const forLong = horizon === "long";
+  const tfAligned = input.tfAligned ?? (forLong ? (finalBias === "long" ? 1 : finalBias === "short" ? 1 : 0) : 0);
+  const tfTotal = input.tfTotal ?? (forLong ? 1 : 4);
 
   let action: TradeAction = "HOLD";
   if (gate.allowed && finalBias === "long") action = "BUY";
@@ -102,55 +124,69 @@ export function buildHorizonVerdict(input: {
   const newsDir = newsDirectionScore(news, forLong);
   const techDir =
     tech.trend === "bullish" ? 38 : tech.trend === "bearish" ? -38 : 0;
-  const techDir2 = (tech.rsi - 50) * 0.35 + (tech.adx >= 24 ? 12 : tech.adx >= 18 ? 4 : -8);
+  const techDir2 = (tech.rsi - 50) * 0.35 + (tech.adx >= 22 ? 12 : tech.adx >= 16 ? 6 : 0);
 
   let rawStrength =
-    Math.abs(newsDir) * 0.58 +
-    Math.abs(techDir + techDir2) * 0.18 +
-    input.confluencePct * 0.14 +
+    Math.abs(newsDir) * 0.52 +
+    Math.abs(techDir + techDir2) * 0.22 +
+    input.confluencePct * 0.16 +
     input.confidence * 0.1;
 
-  if (!news || news.confidence < 58) rawStrength = Math.min(rawStrength, 40);
-  if (!gate.allowed) rawStrength = Math.min(rawStrength, 45);
+  if (tfTotal > 0) {
+    rawStrength += (tfAligned / tfTotal) * 18;
+  }
+
+  if (!news || news.confidence < cfg.minNewsConfidence) rawStrength = Math.min(rawStrength, 48);
+  if (!gate.allowed) rawStrength = Math.min(rawStrength, 50);
 
   const actionBoost =
-    action !== "HOLD" && gate.allowed && signal.inEntryZone ? 12 : 0;
+    action !== "HOLD" && gate.allowed && signal.inEntryZone ? 10 : 0;
   let strength = Math.min(98, Math.round(rawStrength + actionBoost));
 
   const cap = applyCapitalProtection(
+    horizon,
     action,
     strength,
     gate,
     news,
     signal,
-    input.confluencePct
+    input.confluencePct,
+    tfAligned,
+    tfTotal
   );
   action = cap.action;
-  if (action === "HOLD") strength = Math.min(strength, 52);
+  if (action === "HOLD") strength = Math.min(strength, 55);
 
-  const newsWeightPct = 60;
-  const techWeightPct = 40;
+  const newsWeightPct = 55;
+  const techWeightPct = 45;
+
+  const tfSummaryUz =
+    input.leadTimeframeUz && tfTotal > 0
+      ? `Asosiy TF: ${input.leadTimeframeUz} · ${tfAligned}/${tfTotal} mos`
+      : tfTotal > 0
+        ? `${tfAligned}/${tfTotal} timeframe mos`
+        : "";
 
   const newsBlock = news
     ? `YANGILIKLAR [${news.overallBias} ${news.biasStrength}%, ishonch ${news.confidence}%]: ${
         news.tradeVerdictUz?.slice(0, 100) ?? news.recommendationUz?.slice(0, 100) ?? ""
-      } ${news.newsCandleAligned ? "✓ Sham MOS" : "✗ Sham mos emas"}`
-    : "YANGILIKLAR: yetarli emas — HOLD.";
+      } ${news.newsCandleAligned ? "✓ Sham MOS" : "△ Qisman mos"}`
+    : "YANGILIKLAR: yetarli emas.";
 
   const techBlock = `TEXNIK: ${tech.trend}, RSI ${tech.rsi}, ADX ${tech.adx}. ${tech.momentum}`;
 
   const analysisUz =
     action === "HOLD"
-      ? `${newsBlock}. ${techBlock}. ${cap.reliabilityUz}. ${gate.reasonUz.slice(0, 90)}`
-      : `${newsBlock}. ${techBlock}. ${cap.reliabilityUz}.`;
+      ? `${newsBlock}. ${techBlock}. ${tfSummaryUz} ${cap.reliabilityUz}. ${gate.reasonUz.slice(0, 80)}`
+      : `${newsBlock}. ${techBlock}. ${tfSummaryUz} ${cap.reliabilityUz}.`;
 
   const forecastUz =
     news?.trendOutlookUz?.slice(0, 200) ||
     news?.forecastUz?.slice(0, 200) ||
     input.playbookUz?.slice(0, 160) ||
     (forLong
-      ? "Swing: faqat yangiliklar + texnik + makro to'liq MOS bo'lganda."
-      : "Scalp: 30 daqiqa, faqat kuchli yangiliklar fonida.");
+      ? "Swing: kuniga 0–1 ta aniq setup yetarli."
+      : `Scalp: ${input.leadTimeframeUz ?? "5m"} TF asosida, 30 daqiqa.`);
 
   let signalUz: string;
   if (action === "BUY") {
@@ -170,7 +206,7 @@ export function buildHorizonVerdict(input: {
       label: "Yangiliklar",
       score: Math.min(
         100,
-        Math.abs(newsDir) + (news?.confidence ?? 0) * 0.35 + (news?.newsCandleAligned ? 15 : 0)
+        Math.abs(newsDir) + (news?.confidence ?? 0) * 0.35 + (news?.newsCandleAligned ? 15 : 5)
       ),
       noteUz: news ? `${news.overallBias} ${news.biasStrength}%` : "—",
     },
@@ -180,25 +216,28 @@ export function buildHorizonVerdict(input: {
       noteUz: `${tech.trend} RSI${tech.rsi}`,
     },
     {
-      label: "Moslik",
-      score: input.confluencePct,
-      noteUz: `${input.confluencePct}%`,
+      label: "TF",
+      score: tfTotal > 0 ? Math.round((tfAligned / tfTotal) * 100) : input.confluencePct,
+      noteUz: tfTotal > 0 ? `${tfAligned}/${tfTotal}` : "—",
     },
     {
       label: "Gate",
-      score: gate.allowed ? 95 : 20,
+      score: gate.allowed ? 90 : 25,
       noteUz: gate.allowed ? "OK" : "Blok",
     },
   ];
 
   const checklist: SignalCheckItem[] = [
     {
-      ok: !!news && news.confidence >= 58,
+      ok: !!news && news.confidence >= cfg.minNewsConfidence,
       textUz: news ? `Yangiliklar ${news.confidence}%` : "Yangiliklar yo'q",
     },
     {
-      ok: news?.newsCandleAligned === true,
-      textUz: news?.newsCandleAligned ? "Yangilik+sham MOS" : "Mos emas — HOLD",
+      ok: news?.newsCandleAligned === true || (tfTotal > 0 && tfAligned / tfTotal >= 0.5),
+      textUz:
+        news?.newsCandleAligned || (tfTotal > 0 && tfAligned / tfTotal >= 0.5)
+          ? "Yangilik yoki TF mos"
+          : "Moslik past",
     },
     {
       ok: !news?.contradictionsUz,
@@ -209,15 +248,19 @@ export function buildHorizonVerdict(input: {
       textUz: gate.allowed ? "Gate ruxsat" : gate.reasonUz.slice(0, 65),
     },
     {
-      ok: signal.riskReward >= 2.2,
-      textUz: `R:R 1:${signal.riskReward}`,
+      ok: signal.riskReward >= cfg.minRiskReward,
+      textUz: `R:R 1:${signal.riskReward} · min 1:${cfg.minRiskReward}`,
     },
     {
-      ok: strength >= MIN_TRADE_STRENGTH && action !== "HOLD",
+      ok: input.confluencePct >= cfg.minConfluence,
+      textUz: `Moslik ${input.confluencePct}%`,
+    },
+    {
+      ok: strength >= cfg.minStrength && action !== "HOLD",
       textUz:
         action !== "HOLD"
-          ? `Kuch ${strength}% — ishonchli`
-          : `Kuch ${strength}% — yetarli emas`,
+          ? `Kuch ${strength}%`
+          : `Kuch ${strength}% — signal yo'q`,
     },
   ];
 
@@ -243,5 +286,7 @@ export function buildHorizonVerdict(input: {
     inEntryZone: signal.inEntryZone,
     checklist,
     pillars,
+    leadTimeframeUz: input.leadTimeframeUz,
+    tfSummaryUz,
   };
 }

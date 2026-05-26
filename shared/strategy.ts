@@ -12,6 +12,7 @@ import { getCalendarStatus } from "./economic-calendar";
 import { evaluateMarketRegime } from "./market-regime";
 import { getSwingSessionWindow } from "./market-session";
 import { analyzeTechnicals } from "./technical";
+import { LONG_THRESHOLDS } from "./signal-thresholds";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
 
@@ -92,8 +93,8 @@ export function computeLongTermStrategy(
   score += newsScoreFromAnalysis(na);
 
   let bias: LongTermStrategy["bias"] = "wait";
-  if (score >= 3.8) bias = "long";
-  else if (score <= -3.8) bias = "short";
+  if (score >= LONG_THRESHOLDS.minBiasScore) bias = "long";
+  else if (score <= -LONG_THRESHOLDS.minBiasScore) bias = "short";
 
   const sup = tech.support[0] ?? price - atrVal * 2;
   const res = tech.resistance[0] ?? price + atrVal * 2;
@@ -196,6 +197,15 @@ export function computeLongTermStrategy(
     )
   );
 
+  const tfAligned =
+    bias === "long" && tech.trend === "bullish"
+      ? 1
+      : bias === "short" && tech.trend === "bearish"
+        ? 1
+        : bias !== "wait"
+          ? 1
+          : 0;
+
   const gate = applyTradeGate({
     bias,
     news: na,
@@ -207,6 +217,8 @@ export function computeLongTermStrategy(
     regime,
     calendar,
     adx: tech.adx,
+    tfAligned,
+    tfTotal: 1,
   });
 
   const finalBias = gate.effectiveBias;
@@ -311,6 +323,9 @@ export function computeLongTermStrategy(
     confidence,
     confluencePct,
     playbookUz,
+    tfAligned,
+    tfTotal: 1,
+    leadTimeframeUz: "kunlik / asosiy grafik",
   });
 
   return {
