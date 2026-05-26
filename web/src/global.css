@@ -294,8 +294,10 @@ body {
 
   .monitor-panel-intel {
     order: 3;
-    min-height: 200px;
-    max-height: 320px;
+    min-height: 0;
+    max-height: none;
+    display: grid !important;
+    grid-template-rows: auto minmax(180px, 1fr) !important;
   }
 
   .monitor-panel-news {

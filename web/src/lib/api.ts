@@ -118,11 +118,23 @@ export const api = {
 
   journal: {
     get: () => request<SignalJournalSnapshot>("/api/journal"),
+    setNote: (id: string, noteUz: string) =>
+      request<{ ok: boolean }>(`/api/journal/${id}/note`, {
+        method: "PATCH",
+        body: JSON.stringify({ noteUz }),
+      }),
     setOutcome: (id: string, outcome: "win" | "loss" | "cancelled" | "expired", noteUz?: string) =>
       request<{ ok: boolean }>(`/api/journal/${id}/outcome`, {
         method: "POST",
         body: JSON.stringify({ outcome, noteUz }),
       }),
+  },
+
+  reports: {
+    weekly: () =>
+      request<{ ok: boolean; report: import("../../../shared/weekly-report").WeeklyReport }>(
+        "/api/reports/weekly"
+      ),
   },
 };
 

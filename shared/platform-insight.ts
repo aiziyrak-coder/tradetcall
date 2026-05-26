@@ -6,10 +6,16 @@ import {
   type CapitalShieldPrefs,
   type CapitalShieldState,
 } from "./capital-shield";
+import { analyzeMacroCorrelation, type MacroCorrelation } from "./macro-correlation";
 import { computeMarketQuality, type MarketQuality } from "./market-quality";
+import { analyzeNewsFreshness, type NewsFreshness } from "./news-freshness";
 import { auditPlatformSnapshot, type PlatformAuditReport } from "./platform-audit";
+import { computePriceDivergence, type PriceDivergence } from "./price-divergence";
 import { buildSignalExplainer, type SignalExplainer } from "./signal-explainer";
+import { evaluateTradingDiscipline, type TradingDiscipline } from "./trading-discipline";
 import type { MonitorSnapshot } from "./types";
+import { buildWeeklyReport, type WeeklyReport } from "./weekly-report";
+
 export interface JournalStats {
   total: number;
   wins: number;
@@ -28,6 +34,11 @@ export interface PlatformInsight {
   journalStats: JournalStats;
   backtestShort: ReturnType<typeof runQuickBacktest>;
   backtestLong: ReturnType<typeof runQuickBacktest>;
+  macroCorrelation: MacroCorrelation;
+  newsFreshness: NewsFreshness;
+  priceDivergence: PriceDivergence | null;
+  discipline: TradingDiscipline;
+  weeklyReport: WeeklyReport;
   playbookUz: string;
   updatedAt: string;
 }
@@ -36,10 +47,16 @@ export function buildPlatformInsight(
   snap: MonitorSnapshot,
   journalStats: JournalStats,
   shieldPrefs: CapitalShieldPrefs = DEFAULT_CAPITAL_SHIELD,
-  shieldDayStats?: CapitalShieldDayStats
+  shieldDayStats?: CapitalShieldDayStats,
+  yahooRefPrice?: number | null
 ): PlatformInsight {
-  const marketQuality = computeMarketQuality(snap.gold, snap);
+  const mt5Price = snap.gold?.feed === "mt5" ? snap.gold.price : null;
+  const priceDivergence = computePriceDivergence(mt5Price, yahooRefPrice ?? null);
+
+  const marketQuality = computeMarketQuality(snap.gold, snap, priceDivergence);
   const audit = auditPlatformSnapshot(snap);
+  const macroCorrelation = analyzeMacroCorrelation(snap.drivers ?? [], snap.newsAnalysis);
+  const newsFreshness = analyzeNewsFreshness(snap.news);
 
   const today = new Date().toISOString().slice(0, 10);
   const stats: CapitalShieldDayStats = shieldDayStats ?? {
@@ -48,7 +65,9 @@ export function buildPlatformInsight(
     wins: journalStats.wins,
     losses: journalStats.losses,
     estimatedLossPct: journalStats.losses * 0.5,
+    estimatedProfitPct: 0,
     consecutiveLosses: 0,
+    pauseUntil: null,
   };
 
   const capitalShield = evaluateCapitalShield({
@@ -61,6 +80,15 @@ export function buildPlatformInsight(
       snap.shortStrategy?.verdict?.action === "SELL" ||
       snap.strategy?.verdict?.action === "BUY" ||
       snap.strategy?.verdict?.action === "SELL",
+  });
+
+  const discipline = evaluateTradingDiscipline({
+    marketQuality,
+    capitalShield,
+    newsFreshness,
+    priceDivergence,
+    signalsToday: stats.trades,
+    maxSignalsPerDay: shieldPrefs.maxTradesPerDay,
   });
 
   const gateShort = snap.shortStrategy?.signal?.gate;
@@ -100,25 +128,27 @@ export function buildPlatformInsight(
   const candles5 = snap.chart?.interval === "5m" ? snap.chart.candles : [];
   const backtestShort = runQuickBacktest(candles5, "short");
   const backtestLong = runQuickBacktest(candles5, "long");
+  const weeklyReport = buildWeeklyReport([]);
 
   const shortAct = snap.shortStrategy?.verdict?.action ?? "HOLD";
   const longAct = snap.strategy?.verdict?.action ?? "HOLD";
 
   let playbookUz = `Bozor ${marketQuality.grade} (${marketQuality.score}). `;
+  if (macroCorrelation.warningUz) playbookUz += `${macroCorrelation.warningUz}. `;
+  if (newsFreshness.stale) playbookUz += `${newsFreshness.freshnessUz}. `;
   if (!capitalShield.allowed) {
-    playbookUz += `Kapital himoyasi: ${capitalShield.messagesUz[0]}. `;
+    playbookUz += `Himoya: ${capitalShield.messagesUz[0]}. `;
+  } else if (discipline.score < 60) {
+    playbookUz += discipline.summaryUz + " ";
   } else if (shortAct === "BUY" || shortAct === "SELL") {
-    playbookUz += `YAQIN ${shortAct} — 30 daqiqa qoidasi, kichik lot. `;
+    playbookUz += `YAQIN ${shortAct} — ATR dinamik SL/TP, max 30 daqiqa. `;
   } else if (longAct === "BUY" || longAct === "SELL") {
-    playbookUz += `UZOQ ${longAct} — swing, kunlik SL nazorat. `;
+    playbookUz += `UZOQ ${longAct} — swing. `;
   } else {
     playbookUz += shortExplainer?.unlockUz[0]
       ? `Kutilmoqda: ${shortExplainer.unlockUz[0]}. `
-      : "Setup yo'q — majburiy savdo qilmang. ";
+      : "Setup yo'q. ";
   }
-  playbookUz += backtestShort.samples >= 8
-    ? `Scalp backtest: ${backtestShort.winRatePct}%.`
-    : "";
 
   return {
     marketQuality,
@@ -129,6 +159,11 @@ export function buildPlatformInsight(
     journalStats,
     backtestShort,
     backtestLong,
+    macroCorrelation,
+    newsFreshness,
+    priceDivergence,
+    discipline,
+    weeklyReport,
     playbookUz: playbookUz.trim(),
     updatedAt: new Date().toISOString(),
   };

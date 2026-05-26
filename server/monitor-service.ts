@@ -3,7 +3,7 @@ import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
-import { getXAUUSDPrice } from "../shared/price";
+import { getXAUUSDPrice, getXAUUSDPriceLive } from "../shared/price";
 import { getCalendarStatus } from "../shared/economic-calendar";
 import { pullLiveGoldPrice, peekCachedGoldPrice } from "./price-stream";
 import {
@@ -89,6 +89,7 @@ let frozenLong: LongTermStrategy | null = null;
 let lastStrategyPrice = 0;
 let priceFetchInFlight = false;
 let lastPriceFetchAt = 0;
+let lastYahooRefRefreshAt = 0;
 
 async function refreshMultiTimeframes(spot: number): Promise<void> {
   if (
@@ -464,6 +465,10 @@ async function refreshStrategyLive() {
     const candles = lastSnapshot.chart?.candles ?? [];
     if (!candles.length) return;
 
+    if (gold.feed === "mt5" && Date.now() - lastYahooRefRefreshAt > 12_000) {
+      lastYahooRefRefreshAt = Date.now();
+      void getXAUUSDPriceLive(null).catch(() => {});
+    }
     refreshNewsAnalysisLocal();
     await refreshMultiTimeframes(gold.price);
     const built = buildStrategies(

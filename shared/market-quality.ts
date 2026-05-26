@@ -1,6 +1,7 @@
 import type { CalendarStatus } from "./calendar-types";
 import type { Mt5BridgeStatus } from "./mt5-types";
 import { getMarketSession } from "./market-session";
+import type { PriceDivergence } from "./price-divergence";
 import type { MonitorSnapshot, PriceData } from "./types";
 
 export interface MarketQuality {
@@ -36,7 +37,8 @@ export function computeMarketQuality(
   snapshot: Pick<
     MonitorSnapshot,
     "priceStale" | "feedError" | "mt5Bridge" | "calendar"
-  >
+  >,
+  priceDivergence?: PriceDivergence | null
 ): MarketQuality {
   const warnings: string[] = [];
   let score = 100;
@@ -73,6 +75,11 @@ export function computeMarketQuality(
   } else if (mt5?.stale) {
     score -= 18;
     warnings.push("MT5 tick eskirgan");
+  }
+
+  if (priceDivergence?.severe) {
+    score -= 15;
+    warnings.push(priceDivergence.trustUz);
   }
 
   let spreadPts: number | null = null;

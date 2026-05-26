@@ -214,14 +214,28 @@ export function MonitorScreen({
         </div>
 
         <div
-          style={{ gridArea: "intel" }}
-          className="monitor-panel-intel flex min-h-0 flex-col gap-1 overflow-hidden"
+          className="monitor-panel-intel grid min-h-0 gap-1 overflow-hidden"
+          style={{
+            gridArea: "intel",
+            gridTemplateRows: "auto minmax(0, 1fr)",
+          }}
         >
-          <div className="max-h-[42%] shrink-0 overflow-y-auto">
+          <div className="min-h-0 max-h-[min(42vh,380px)] shrink-0 overflow-y-auto overscroll-contain">
             <PlatformCommandCenter data={data} />
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <IntelligenceHub analysis={data?.newsAnalysis ?? null} drivers={data?.drivers ?? []} />
+          <div className="min-h-0 overflow-hidden">
+            <IntelligenceHub
+              analysis={data?.newsAnalysis ?? null}
+              drivers={data?.drivers ?? []}
+              macroWarningUz={data?.platform?.macroCorrelation?.warningUz}
+              calendarSourceUz={
+                data?.calendar?.source === "forexfactory"
+                  ? "Forex Factory (haqiqiy)"
+                  : data?.calendar?.source === "heuristic"
+                    ? "Taxminiy taqvim"
+                    : null
+              }
+            />
           </div>
         </div>
 

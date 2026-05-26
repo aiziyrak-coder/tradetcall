@@ -32,7 +32,12 @@ import {
   stopMonitorService,
 } from "./monitor-service";
 import { getMt5BridgeStatus, ingestMt5Tick, isMt5BridgeEnabled } from "./mt5-bridge";
-import { getJournalSnapshot, markJournalOutcome } from "./signal-journal-store";
+import {
+  getJournalSnapshot,
+  getWeeklyReportExport,
+  markJournalOutcome,
+  setJournalNote,
+} from "./signal-journal-store";
 import type { Mt5TickPayload } from "../shared/mt5-types";
 import {
   clearEnvApiKeys,
@@ -433,6 +438,21 @@ app.post("/api/monitor/news/deep-analysis", async (_req, res) => {
 
 app.get("/api/journal", requireAuth, (_req, res) => {
   res.json(getJournalSnapshot());
+});
+
+app.get("/api/reports/weekly", requireAuth, (_req, res) => {
+  res.json({ ok: true, report: getWeeklyReportExport() });
+});
+
+app.patch("/api/journal/:id/note", requireAuth, (req, res) => {
+  const { noteUz } = req.body as { noteUz?: string };
+  if (!noteUz?.trim()) {
+    res.status(400).json({ error: "Izoh kerak" });
+    return;
+  }
+  const ok = setJournalNote(String(req.params.id), noteUz.trim());
+  if (!ok) res.status(404).json({ error: "Topilmadi" });
+  else res.json({ ok: true });
 });
 
 app.post("/api/journal/:id/outcome", requireAuth, (req, res) => {

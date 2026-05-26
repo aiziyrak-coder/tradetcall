@@ -146,6 +146,25 @@ export function SettingsScreen({ username, onBack }: Props) {
               </label>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Kunlik max foyda % (greed stop)</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={10}
+                    step={0.5}
+                    value={prefs.capitalShield.maxDailyProfitPct}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          maxDailyProfitPct: Number(e.target.value) || 1.5,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px]">
                   <span className="text-slate-500">Kunlik max zarar %</span>
                   <input
                     type="number"
@@ -183,17 +202,35 @@ export function SettingsScreen({ username, onBack }: Props) {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-[11px]">
-                  <span className="text-slate-500">Ketma-ket zarar stop</span>
+                  <span className="text-slate-500">Ketma-ket zarar → tanaffus</span>
                   <input
                     type="number"
                     min={1}
-                    max={10}
+                    max={5}
                     value={prefs.capitalShield.pauseAfterLosses}
                     onChange={(e) =>
                       update({
                         capitalShield: {
                           ...prefs.capitalShield,
-                          pauseAfterLosses: Number(e.target.value) || 3,
+                          pauseAfterLosses: Number(e.target.value) || 2,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Tanaffus (daqiqa)</span>
+                  <input
+                    type="number"
+                    min={15}
+                    max={240}
+                    value={prefs.capitalShield.pauseCooldownMinutes}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          pauseCooldownMinutes: Number(e.target.value) || 60,
                         },
                       })
                     }

@@ -18,6 +18,6 @@ export interface CalendarStatus {
   eventNameUz: string | null;
   minutesUntil: number | null;
   hintUz: string;
-  source: "tradingeconomics" | "finnhub" | "heuristic";
+  source: "tradingeconomics" | "finnhub" | "heuristic" | "forexfactory";
   upcoming: EconomicEvent[];
 }

@@ -3,6 +3,7 @@ import {
   evaluateCapitalShield,
 } from "../../../shared/capital-shield";
 import type { PlatformInsight } from "../../../shared/platform-insight";
+import { evaluateTradingDiscipline } from "../../../shared/trading-discipline";
 import type { MonitorSnapshot } from "../../../shared/types";
 import { loadTradePrefs } from "./trade-prefs";
 
@@ -10,7 +11,7 @@ import { loadTradePrefs } from "./trade-prefs";
 export function resolvePlatformInsight(snap: MonitorSnapshot | null): PlatformInsight | null {
   if (!snap?.platform) return null;
   const prefs = loadTradePrefs();
-  const shieldPrefs = prefs.capitalShield ?? DEFAULT_CAPITAL_SHIELD;
+  const shieldPrefs = { ...DEFAULT_CAPITAL_SHIELD, ...prefs.capitalShield };
   const day = snap.platform.capitalShield.stats;
   const capitalShield = evaluateCapitalShield({
     prefs: shieldPrefs,
@@ -23,5 +24,13 @@ export function resolvePlatformInsight(snap: MonitorSnapshot | null): PlatformIn
       snap.strategy?.verdict?.action === "BUY" ||
       snap.strategy?.verdict?.action === "SELL",
   });
-  return { ...snap.platform, capitalShield };
+  const discipline = evaluateTradingDiscipline({
+    marketQuality: snap.platform.marketQuality,
+    capitalShield,
+    newsFreshness: snap.platform.newsFreshness,
+    priceDivergence: snap.platform.priceDivergence,
+    signalsToday: day.trades,
+    maxSignalsPerDay: shieldPrefs.maxTradesPerDay,
+  });
+  return { ...snap.platform, capitalShield, discipline };
 }

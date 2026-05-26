@@ -1,7 +1,10 @@
 import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
 import { buildPlatformInsight, type PlatformInsight } from "../shared/platform-insight";
+import { peekYahooReferencePrice } from "../shared/price";
 import type { MonitorSnapshot } from "../shared/types";
+import { buildWeeklyReport } from "../shared/weekly-report";
 import {
+  getJournalSnapshot,
   getJournalStats,
   getTodayShieldStats,
   recordSignalIfNew,
@@ -43,14 +46,20 @@ export function enrichSnapshotWithPlatform(snap: MonitorSnapshot): MonitorSnapsh
   }
 
   const journalStats = getJournalStats();
-  const shieldDay = getTodayShieldStats();
+  const shieldDay = getTodayShieldStats(1000);
+  const journalEntries = getJournalSnapshot().entries;
 
-  const platform = buildPlatformInsight(
+  const platformBase = buildPlatformInsight(
     snap,
     journalStats,
     DEFAULT_CAPITAL_SHIELD,
-    shieldDay
+    shieldDay,
+    peekYahooReferencePrice()
   );
+  const platform: PlatformInsight = {
+    ...platformBase,
+    weeklyReport: buildWeeklyReport(journalEntries),
+  };
   lastPlatform = platform;
 
   return { ...snap, platform };

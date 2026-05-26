@@ -8,6 +8,16 @@ interface GoldApiResponse {
 
 const YAHOO_SYMBOLS = ["XAUUSD=X", "GC=F", "MGC=F"];
 
+let yahooReferencePrice: number | null = null;
+
+export function setYahooReferencePrice(price: number): void {
+  yahooReferencePrice = price;
+}
+
+export function peekYahooReferencePrice(): number | null {
+  return yahooReferencePrice;
+}
+
 async function fetchYahooMeta(symbol: string): Promise<{
   price: number;
   prevClose: number;
@@ -105,6 +115,7 @@ export async function getXAUUSDPriceLive(_prev: PriceData | null): Promise<Price
   }
 
   if (yahoo) {
+    setYahooReferencePrice(yahoo.price);
     return buildPriceData(
       yahoo.price,
       yahoo.prevClose,

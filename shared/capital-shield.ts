@@ -4,16 +4,20 @@ import type { CalendarStatus } from "./calendar-types";
 export interface CapitalShieldPrefs {
   enabled: boolean;
   maxDailyLossPct: number;
+  maxDailyProfitPct: number;
   maxTradesPerDay: number;
   pauseAfterLosses: number;
+  pauseCooldownMinutes: number;
   minMarketQuality: number;
 }
 
 export const DEFAULT_CAPITAL_SHIELD: CapitalShieldPrefs = {
   enabled: true,
   maxDailyLossPct: 3,
-  maxTradesPerDay: 6,
-  pauseAfterLosses: 3,
+  maxDailyProfitPct: 1.5,
+  maxTradesPerDay: 8,
+  pauseAfterLosses: 2,
+  pauseCooldownMinutes: 60,
   minMarketQuality: 55,
 };
 
@@ -23,7 +27,9 @@ export interface CapitalShieldDayStats {
   wins: number;
   losses: number;
   estimatedLossPct: number;
+  estimatedProfitPct: number;
   consecutiveLosses: number;
+  pauseUntil: string | null;
 }
 
 export interface CapitalShieldState {
@@ -32,6 +38,12 @@ export interface CapitalShieldState {
   levelUz: string;
   messagesUz: string[];
   stats: CapitalShieldDayStats;
+}
+
+function pauseRemainingMinutes(pauseUntil: string | null): number {
+  if (!pauseUntil) return 0;
+  const ms = new Date(pauseUntil).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 60_000) : 0;
 }
 
 export function evaluateCapitalShield(input: {
@@ -57,6 +69,21 @@ export function evaluateCapitalShield(input: {
   let allowed = true;
   let level: CapitalShieldState["level"] = "green";
 
+  const pauseMin = pauseRemainingMinutes(stats.pauseUntil);
+  if (pauseMin > 0) {
+    allowed = false;
+    level = "red";
+    messages.push(`Tanaffus — ${pauseMin} daqiqa qoldi (ketma-ket zarar)`);
+  }
+
+  if (stats.estimatedProfitPct >= prefs.maxDailyProfitPct) {
+    allowed = false;
+    level = "red";
+    messages.push(
+      `Kunlik foyda maqsadi yetdi: ${stats.estimatedProfitPct.toFixed(1)}% / ${prefs.maxDailyProfitPct}% — greed stop`
+    );
+  }
+
   if (stats.estimatedLossPct >= prefs.maxDailyLossPct) {
     allowed = false;
     level = "red";
@@ -68,14 +95,14 @@ export function evaluateCapitalShield(input: {
   if (stats.trades >= prefs.maxTradesPerDay) {
     allowed = false;
     level = "red";
-    messages.push(`Kunlik savdo limiti: ${stats.trades}/${prefs.maxTradesPerDay}`);
+    messages.push(`Kunlik signal limiti: ${stats.trades}/${prefs.maxTradesPerDay}`);
   }
 
-  if (stats.consecutiveLosses >= prefs.pauseAfterLosses) {
+  if (stats.consecutiveLosses >= prefs.pauseAfterLosses && pauseMin <= 0) {
     allowed = false;
     level = "red";
     messages.push(
-      `${stats.consecutiveLosses} ketma-ket zarar — bugun tanaffus tavsiya etiladi`
+      `${stats.consecutiveLosses} ketma-ket zarar — ${prefs.pauseCooldownMinutes} daqiqa tanaffus tavsiya`
     );
   }
 
@@ -91,9 +118,9 @@ export function evaluateCapitalShield(input: {
     messages.push(calendar.hintUz ?? "Makro oyna — savdo taqiq");
   }
 
-  if (allowed && level === "green" && stats.trades > 0) {
+  if (allowed && stats.trades > 0) {
     messages.push(
-      `Bugun: ${stats.trades} signal, ${stats.wins} foyda / ${stats.losses} zarar (taxminiy)`
+      `Bugun: ${stats.trades} signal, +${stats.estimatedProfitPct.toFixed(1)}% / -${stats.estimatedLossPct.toFixed(1)}%`
     );
   }
 

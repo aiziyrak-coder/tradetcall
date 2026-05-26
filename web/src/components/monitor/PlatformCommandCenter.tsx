@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MonitorSnapshot } from "../../../../shared/types";
 import { resolvePlatformInsight } from "../../lib/platform-client";
+import { api } from "../../lib/api";
 import { PreTradeChecklist } from "./PreTradeChecklist";
 import { PanelShell } from "./PanelShell";
 
@@ -25,11 +26,14 @@ export function PlatformCommandCenter({ data }: Props) {
   const platform = resolvePlatformInsight(data);
   const [preTradeOpen, setPreTradeOpen] = useState(false);
   const [explainerTab, setExplainerTab] = useState<"short" | "long">("short");
+  const [showHelp, setShowHelp] = useState(false);
+  const [weeklyOpen, setWeeklyOpen] = useState(false);
+  const [weeklyLines, setWeeklyLines] = useState<string[]>([]);
 
   if (!platform) {
     return (
-      <PanelShell title="⚡ PLATFORM PRO" compact>
-        <p className="text-[10px] text-slate-500">Platform intellekt yuklanmoqda…</p>
+      <PanelShell title="PLATFORM PRO" compact fillHeight={false}>
+        <p className="text-[10px] text-slate-500">Yuklanmoqda…</p>
       </PanelShell>
     );
   }
@@ -41,139 +45,159 @@ export function PlatformCommandCenter({ data }: Props) {
   const activeVerdict =
     explainerTab === "short" ? data?.shortStrategy?.verdict : data?.strategy?.verdict;
 
+  const openWeekly = () => {
+    void api.reports.weekly().then((r) => {
+      if (r.report?.linesUz) {
+        setWeeklyLines(r.report.linesUz);
+        setWeeklyOpen(true);
+      }
+    });
+  };
+
   return (
     <>
-      <PanelShell title="⚡ PLATFORM PRO" compact accent="cyan">
-        <div className="flex flex-col gap-2">
-        <p className="text-[9px] leading-snug text-slate-400">{platform.playbookUz}</p>
+      <PanelShell
+        title="PLATFORM PRO"
+        subtitle="4–8: makro · himoya · texnik · qoidalar"
+        compact
+        accent="cyan"
+        fillHeight={false}
+        badge={
+          <button
+            type="button"
+            onClick={() => setShowHelp((v) => !v)}
+            className="rounded border border-cyan-600/40 px-1.5 py-0.5 text-[8px] text-cyan-300"
+          >
+            ?
+          </button>
+        }
+      >
+        {showHelp && (
+          <div className="mb-1.5 rounded border border-cyan-700/40 bg-cyan-950/25 p-1.5 text-[7px] leading-snug text-slate-300">
+            <b>4 Makro:</b> FF taqvim, DXY/oltin, yangiliklar yangiligi.{" "}
+            <b>6 Himoya:</b> kunlik foyda/zarar stop, tanaffus, haftalik hisobot.{" "}
+            <b>7 Texnik:</b> MT5/Yahoo farq, ATR dinamik SL/TP.{" "}
+            <b>8 Qoidalar:</b> professional discipline ball.
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="rounded border border-[var(--term-border)] bg-[var(--term-panel-2)] p-2">
-            <p className="text-[8px] uppercase tracking-wide text-slate-500">Bozor sifati</p>
-            <p className={`font-mono-ui text-lg font-bold ${scoreColor(mq.score)}`}>
+        <p className="line-clamp-2 text-[8px] leading-snug text-slate-400">{platform.playbookUz}</p>
+
+        <div className="mt-1 grid grid-cols-2 gap-1">
+          <div className="rounded border border-[var(--term-border)] bg-[var(--term-panel-2)] p-1.5">
+            <p className="text-[7px] uppercase text-slate-500">Bozor</p>
+            <p className={`font-mono-ui text-base font-bold ${scoreColor(mq.score)}`}>
               {mq.score}
-              <span className="text-[10px] text-slate-500">/100</span>
             </p>
-            <p className="text-[9px] text-slate-400">{mq.gradeUz}</p>
-            <p className="mt-1 text-[8px] text-slate-500">{mq.feedUz}</p>
+            <p className="text-[7px] text-slate-500">{mq.feedUz.slice(0, 28)}</p>
           </div>
+          <div className={`rounded border p-1.5 ${shieldColor(shield.level)}`}>
+            <p className="text-[7px] uppercase text-slate-500">Himoya</p>
+            <p className="text-[9px] font-bold">{shield.level === "green" ? "OK" : "STOP"}</p>
+            <p className="line-clamp-2 text-[7px]">{shield.messagesUz[0]}</p>
+          </div>
+        </div>
 
-          <div className={`rounded border p-2 ${shieldColor(shield.level)}`}>
-            <p className="text-[8px] uppercase tracking-wide text-slate-500">Kapital himoya</p>
-            <p className="text-[11px] font-bold text-slate-200">{shield.levelUz}</p>
-            <p className="mt-1 text-[8px] leading-snug text-slate-400">
-              {shield.messagesUz[0]}
+        <div className="mt-1 space-y-0.5 text-[7px] leading-snug">
+          <p className={platform.macroCorrelation.aligned ? "text-slate-400" : "text-amber-400"}>
+            Makro: {platform.macroCorrelation.biasUz}
+            {platform.macroCorrelation.warningUz ? ` — ${platform.macroCorrelation.warningUz}` : ""}
+          </p>
+          <p className={platform.newsFreshness.stale ? "text-red-400/90" : "text-slate-500"}>
+            {platform.newsFreshness.freshnessUz}
+          </p>
+          {platform.priceDivergence && (
+            <p className={platform.priceDivergence.severe ? "text-red-400" : "text-slate-500"}>
+              {platform.priceDivergence.trustUz}
             </p>
-          </div>
+          )}
+          <p
+            className={
+              platform.discipline.score >= 70 ? "text-emerald-400/90" : "text-amber-400/90"
+            }
+          >
+            Qoidalar {platform.discipline.score}% ({platform.discipline.passed}/
+            {platform.discipline.total})
+          </p>
         </div>
 
-        <div className="rounded border border-[var(--term-border)] bg-black/20 p-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[8px] font-bold uppercase text-cyan-500/90">Signal jurnali</p>
-            <span className="font-mono-ui text-[10px] text-emerald-400">
-              {platform.journalStats.winRatePct}% WR
-            </span>
-          </div>
-          <div className="mt-1 flex gap-3 font-mono-ui text-[9px] text-slate-400">
-            <span>Jami {platform.journalStats.total}</span>
-            <span className="text-emerald-400">+{platform.journalStats.wins}</span>
-            <span className="text-red-400">−{platform.journalStats.losses}</span>
-            <span>Kutmoqda {platform.journalStats.pending}</span>
-            <span>7kun {platform.journalStats.last7WinRatePct}%</span>
-          </div>
+        <div className="mt-1 flex flex-wrap gap-x-2 font-mono-ui text-[8px] text-slate-500">
+          <span>WR {platform.journalStats.winRatePct}%</span>
+          <span>5m {platform.backtestShort.winRatePct}%</span>
+          <span>Hafta {platform.weeklyReport.winRatePct}%</span>
+          <button
+            type="button"
+            onClick={openWeekly}
+            className="text-cyan-400 underline"
+          >
+            hisobot
+          </button>
         </div>
 
-        <div className="rounded border border-[var(--term-border)] bg-black/20 p-2">
-          <p className="text-[8px] font-bold uppercase text-violet-400/90">Tez backtest (5m)</p>
-          <div className="mt-1 flex gap-3 text-[9px]">
-            <span>
-              YAQIN: {platform.backtestShort.winRatePct}% ({platform.backtestShort.samples})
-            </span>
-            <span>
-              UZOQ: {platform.backtestLong.winRatePct}% ({platform.backtestLong.samples})
-            </span>
-          </div>
-          <p className="mt-1 text-[8px] text-slate-500">{platform.backtestShort.noteUz}</p>
-        </div>
-
-        <div className="rounded border border-[var(--term-border)] bg-black/20 p-2">
-          <div className="mb-1 flex gap-1">
+        <div className="mt-1 rounded border border-[var(--term-border)] bg-black/20 p-1.5">
+          <div className="flex items-center gap-1">
             {(["short", "long"] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setExplainerTab(t)}
-                className={`touch-target rounded px-2 py-0.5 text-[9px] font-bold ${
-                  explainerTab === t
-                    ? "bg-cyan-600/40 text-cyan-200"
-                    : "bg-slate-800/60 text-slate-500"
+                className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${
+                  explainerTab === t ? "bg-cyan-600/40 text-cyan-200" : "bg-slate-800/60 text-slate-500"
                 }`}
               >
                 {t === "short" ? "YAQIN" : "UZOQ"}
               </button>
             ))}
+            {explainer && (
+              <span
+                className={`ml-auto text-[10px] font-bold ${
+                  explainer.action === "BUY"
+                    ? "text-emerald-400"
+                    : explainer.action === "SELL"
+                      ? "text-red-400"
+                      : "text-amber-400"
+                }`}
+              >
+                {explainer.action}
+              </span>
+            )}
           </div>
-          {explainer && (
-            <>
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-[11px] font-bold ${
-                    explainer.action === "BUY"
-                      ? "text-emerald-400"
-                      : explainer.action === "SELL"
-                        ? "text-red-400"
-                        : "text-amber-400"
-                  }`}
-                >
-                  {explainer.action}
-                </span>
-                <span className="font-mono-ui text-[9px] text-slate-500">
-                  Tayyorlik {explainer.readinessPct}%
-                </span>
-              </div>
-              <p className="mt-1 text-[8px] text-slate-500">{explainer.rawBiasUz}</p>
-              <ul className="mt-1.5 max-h-24 space-y-0.5 overflow-y-auto">
-                {explainer.blockers.map((b) => (
-                  <li
-                    key={b.id}
-                    className={`flex gap-1 text-[8px] ${b.ok ? "text-emerald-500/80" : "text-red-400/90"}`}
-                  >
-                    <span>{b.ok ? "✓" : "✗"}</span>
-                    <span>
-                      {b.labelUz}: {b.detailUz.slice(0, 50)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {explainer.unlockUz.length > 0 && explainer.action === "HOLD" && (
-                <p className="mt-1 text-[8px] text-cyan-400/90">
-                  Ochish: {explainer.unlockUz[0]}
-                </p>
-              )}
-              <p className="mt-1 text-[8px] italic text-slate-400">{explainer.coachUz}</p>
-            </>
+          {explainer?.action === "HOLD" && explainer.unlockUz[0] && (
+            <p className="mt-0.5 text-[7px] text-cyan-400">→ {explainer.unlockUz[0]}</p>
           )}
-        </div>
-
-        <div className="rounded border border-dashed border-slate-600/40 p-2">
-          <p className="text-[8px] font-bold text-slate-500">PLATFORM AUDIT</p>
-          <p className="text-[9px] text-slate-400">
-            {platform.audit.healthPct}% — {platform.audit.gradeUz} ({platform.audit.passed}/
-            {platform.audit.total})
-          </p>
         </div>
 
         {(activeVerdict?.action === "BUY" || activeVerdict?.action === "SELL") && (
           <button
             type="button"
             onClick={() => setPreTradeOpen(true)}
-            className="touch-target w-full rounded-lg bg-gradient-to-r from-amber-600/90 to-amber-500/80 py-2.5 text-[11px] font-bold text-black"
+            className="touch-target mt-1 w-full rounded bg-amber-600/90 py-1.5 text-[9px] font-bold text-black"
           >
-            Savdo oldidan tekshiruv — 7 qadam
+            7 qadam tekshiruv
           </button>
         )}
-        </div>
       </PanelShell>
+
+      {weeklyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3">
+          <div className="fx-glass max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-xl border border-violet-500/40 p-4">
+            <h3 className="font-bold text-violet-300">Haftalik hisobot</h3>
+            <ul className="mt-2 space-y-1 text-[11px] text-slate-300">
+              {weeklyLines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[10px] text-slate-500">{platform.weeklyReport.summaryUz}</p>
+            <button
+              type="button"
+              onClick={() => setWeeklyOpen(false)}
+              className="touch-target mt-3 w-full rounded bg-slate-700 py-2 text-[11px]"
+            >
+              Yopish
+            </button>
+          </div>
+        </div>
+      )}
 
       {preTradeOpen && data && (
         <PreTradeChecklist

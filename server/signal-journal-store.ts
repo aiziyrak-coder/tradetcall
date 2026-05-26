@@ -8,6 +8,24 @@ import type {
   SignalJournalSnapshot,
 } from "../shared/signal-journal-types";
 import type { JournalStats } from "../shared/platform-insight";
+import { buildWeeklyReport } from "../shared/weekly-report";
+import { triggerLossPause, getPauseUntil } from "./shield-runtime";
+import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
+
+function maybeTriggerLossPause(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  const closed = loadFile()
+    .entries.filter((e) => e.createdAt.startsWith(today))
+    .filter((e) => e.outcome === "win" || e.outcome === "loss");
+  let consecutiveLosses = 0;
+  for (const e of [...closed].reverse()) {
+    if (e.outcome === "loss") consecutiveLosses += 1;
+    else break;
+  }
+  if (consecutiveLosses >= DEFAULT_CAPITAL_SHIELD.pauseAfterLosses && !getPauseUntil()) {
+    triggerLossPause(DEFAULT_CAPITAL_SHIELD.pauseCooldownMinutes);
+  }
+}
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = process.env.TRADE_DATA_DIR || path.join(root, "data");
@@ -70,32 +88,62 @@ export function getJournalStats(): JournalStats {
   return statsFromEntries(loadFile().entries);
 }
 
-export function getTodayShieldStats(): {
+export function getTodayShieldStats(accountUsd = 1000): {
   dateKey: string;
   trades: number;
   wins: number;
   losses: number;
   estimatedLossPct: number;
+  estimatedProfitPct: number;
   consecutiveLosses: number;
+  pauseUntil: string | null;
 } {
   const today = new Date().toISOString().slice(0, 10);
   const entries = loadFile().entries.filter((e) => e.createdAt.startsWith(today));
   const closed = entries.filter((e) => e.outcome === "win" || e.outcome === "loss");
   const wins = closed.filter((e) => e.outcome === "win").length;
   const losses = closed.filter((e) => e.outcome === "loss").length;
+
+  let profitUsd = 0;
+  let lossUsd = 0;
+  for (const e of closed) {
+    const pts = e.pnlPts ?? 0;
+    if (e.outcome === "win" && pts > 0) profitUsd += pts * 10;
+    if (e.outcome === "loss" && pts < 0) lossUsd += Math.abs(pts) * 10;
+  }
+  const base = Math.max(accountUsd, 100);
+  const estimatedProfitPct = Math.round((profitUsd / base) * 1000) / 10;
+  const estimatedLossPct = Math.round((lossUsd / base) * 1000) / 10;
+
   let consecutiveLosses = 0;
-  for (const e of [...entries].reverse()) {
+  for (const e of [...closed].reverse()) {
     if (e.outcome === "loss") consecutiveLosses += 1;
     else if (e.outcome === "win") break;
   }
+
   return {
     dateKey: today,
     trades: entries.length,
     wins,
     losses,
-    estimatedLossPct: losses * 0.6,
+    estimatedLossPct,
+    estimatedProfitPct,
     consecutiveLosses,
+    pauseUntil: getPauseUntil(),
   };
+}
+
+export function getWeeklyReportExport() {
+  return buildWeeklyReport(loadFile().entries);
+}
+
+export function setJournalNote(id: string, noteUz: string): boolean {
+  const file = loadFile();
+  const e = file.entries.find((x) => x.id === id);
+  if (!e) return false;
+  e.noteUz = noteUz.slice(0, 500);
+  saveFile(file);
+  return true;
 }
 
 let lastRecorded: { short: string; long: string } = { short: "", long: "" };
@@ -184,6 +232,7 @@ export function resolvePendingSignals(price: number): void {
     if (resolved) {
       e.closedAt = new Date().toISOString();
       changed = true;
+      if (e.outcome === "loss") maybeTriggerLossPause();
     }
   }
 

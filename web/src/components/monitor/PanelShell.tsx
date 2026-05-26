@@ -8,6 +8,8 @@ interface Props {
   children: ReactNode;
   footer?: ReactNode;
   compact?: boolean;
+  /** false = kontent balandligicha (PLATFORM PRO), true = panel to‘ldiradi */
+  fillHeight?: boolean;
 }
 
 const accentBorder = {
@@ -17,10 +19,21 @@ const accentBorder = {
   red: "border-red-500/40",
 };
 
-export function PanelShell({ title, subtitle, accent = "gold", badge, children, footer, compact }: Props) {
+export function PanelShell({
+  title,
+  subtitle,
+  accent = "gold",
+  badge,
+  children,
+  footer,
+  compact,
+  fillHeight = true,
+}: Props) {
   return (
     <div
-      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-[var(--term-panel)] ${accentBorder[accent]}`}
+      className={`flex flex-col overflow-hidden rounded-md border bg-[var(--term-panel)] ${accentBorder[accent]} ${
+        fillHeight ? "h-full min-h-0" : "h-auto"
+      }`}
     >
       <div
         className={`term-panel-header flex shrink-0 items-center justify-between gap-1 ${compact ? "px-2 py-1" : "px-3 py-2"}`}
@@ -37,7 +50,11 @@ export function PanelShell({ title, subtitle, accent = "gold", badge, children, 
         </div>
         {badge}
       </div>
-      <div className={`min-h-0 flex-1 overflow-hidden ${compact ? "px-1.5 py-1" : "term-scroll px-2 py-2"}`}>
+      <div
+        className={`${
+          fillHeight ? "min-h-0 flex-1 overflow-hidden" : ""
+        } ${compact ? "px-1.5 py-1" : "term-scroll px-2 py-2"}`}
+      >
         {children}
       </div>
       {footer && (

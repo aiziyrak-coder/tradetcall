@@ -14,6 +14,7 @@ import { getCalendarStatus } from "./economic-calendar";
 import { evaluateMarketRegime } from "./market-regime";
 import { getMarketSession } from "./market-session";
 import { analyzeTechnicals } from "./technical";
+import { getDynamicLevelMultipliers } from "./dynamic-levels";
 import { SHORT_THRESHOLDS } from "./signal-thresholds";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
@@ -169,6 +170,7 @@ export function computeShortTermStrategy(
   }
 
   const leadTimeframeUz = pickLeadTimeframe(timeframes, bias);
+  const dyn = getDynamicLevelMultipliers(atr5, price, tech5.adx);
 
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
@@ -192,8 +194,8 @@ export function computeShortTermStrategy(
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
-    stopLoss = round2(Math.min(sup - atr5 * 0.4, price - atr5 * 1.05));
-    takeProfit = round2(price + Math.max(atr5 * 1.25, atr1 * 2));
+    stopLoss = round2(Math.min(sup - atr5 * 0.4 * dyn.slAtr, price - atr5 * 1.05 * dyn.slAtr));
+    takeProfit = round2(price + Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", SHORT_THRESHOLDS.minRiskReward);
     exit = {
       title: "CHIQISH",
@@ -202,7 +204,7 @@ export function computeShortTermStrategy(
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
     };
-    situationUz = `Scalp LONG: ${longVotes}/${activeTf} TF, yangiliklar tekshirildi. $${price}.`;
+    situationUz = `Scalp LONG: ${longVotes}/${activeTf} TF. ${dyn.noteUz} $${price}.`;
   } else if (bias === "short") {
     const entryFrom = round2(price - atr1 * 0.12);
     const entryTo = round2(price + atr5 * 0.4);
@@ -214,8 +216,8 @@ export function computeShortTermStrategy(
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
-    stopLoss = round2(Math.max(res + atr5 * 0.4, price + atr5 * 1.05));
-    takeProfit = round2(price - Math.max(atr5 * 1.25, atr1 * 2));
+    stopLoss = round2(Math.max(res + atr5 * 0.4 * dyn.slAtr, price + atr5 * 1.05 * dyn.slAtr));
+    takeProfit = round2(price - Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", SHORT_THRESHOLDS.minRiskReward);
     exit = {
       title: "CHIQISH",

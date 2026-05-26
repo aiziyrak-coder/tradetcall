@@ -1,12 +1,21 @@
 import { setCalendarCache } from "../shared/economic-calendar";
 import { buildHeuristicCalendarEvents } from "../shared/economic-calendar-heuristic";
+import { fetchForexFactoryCalendar } from "../shared/ff-calendar";
 
 const REFRESH_MS = 30 * 60 * 1000;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let lastError: string | null = null;
 
-/** Faqat bepul taxminiy taqvim (NFP/CPI/FOMC) */
+/** Forex Factory (bepul) + taxminiy fallback */
 export async function refreshEconomicCalendar(): Promise<void> {
+  const ff = await fetchForexFactoryCalendar();
+  if (ff.length >= 3) {
+    setCalendarCache(ff, "forexfactory");
+    lastError = null;
+    return;
+  }
   setCalendarCache(buildHeuristicCalendarEvents(), "heuristic");
+  lastError = ff.length === 0 ? "FF taqvim yuklanmadi — taxminiy rejim" : null;
 }
 
 export function startCalendarService(): void {
@@ -21,5 +30,5 @@ export function stopCalendarService(): void {
 }
 
 export function getCalendarServiceError(): string | null {
-  return null;
+  return lastError;
 }

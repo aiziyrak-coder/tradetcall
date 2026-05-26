@@ -3,6 +3,8 @@ import type { MarketQuote, NewsMarketAnalysis } from "../../../../shared/types";
 interface Props {
   analysis: NewsMarketAnalysis | null;
   drivers: MarketQuote[];
+  macroWarningUz?: string | null;
+  calendarSourceUz?: string | null;
 }
 
 const biasStyle = {
@@ -12,7 +14,7 @@ const biasStyle = {
 };
 
 /** Yangiliklar markazi — signal faqat chap Uzoq/Yaqin panelda */
-export function IntelligenceHub({ analysis, drivers }: Props) {
+export function IntelligenceHub({ analysis, drivers, macroWarningUz, calendarSourceUz }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-violet-500/25 bg-[var(--term-panel)]">
       <div className="shrink-0 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1">
@@ -25,6 +27,14 @@ export function IntelligenceHub({ analysis, drivers }: Props) {
       </div>
 
       <div className="term-scroll min-h-0 flex-1 space-y-2 p-2">
+        {macroWarningUz && (
+          <p className="rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-[8px] text-amber-200">
+            ⚠ Makro: {macroWarningUz}
+          </p>
+        )}
+        {calendarSourceUz && (
+          <p className="text-[7px] text-slate-500">Taqvim: {calendarSourceUz}</p>
+        )}
         {analysis ? (
           <>
             <div className="flex flex-wrap items-center gap-1">
