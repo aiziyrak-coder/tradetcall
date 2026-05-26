@@ -1,5 +1,20 @@
 # XAUUSD — To‘liq audit (tugmalar + funksiyalar)
 
+## Platform PRO (professional qatlam)
+
+| Modul | Vazifa |
+|--------|--------|
+| `shared/market-quality.ts` | Bozor sifati 0–100 (feed, spread, sessiya, kalendar) |
+| `shared/signal-explainer.ts` | Nima uchun HOLD — bloklar va ochilish yo‘li |
+| `shared/capital-shield.ts` | Kunlik zarar/savdo limiti, ketma-ket zarar stop |
+| `shared/platform-audit.ts` | Har snapshot uchun runtime sog‘liq |
+| `shared/backtest-quick.ts` | So‘nggi 5m shamlarda tez backtest |
+| `shared/platform-insight.ts` | Barcha modullarni birlashtirish |
+| `server/signal-journal-store.ts` | Signal jurnali + TP/SL natija |
+| `server/platform-service.ts` | Monitor snapshot boyitish |
+| `PlatformCommandCenter` | UI: sifat, himoya, jurnal, explainer |
+| `PreTradeChecklist` | 7 qadamli professional tekshiruv |
+
 ## Avtomatik tekshiruv
 
 ```bash

@@ -210,6 +210,9 @@ export interface NewsMarketAnalysis {
   aiFutureOutlookUz?: string;
 }
 
+export type { PlatformInsight, JournalStats } from "./platform-insight";
+export type { SignalJournalEntry, SignalJournalSnapshot } from "./signal-journal-types";
+
 export interface MonitorSnapshot {
   timestamp: string;
   online: boolean;
@@ -229,6 +232,7 @@ export interface MonitorSnapshot {
   analyzingNews?: boolean;
   mt5Bridge?: Mt5BridgeStatus;
   calendar?: CalendarStatus;
+  platform?: import("./platform-insight").PlatformInsight;
 }
 
 export type UserRole = "admin" | "user";

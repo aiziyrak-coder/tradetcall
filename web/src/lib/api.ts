@@ -5,6 +5,7 @@ import type {
   MonitorSnapshot,
   NewsMarketAnalysis,
   Session,
+  SignalJournalSnapshot,
   UserPublic,
 } from "../../../shared/types";
 
@@ -58,6 +59,28 @@ export const api = {
     listUsers: () =>
       request<{ ok: boolean; users?: UserPublic[]; error?: string }>("/api/admin/users"),
     getDjangoUrl: () => request<{ url: string }>("/api/admin/django-url"),
+    createUser: (body: { username: string; password: string; role: "admin" | "user" }) =>
+      request<{ ok: boolean; user?: UserPublic; error?: string }>("/api/admin/users", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateUser: (
+      id: string,
+      body: { username?: string; role?: "admin" | "user"; active?: boolean }
+    ) =>
+      request<{ ok: boolean; user?: UserPublic; error?: string }>(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    deleteUser: (id: string) =>
+      request<{ ok: boolean; user?: UserPublic; error?: string }>(`/api/admin/users/${id}`, {
+        method: "DELETE",
+      }),
+    resetPassword: (id: string, password: string) =>
+      request<{ ok: boolean; message?: string; error?: string }>(
+        `/api/admin/users/${id}/reset-password`,
+        { method: "POST", body: JSON.stringify({ password }) }
+      ),
   },
 
   settings: {
@@ -90,6 +113,15 @@ export const api = {
     deepNewsAnalysis: () =>
       request<{ analysis: NewsMarketAnalysis }>("/api/monitor/news/deep-analysis", {
         method: "POST",
+      }),
+  },
+
+  journal: {
+    get: () => request<SignalJournalSnapshot>("/api/journal"),
+    setOutcome: (id: string, outcome: "win" | "loss" | "cancelled" | "expired", noteUz?: string) =>
+      request<{ ok: boolean }>(`/api/journal/${id}/outcome`, {
+        method: "POST",
+        body: JSON.stringify({ outcome, noteUz }),
       }),
   },
 };

@@ -35,6 +35,17 @@ const mustExist = [
   "shared/short-strategy.ts",
   "shared/horizon-verdict.ts",
   "shared/trade-gate.ts",
+  "shared/platform-insight.ts",
+  "shared/market-quality.ts",
+  "shared/signal-explainer.ts",
+  "shared/capital-shield.ts",
+  "shared/platform-audit.ts",
+  "shared/backtest-quick.ts",
+  "shared/signal-journal-types.ts",
+  "server/platform-service.ts",
+  "server/signal-journal-store.ts",
+  "web/src/components/monitor/PlatformCommandCenter.tsx",
+  "web/src/components/monitor/PreTradeChecklist.tsx",
   "shared/technical.ts",
   "shared/market-regime.ts",
   "shared/economic-calendar.ts",
@@ -79,6 +90,12 @@ if (monitorTs.includes("mergeSnapshot") || monitorTs.includes("function publishS
   ok("monitor: snapshot merge");
 } else {
   fail("monitor: snapshot merge", "no unified merge");
+}
+
+if (monitorTs.includes("enrichSnapshotWithPlatform")) {
+  ok("monitor: platform intelligence");
+} else {
+  fail("monitor: platform intelligence", "missing enrichSnapshotWithPlatform");
 }
 
 if (!monitorTs.includes("computeMarketFlow") && !existsSync(resolve(root, "shared/market-flow.ts"))) {

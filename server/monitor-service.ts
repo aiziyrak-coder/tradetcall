@@ -32,6 +32,7 @@ import type {
   NewsMarketAnalysis,
 } from "../shared/types";
 import { checkInternet } from "./network";
+import { enrichSnapshotWithPlatform } from "./platform-service";
 import { getTranslationCache, setTranslationCache } from "./store";
 
 const PRICE_FAST_MS = 400;
@@ -203,7 +204,7 @@ function isPriceStale(): boolean {
 
 function mergeSnapshot(partial: Partial<MonitorSnapshot>): MonitorSnapshot {
   const base = lastSnapshot ?? emptySnapshot();
-  lastSnapshot = {
+  const merged: MonitorSnapshot = {
     ...base,
     ...partial,
     timestamp: new Date().toISOString(),
@@ -213,6 +214,7 @@ function mergeSnapshot(partial: Partial<MonitorSnapshot>): MonitorSnapshot {
     mt5Bridge: partial.mt5Bridge ?? getMt5BridgeStatus(),
     calendar: partial.calendar ?? getCalendarStatus(),
   };
+  lastSnapshot = enrichSnapshotWithPlatform(merged);
   return lastSnapshot;
 }
 

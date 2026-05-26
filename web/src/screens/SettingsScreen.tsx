@@ -126,6 +126,101 @@ export function SettingsScreen({ username, onBack }: Props) {
               </div>
             </div>
 
+            <div className="rounded-lg border border-red-600/40 bg-red-950/20 p-3">
+              <p className="font-bold text-red-300">Kapital himoyasi</p>
+              <p className="mt-1 text-[12px] text-slate-400">
+                Professional rejim — kunlik limit va ketma-ket zararlardan himoya.
+              </p>
+              <label className="mt-2 flex items-center gap-2 text-[12px]">
+                <input
+                  type="checkbox"
+                  checked={prefs.capitalShield.enabled}
+                  onChange={(e) =>
+                    update({
+                      capitalShield: { ...prefs.capitalShield, enabled: e.target.checked },
+                    })
+                  }
+                  className="h-4 w-4"
+                />
+                Kapital himoyasini yoqish
+              </label>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Kunlik max zarar %</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={prefs.capitalShield.maxDailyLossPct}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          maxDailyLossPct: Number(e.target.value) || 3,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Kunlik max signal</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={prefs.capitalShield.maxTradesPerDay}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          maxTradesPerDay: Number(e.target.value) || 6,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Ketma-ket zarar stop</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={prefs.capitalShield.pauseAfterLosses}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          pauseAfterLosses: Number(e.target.value) || 3,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px]">
+                  <span className="text-slate-500">Min bozor sifati</span>
+                  <input
+                    type="number"
+                    min={40}
+                    max={90}
+                    value={prefs.capitalShield.minMarketQuality}
+                    onChange={(e) =>
+                      update({
+                        capitalShield: {
+                          ...prefs.capitalShield,
+                          minMarketQuality: Number(e.target.value) || 55,
+                        },
+                      })
+                    }
+                    className="fx-input rounded-lg px-2 py-2 font-mono-ui"
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="rounded-lg border border-emerald-600/40 bg-emerald-950/20 p-3">
               <p className="font-bold text-emerald-300">Lot va vaqt qoidalari</p>
               <ul className="mt-2 list-inside list-disc space-y-1 text-[12px]">

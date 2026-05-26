@@ -30,6 +30,7 @@ export interface SignalDetail {
   volatilityUz: string;
   oneLineUz: string;
   checklist: SignalCheckItem[];
+  gate?: TradeGateResult | null;
 }
 
 function round2(n: number) {
@@ -196,5 +197,6 @@ export function buildSignalDetail(
     volatilityUz,
     oneLineUz,
     checklist,
+    gate: gate ?? null,
   };
 }

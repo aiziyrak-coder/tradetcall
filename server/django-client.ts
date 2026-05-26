@@ -75,6 +75,68 @@ export async function djangoListUsers(
   }
 }
 
+export async function djangoCreateUser(
+  token: string,
+  body: { username: string; password: string; role: "admin" | "user" }
+): Promise<{ ok: boolean; user?: UserPublic; error?: string }> {
+  try {
+    const data = await djangoFetch<{ ok: boolean; user?: UserPublic }>(
+      "/api/auth/users/",
+      { method: "POST", token, body: JSON.stringify(body) }
+    );
+    return { ok: true, user: data.user };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Xato" };
+  }
+}
+
+export async function djangoUpdateUser(
+  token: string,
+  id: string,
+  body: { username?: string; role?: "admin" | "user"; active?: boolean }
+): Promise<{ ok: boolean; user?: UserPublic; error?: string }> {
+  try {
+    const data = await djangoFetch<{ ok: boolean; user?: UserPublic }>(
+      `/api/auth/users/${id}/`,
+      { method: "PATCH", token, body: JSON.stringify(body) }
+    );
+    return { ok: true, user: data.user };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Xato" };
+  }
+}
+
+export async function djangoDeleteUser(
+  token: string,
+  id: string
+): Promise<{ ok: boolean; user?: UserPublic; error?: string }> {
+  try {
+    const data = await djangoFetch<{ ok: boolean; user?: UserPublic }>(
+      `/api/auth/users/${id}/`,
+      { method: "DELETE", token }
+    );
+    return { ok: true, user: data.user };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Xato" };
+  }
+}
+
+export async function djangoResetUserPassword(
+  token: string,
+  id: string,
+  password: string
+): Promise<{ ok: boolean; message?: string; error?: string }> {
+  try {
+    const data = await djangoFetch<{ ok: boolean; message?: string }>(
+      `/api/auth/users/${id}/reset-password/`,
+      { method: "POST", token, body: JSON.stringify({ password }) }
+    );
+    return { ok: true, message: data.message };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Xato" };
+  }
+}
+
 export async function djangoHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${DJANGO_URL}/admin/login/`, { method: "GET" });

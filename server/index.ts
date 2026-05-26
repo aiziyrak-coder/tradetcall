@@ -10,9 +10,13 @@ import type { Session } from "../shared/types";
 import {
   getDjangoAdminUrl,
   getSession,
+  createUserWithToken,
+  deleteUserWithToken,
   listUsersWithToken,
   login,
   logout,
+  resetUserPasswordWithToken,
+  updateUserWithToken,
 } from "./auth";
 import { djangoHealth } from "./django-client";
 import { addMonitorClient } from "./events";
@@ -28,6 +32,7 @@ import {
   stopMonitorService,
 } from "./monitor-service";
 import { getMt5BridgeStatus, ingestMt5Tick, isMt5BridgeEnabled } from "./mt5-bridge";
+import { getJournalSnapshot, markJournalOutcome } from "./signal-journal-store";
 import type { Mt5TickPayload } from "../shared/mt5-types";
 import {
   clearEnvApiKeys,
@@ -136,6 +141,18 @@ async function requireAuth(
   } catch {
     res.status(503).json({ error: "Auth server ishlamayapti" });
   }
+}
+
+function requireAdmin(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+): void {
+  if (authSession(req).role !== "admin") {
+    res.status(403).json({ ok: false, error: "Faqat admin" });
+    return;
+  }
+  next();
 }
 
 function clientErrorMessage(e: unknown, prod = isProd): string {
@@ -309,22 +326,65 @@ app.get("/api/admin/django-url", (_req, res) => {
   });
 });
 
-app.get("/api/admin/users", async (req, res) => {
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
   const r = await listUsersWithToken(readToken(req));
   if (!r.ok) res.status(403).json(r);
   else res.json(r);
 });
 
-app.post("/api/admin/users", (_req, res) => {
-  res.status(403).json({ ok: false, error: `Yangi user: ${getDjangoAdminUrl()}` });
+app.post("/api/admin/users", requireAdmin, async (req, res) => {
+  const { username, password, role } = req.body as {
+    username?: string;
+    password?: string;
+    role?: "admin" | "user";
+  };
+  if (!username?.trim() || !password) {
+    res.status(400).json({ ok: false, error: "Login va parol kerak" });
+    return;
+  }
+  const r = await createUserWithToken(readToken(req), {
+    username: username.trim(),
+    password,
+    role: role === "admin" ? "admin" : "user",
+  });
+  if (!r.ok) res.status(400).json(r);
+  else res.status(201).json(r);
 });
 
-app.patch("/api/admin/users/:id", (_req, res) => {
-  res.status(403).json({ ok: false, error: "Django Admin orqali tahrirlang" });
+app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  const { username, role, active } = req.body as {
+    username?: string;
+    role?: "admin" | "user";
+    active?: boolean;
+  };
+  const r = await updateUserWithToken(readToken(req), String(req.params.id), {
+    ...(username !== undefined ? { username: username.trim() } : {}),
+    ...(role !== undefined ? { role } : {}),
+    ...(active !== undefined ? { active } : {}),
+  });
+  if (!r.ok) res.status(400).json(r);
+  else res.json(r);
 });
 
-app.delete("/api/admin/users/:id", (_req, res) => {
-  res.status(403).json({ ok: false, error: "Django Admin orqali o'chiring" });
+app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  const r = await deleteUserWithToken(readToken(req), String(req.params.id));
+  if (!r.ok) res.status(400).json(r);
+  else res.json(r);
+});
+
+app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
+  const { password } = req.body as { password?: string };
+  if (!password || password.length < 4) {
+    res.status(400).json({ ok: false, error: "Parol kamida 4 belgi" });
+    return;
+  }
+  const r = await resetUserPasswordWithToken(
+    readToken(req),
+    String(req.params.id),
+    password
+  );
+  if (!r.ok) res.status(400).json(r);
+  else res.json(r);
 });
 
 app.use("/api/monitor", requireAuth);
@@ -369,6 +429,30 @@ app.post("/api/monitor/news/deep-analysis", async (_req, res) => {
   } catch (e) {
     res.status(500).json({ error: clientErrorMessage(e) });
   }
+});
+
+app.get("/api/journal", requireAuth, (_req, res) => {
+  res.json(getJournalSnapshot());
+});
+
+app.post("/api/journal/:id/outcome", requireAuth, (req, res) => {
+  const { outcome, noteUz } = req.body as {
+    outcome?: string;
+    noteUz?: string;
+  };
+  const valid = ["win", "loss", "cancelled", "expired"];
+  if (!outcome || !valid.includes(outcome)) {
+    res.status(400).json({ error: "outcome: win | loss | cancelled | expired" });
+    return;
+  }
+  const id = String(req.params.id);
+  const ok = markJournalOutcome(
+    id,
+    outcome as "win" | "loss" | "cancelled" | "expired",
+    noteUz
+  );
+  if (!ok) res.status(404).json({ error: "Topilmadi" });
+  else res.json({ ok: true });
 });
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

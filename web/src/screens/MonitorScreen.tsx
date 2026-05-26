@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { MonitorSnapshot } from "../../../shared/types";
 import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
+import { PlatformCommandCenter } from "../components/monitor/PlatformCommandCenter";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
 import { MarketContextBar } from "../components/monitor/MarketContextBar";
 import { CalendarEventsStrip } from "../components/monitor/CalendarEventsStrip";
@@ -212,8 +213,16 @@ export function MonitorScreen({
           )}
         </div>
 
-        <div style={{ gridArea: "intel" }} className="monitor-panel-intel min-h-0 overflow-hidden">
-          <IntelligenceHub analysis={data?.newsAnalysis ?? null} drivers={data?.drivers ?? []} />
+        <div
+          style={{ gridArea: "intel" }}
+          className="monitor-panel-intel flex min-h-0 flex-col gap-1 overflow-hidden"
+        >
+          <div className="max-h-[42%] shrink-0 overflow-y-auto">
+            <PlatformCommandCenter data={data} />
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <IntelligenceHub analysis={data?.newsAnalysis ?? null} drivers={data?.drivers ?? []} />
+          </div>
         </div>
 
         <div
