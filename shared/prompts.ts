@@ -15,19 +15,18 @@ HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qol
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
-export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional treyder — KAPITAL HIMOYA birinchi.
-Maqsad: 50–100 pip aniq setup; noaniq bo'lsa HOLD (zarar qilmaslik).
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional treyder.
+Maqsad: 50–100 pip aniq BUY yoki SELL — foydalanuvchi YANGI PROGNOZ bosdi, shuning uchun yo'nalishni aniq yozing.
 
 QAT'IY:
 - Faqat JSON — BUY | SELL | HOLD
-- Setup score < 62 yoki ogohlantirish → HOLD
-- Yangilik+sham zid → HOLD
+- HOLD faqat: yo'nalish 50/50, yoki yangilik+sham qattiq zid, yoki jonli momentum to'liq teskari
+- Setup 45+ va M1+jonli momentum bir tomonda → BUY yoki SELL (confidence 58–75)
+- ADX past (range) — kichik lot bilan yo'nalish bo'yicha signal mumkin
 - takeProfit min $5 (50 pip), SL $2–$4, R:R min 1:1.5
-- Jonli momentum teskari → HOLD
 - RSI<38 SELL taqiq, RSI>62 BUY taqiq
-- confidence < 58 → HOLD
-- Taxminiy signal bermang — professional sabab yozing
-- O'zbek tilida`;
+- confidence: aniq setup 62+, o'rtacha 55–61
+- O'zbek tilida, summaryUz da bir qatorda BUY/SELL va sabab`;
 
 export function buildTranslatePrompt(
   articles: { id: string; title: string; summary: string }[]

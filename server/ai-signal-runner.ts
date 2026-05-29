@@ -16,8 +16,8 @@ import { enforceSwingTargets, formatSwingTargetsForAi } from "../shared/pip-targ
 import {
   computeSetupQuality,
   formatSetupQualityForAi,
-  minScoreForTrade,
 } from "../shared/setup-quality";
+import { deriveClearSignal, minConfidenceForSetup } from "../shared/clear-signal";
 import { shouldBlockAiForecast } from "../shared/profit-protection";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
@@ -92,32 +92,14 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       capitalShieldOk: ctx.capitalShieldOk,
     });
 
-  if (!setupQ.tradeAllowed || setupQ.score < minScoreForTrade()) {
-    failAiSession(
-      `HOLD — setup ${setupQ.score}/100 yetarli emas. ${setupQ.warningsUz[0] ?? setupQ.summaryUz}`
-    );
-    broadcastUpdate();
-    return;
+  let setupHint: string | undefined;
+  if (!setupQ.tradeAllowed) {
+    setupHint = `Setup ${setupQ.score}/100 — ${setupQ.warningsUz[0] ?? "ehtiyot"}`;
   }
 
   const na = ctx.newsAnalysis;
   if (na?.contradictionsUz) {
-    failAiSession(`HOLD — yangiliklar zid: ${na.contradictionsUz.slice(0, 120)}`);
-    broadcastUpdate();
-    return;
-  }
-  if (na && !na.newsCandleAligned && setupQ.score < 72) {
-    failAiSession(
-      "HOLD — yangiliklar va shamlar mos emas. Faqat A-setup (72+) da kiring."
-    );
-    broadcastUpdate();
-    return;
-  }
-
-  if (tech5.adx < 20 && tech.adx < 20) {
-    failAiSession("HOLD — trend kuchsiz (ADX past). Aniq setup kuting.");
-    broadcastUpdate();
-    return;
+    setupHint = `${setupHint ?? ""} · Yangiliklar zid`.trim();
   }
 
   const m1ScalpBlock =
@@ -152,14 +134,30 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     const raw = await askClaude(SYSTEM_AI_TRADE_SIGNAL, prompt, 2048);
     let signal = parseAiTradeSignalJson(raw, ctx.gold.price);
 
-    if (signal.action !== "HOLD" && signal.confidence < 58) {
+    const minConf = minConfidenceForSetup(setupQ.score);
+    if (signal.action !== "HOLD" && signal.confidence < minConf) {
       signal = {
         ...signal,
         action: "HOLD",
         confidence: signal.confidence,
-        summaryUz: `HOLD — AI ishonch ${signal.confidence}% past (min 58)`,
+        summaryUz: `HOLD — ishonch ${signal.confidence}% (min ${minConf})`,
         triggerUz: "Aniqroq setup kuting",
       };
+    }
+
+    if (signal.action === "HOLD") {
+      const rule = deriveClearSignal({
+        price: ctx.gold.price,
+        tech,
+        tech5,
+        setupQ,
+        m1Scalp: ctx.m1Scalp,
+        live,
+      });
+      if (rule) {
+        signal = rule;
+        console.log("[ai-signal] rule-based clear signal:", rule.action);
+      }
     }
 
     const guarded = guardScalpAiSignal(signal, {
@@ -178,10 +176,11 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       console.log("[ai-signal] swing reject:", swing.reasonUz);
     }
 
-    if (capitalWarning && signal.action !== "HOLD") {
+    const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
+    if (extra && signal.action !== "HOLD") {
       signal = {
         ...signal,
-        summaryUz: `${signal.summaryUz} · ${capitalWarning}`,
+        summaryUz: `${signal.summaryUz} · ${extra}`,
       };
     }
     completeAiSession(signal);

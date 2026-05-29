@@ -21,8 +21,8 @@ export interface SetupQuality {
   summaryUz: string;
 }
 
-const MIN_TRADE_SCORE = 62;
-const MIN_TRADE_SCORE_STRICT = 72;
+const MIN_TRADE_SCORE = 48;
+const MIN_TRADE_SCORE_STRICT = 58;
 
 function gradeFromScore(s: number): SetupQuality["grade"] {
   if (s >= 78) return "A";
@@ -62,8 +62,8 @@ export function computeSetupQuality(input: {
     base += 8;
     reasons.push(`M1 ADX ${input.tech1.adx} — trend bor`);
   } else if (input.tech1.adx < 16) {
-    base -= 12;
-    warnings.push("M1 ADX past — range, ehtiyot");
+    base -= 4;
+    warnings.push("M1 ADX past — range, kichik lot");
   }
 
   if (e1) {
@@ -115,8 +115,14 @@ export function computeSetupQuality(input: {
   }
 
   const live = input.live;
-  if (live?.direction === "up") longScore += 12;
-  if (live?.direction === "down") shortScore += 12;
+  if (live?.direction === "up") {
+    longScore += 16;
+    if (input.tech1.adx < 18) base += 6;
+  }
+  if (live?.direction === "down") {
+    shortScore += 16;
+    if (input.tech1.adx < 18) base += 6;
+  }
 
   if (input.calendar?.inHighImpactWindow) {
     base -= 30;
@@ -149,7 +155,7 @@ export function computeSetupQuality(input: {
     score >= MIN_TRADE_SCORE &&
     warnings.filter((w) => /makro|kapital|zid/i.test(w)).length === 0 &&
     input.capitalShieldOk !== false &&
-    clarity >= 12;
+    clarity >= 8;
 
   const summaryUz = tradeAllowed
     ? `Setup ${score}/100 (${gradeUz(grade)}) — savdo mumkin, SL majburiy.`
@@ -174,7 +180,7 @@ ${q.tradeAllowed ? "SAVDO RUXSAT" : "SAVDO TAQLANGAN — faqat HOLD"}
 Long ball: ${q.longScore} | Short ball: ${q.shortScore}
 Sabablari: ${q.reasonsUz.join("; ") || "—"}
 Ogohlantirish: ${q.warningsUz.join("; ") || "yo'q"}
-QOIDA: Score < ${MIN_TRADE_SCORE} yoki ogohlantirish bo'lsa — action HOLD. Kapital himoya birinchi.`;
+QOIDA: Score >= ${MIN_TRADE_SCORE} va long/short aniq bo'lsa BUY/SELL bering (confidence mos). Faqat makro zid yoki kapital limit → HOLD.`;
 }
 
 export function minScoreForTrade(strict = false): number {
