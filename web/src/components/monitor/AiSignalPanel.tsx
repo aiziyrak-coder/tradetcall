@@ -85,7 +85,7 @@ export function AiSignalPanel({
     return (
       <TermCard
         title="AI savdo signali"
-        subtitle="M1 skalp · kirish, SL, TP · max 12 daq"
+        subtitle="Maqsad 50–100 pip · SL/TP aniq"
         accent="gold"
       >
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center">
@@ -109,11 +109,23 @@ export function AiSignalPanel({
   }
 
   const action = signal.action;
+  const tpPips =
+    action !== "HOLD"
+      ? Math.round((Math.abs(signal.takeProfit - signal.entry) / 0.1) * 10) / 10
+      : 0;
+  const slPips =
+    action !== "HOLD"
+      ? Math.round((Math.abs(signal.entry - signal.stopLoss) / 0.1) * 10) / 10
+      : 0;
 
   return (
     <TermCard
       title="AI savdo signali"
-      subtitle={`Ishonch ${signal.confidence}% · R:R ${signal.riskReward}`}
+      subtitle={
+        action === "HOLD"
+          ? `Ishonch ${signal.confidence}%`
+          : `Maqsad ~${tpPips} pip · SL ~${slPips} pip · R:R ${signal.riskReward}`
+      }
       accent="gold"
       headerExtra={
         <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-black ${actionStyle[action]}`}>

@@ -12,6 +12,7 @@ import {
   getLiveMomentum,
   guardScalpAiSignal,
 } from "../shared/scalp-signal-guard";
+import { enforceSwingTargets, formatSwingTargetsForAi } from "../shared/pip-targets";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
 import {
@@ -58,14 +59,11 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   const m1ScalpBlock =
     ctx.m1Scalp != null ? formatM1ScalpForAi(ctx.m1Scalp, tech, tech5) : undefined;
   const liveMomentumBlock = formatLiveMomentumForAi(live, ctx.gold.changePercent);
+  const swingTargetBlock = formatSwingTargetsForAi(ctx.gold.price, tech5);
 
-  if (
-    ctx.m1Scalp &&
-    (ctx.m1Scalp.phase === "range" || ctx.m1Scalp.direction === "neutral") &&
-    live.direction === "flat"
-  ) {
+  if (tech5.adx < 18 && tech.adx < 18) {
     failAiSession(
-      "HOLD — aniq M1 trend yo'q. Jonli narx yon. 1–2 daqiqa kutib YANGI PROGNOZ bosing."
+      "HOLD — kuchsiz bozor (ADX past). 50–100 pip harakat uchun trend kuting."
     );
     broadcastUpdate();
     return;
@@ -82,6 +80,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     tech5m: tech5,
     m1ScalpBlock,
     liveMomentumBlock,
+    swingTargetBlock,
     newsAnalysis: ctx.newsAnalysis,
     newsTitles,
     drivers: ctx.drivers.map((d) => ({ name: d.name, changePercent: d.changePercent })),
@@ -101,6 +100,14 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       impulse: ctx.impulse,
     });
     signal = guarded.signal;
+
+    const swing = enforceSwingTargets(signal, ctx.gold.price, tech5);
+    signal = swing.signal;
+    if (swing.rejected) {
+      console.log("[ai-signal] swing reject:", swing.reasonUz);
+    } else if (swing.adjusted && swing.targetPips) {
+      console.log(`[ai-signal] swing TP ~${swing.targetPips} pip`);
+    }
     if (guarded.adjusted) {
       console.log("[ai-signal] guard HOLD:", guarded.reasonUz);
     }

@@ -1,7 +1,7 @@
 /** Oltin treyder platformasi — o'zbekcha */
 export const UZ = {
   appTitle: "Oltin Signal",
-  subtitle: "M1 skalp · narx · AI signal",
+  subtitle: "50–100 pip · aniq signal",
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",
@@ -9,7 +9,7 @@ export const UZ = {
   monitorIdle: "Prognoz uchun tugmani bosing",
   monitorActive: "AI tahlil…",
   monitorReady: "Signal tayyor",
-  monitorOneShot: "M1 skalp · 8–12 daq",
+  monitorOneShot: "50–100 pip maqsad",
   settings: "Sozlamalar",
   logout: "Chiqish",
 

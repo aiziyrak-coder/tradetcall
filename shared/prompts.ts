@@ -15,19 +15,17 @@ HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qol
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
-export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD M1 SKALPING mutaxassisisiz.
-ASOSIY: oxirgi 2–3 M1 sham yopilish yo'nalishi (jonli momentum) — EMA/SMA dan MUHIMROQ.
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD SWING / intraday mutaxassisisiz.
+Maqsad: KATTA harakat — kamida 50 pip ($5), ideal 70–100 pip ($7–$10) foyda.
 
 QAT'IY:
-- Faqat JSON
-- action: BUY | SELL | HOLD
-- Jonli momentum UP → SELL TAQLANGAN (faqat BUY yoki HOLD)
-- Jonli momentum DOWN → BUY TAQLANGAN (faqat SELL yoki HOLD)
-- RSI < 38 oversold → SELL taqiq (qaytish/bounce)
-- RSI > 62 overbought → BUY taqiq
-- Yangiliklar uzoq muddat — M1 zid bo'lsa HOLD
-- SL qisqa (M1 ATR), TP 1.3–2× risk, max 12 daq
-- Ishonchsiz bo'lsa HOLD — taxminiy signal bermang
+- Faqat JSON — action: BUY | SELL | HOLD
+- BUY/SELL faqat aniq trend + 50+ pip joy bo'lsa; aks holda HOLD
+- takeProfit: entry dan kamida $5 (50 pip), ko'pi $10 (100 pip) gacha
+- stopLoss: $2–$4 (20–40 pip), R:R min 1:1.5
+- Jonli momentum teskari bo'lsa HOLD
+- RSI<38 SELL taqiq, RSI>62 BUY taqiq
+- 3–5 pip skalp TP bermang — faqat katta maqsad
 - O'zbek tilida`;
 
 export function buildTranslatePrompt(
@@ -48,6 +46,7 @@ export function buildAiTradeSignalPrompt(input: {
   tech5m?: TechnicalAnalysis;
   m1ScalpBlock?: string;
   liveMomentumBlock?: string;
+  swingTargetBlock?: string;
   newsAnalysis: NewsMarketAnalysis | null;
   newsTitles: string[];
   drivers: { name: string; changePercent: number }[];
@@ -59,7 +58,7 @@ export function buildAiTradeSignalPrompt(input: {
 
   const t5 = input.tech5m ?? input.tech;
 
-  return `XAUUSD — M1 SKALPING TAHLILI (bir martalik, 8–12 daq)
+  return `XAUUSD — SWING SIGNAL (50–100 pip maqsad, aniq bo'lsa)
 
 NARX HOZIR: $${input.price} (${input.changePercent}%)
 24s: ${input.low24h ?? "?"} — ${input.high24h ?? "?"}
@@ -67,6 +66,8 @@ NARX HOZIR: $${input.price} (${input.changePercent}%)
 ${input.m1ScalpBlock ?? "M1 skalp: ma'lumot yetarli emas — ehtiyotkor HOLD"}
 
 ${input.liveMomentumBlock ?? ""}
+
+${input.swingTargetBlock ?? ""}
 
 TEXNIK M1 (asosiy):
 - Trend: ${input.tech.trend}, RSI ${input.tech.rsi}, ADX ${input.tech.adx}
@@ -137,8 +138,8 @@ export function parseAiTradeSignalJson(text: string, currentPrice: number): AiTr
     const reward = Math.abs(takeProfit - entry);
     riskReward = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
   }
-  if (action !== "HOLD" && riskReward < 1.15) {
-    throw new Error(`Risk/reward ${riskReward} juda past (min 1.15)`);
+  if (action !== "HOLD" && riskReward < 1.4) {
+    throw new Error(`Risk/reward ${riskReward} juda past (min 1.4)`);
   }
 
   return {

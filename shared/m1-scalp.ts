@@ -5,6 +5,7 @@
 import type { Candle, TechnicalAnalysis } from "./types";
 import { analyzeTechnicals } from "./technical";
 import type { PriceImpulse } from "./price-impulse";
+import { pipsToUsd, SWING_MIN_SL_PIPS, SWING_DEFAULT_TP_PIPS } from "./pip-targets";
 
 export type M1ScalpPhase = "forming" | "active" | "exhausted" | "reversal" | "range";
 
@@ -186,8 +187,8 @@ export function analyzeM1ScalpLead(
 
   const strength = Math.min(98, Math.round(Math.abs(lead) * 1.1 + tech1.adx * 0.5));
 
-  const slDist = Math.max(atr * 0.85, price * 0.00025);
-  const tpDist = Math.max(atr * 1.15, slDist * 1.35);
+  const slDist = Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 2.5);
+  const tpDist = Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.8, atr * 5);
 
   let entryHint = price;
   let stopHint = price;
@@ -225,9 +226,9 @@ export function analyzeM1ScalpLead(
 
   const nextMoveUz =
     direction === "long"
-      ? `Keyingi harakat: yuqoriga $${tpHint} (8–12 daq)`
+      ? `Keyingi harakat: yuqoriga $${tpHint} (~50–100 pip)`
       : direction === "short"
-        ? `Keyingi harakat: pastga $${tpHint} (8–12 daq)`
+        ? `Keyingi harakat: pastga $${tpHint} (~50–100 pip)`
         : `Kutish: $${tech1.support[0] ?? "—"} / $${tech1.resistance[0] ?? "—"}`;
 
   const summaryUz = `M1 ${direction.toUpperCase()} ${strength}% · ${phaseUz[phase]} · ${recent.note} · ${struct.note}`;
@@ -242,7 +243,7 @@ export function analyzeM1ScalpLead(
     entryHint,
     stopHint,
     tpHint,
-    maxHoldMin: 12,
+    maxHoldMin: 480,
     summaryUz,
   };
 }
@@ -260,5 +261,5 @@ export function formatM1ScalpForAi(
 - Tavsiya zona: kirish ~$${lead.entryHint}, SL ~$${lead.stopHint}, TP ~$${lead.tpHint}, max ${lead.maxHoldMin} daq
 - 1m: RSI ${tech1.rsi}, ADX ${tech1.adx}, ATR $${tech1.atr}, trend ${tech1.trend}
 - 5m filter: trend ${tech5.trend}, RSI ${tech5.rsi}
-QOIDA: JONLI sham yo'nalishi EMA dan ustun. RSI<38 da SELL taqiq. RSI>62 da BUY taqiq. Range/exhausted — HOLD.`;
+QOIDA: Maqsad 50–100 pip. Kichik skalp TP bermang. JONLI sham ustun. RSI<38 SELL taqiq.`;
 }
