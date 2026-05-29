@@ -19,8 +19,7 @@ interface Props {
   translating: boolean;
   monitorSession?: MonitorSessionInfo | null;
   sessionBusy?: boolean;
-  onStartMonitor?: () => void;
-  onStopMonitor?: () => void;
+  onRequestForecast?: () => void;
   isAdmin?: boolean;
   onOpenAdmin?: () => void;
   onOpenSettings?: () => void;
@@ -42,8 +41,7 @@ export function MonitorTopBar({
   translating,
   monitorSession,
   sessionBusy,
-  onStartMonitor,
-  onStopMonitor,
+  onRequestForecast,
   isAdmin,
   onOpenAdmin,
   onOpenSettings,
@@ -64,32 +62,22 @@ export function MonitorTopBar({
         <span className="hidden text-[7px] text-[var(--term-muted)] sm:inline">{UZ.subtitle}</span>
 
         <div className="flex items-center gap-1">
-          {!analyzing ? (
-            <button
-              type="button"
-              disabled={sessionBusy}
-              onClick={onStartMonitor}
-              className="btn-ai-start touch-target rounded-md px-2.5 py-1 text-[9px] font-black text-white disabled:opacity-50"
-              title="Bir martalik AI tahlil — token tejash"
-            >
-              {sessionBusy ? "…" : UZ.monitorStart}
-            </button>
-          ) : (
+          {analyzing ? (
             <span className="text-[8px] font-bold text-violet-300">{UZ.monitorActive}</span>
-          )}
-          {phase === "ready" && onStopMonitor && (
+          ) : (
             <button
               type="button"
               disabled={sessionBusy}
-              onClick={onStopMonitor}
-              className="btn-ai-stop touch-target rounded-md px-2 py-1 text-[9px] font-black text-white disabled:opacity-50"
+              onClick={onRequestForecast}
+              className="btn-ai-forecast touch-target rounded-md px-2.5 py-1 text-[9px] font-black text-white disabled:opacity-50"
+              title="Bir martalik AI tahlil — faqat bosganda token sarflanadi"
             >
-              {UZ.monitorStop}
+              {sessionBusy ? "…" : UZ.monitorForecast}
             </button>
           )}
           {!analyzing && (
             <span className="text-[8px] text-slate-500">
-              {ready ? UZ.monitorReady : UZ.monitorIdle} · {UZ.monitorAutoStop}
+              {ready ? UZ.monitorReady : UZ.monitorIdle} · {UZ.monitorOneShot}
             </span>
           )}
         </div>

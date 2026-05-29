@@ -55,7 +55,7 @@ export function SettingsScreen({ username, onBack }: Props) {
       await api.settings.setApiKey(trimmed);
       setKeyInput("");
       await refreshKeyStatus();
-      setKeyMsg("✓ API kalit saqlandi — endi AI START bosing");
+      setKeyMsg("✓ API kalit saqlandi — endi YANGI PROGNOZ bosing");
     } catch (e) {
       setKeyMsg(e instanceof Error ? e.message : "Saqlash xatosi");
     } finally {

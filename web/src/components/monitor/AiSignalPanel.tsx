@@ -45,7 +45,7 @@ export function AiSignalPanel({
   currentPrice = 0,
   onOpenSettings,
 }: Props) {
-  const message = session?.messageUz ?? "AI kutilmoqda — savdo signali uchun AI START bosing";
+  const message = session?.messageUz ?? "YANGI PROGNOZ tugmasini bosing — bir martalik AI signal";
 
   if (phase === "analyzing") {
     return (
@@ -93,7 +93,7 @@ export function AiSignalPanel({
             KUTILMOQDA
           </span>
           <p className="text-[9px] text-[var(--term-muted)]">{message}</p>
-          <p className="text-[8px] text-slate-500">Narx va bashorat jonli. Signal — faqat AI START.</p>
+          <p className="text-[8px] text-slate-500">Narx va bashorat jonli. Signal — YANGI PROGNOZ bosilganda.</p>
           {onOpenSettings && (
             <button
               type="button"

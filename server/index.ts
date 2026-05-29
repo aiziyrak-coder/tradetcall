@@ -370,7 +370,7 @@ function requireAiSession(
 ) {
   if (!isAiSessionActive()) {
     res.status(403).json({
-      error: "AI START bosing — bir martalik tahlil vaqtida ishlaydi.",
+      error: "YANGI PROGNOZ bosing — bir martalik tahlil vaqtida ishlaydi.",
     });
     return;
   }

@@ -77,19 +77,15 @@ body {
   border-bottom: 1px solid var(--term-border);
 }
 
-.btn-ai-start {
+.btn-ai-forecast {
   background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
   box-shadow: 0 0 16px rgba(124, 58, 237, 0.35);
   transition: filter 0.15s ease, transform 0.1s ease;
 }
 
-.btn-ai-start:hover:not(:disabled) {
+.btn-ai-forecast:hover:not(:disabled) {
   filter: brightness(1.1);
   transform: translateY(-0.5px);
-}
-
-.btn-ai-stop {
-  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
 }
 
 .live-price-main {

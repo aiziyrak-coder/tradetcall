@@ -140,22 +140,6 @@ export function MonitorScreen({
     }
   };
 
-  const handleStopMonitor = async () => {
-    setSessionBusy(true);
-    try {
-      const session = await api.monitor.stop();
-      setMonitorSession(session);
-      const s = await api.monitor.getSnapshot();
-      setData(s);
-      if (s.aiSession) setMonitorSession(s.aiSession);
-      else if (s.monitorSession) setMonitorSession(s.monitorSession);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Stop xatosi");
-    } finally {
-      setSessionBusy(false);
-    }
-  };
-
   const price = data?.gold?.price ?? 0;
   const news = data?.news ?? { direct: [], macro: [], geopolitics: [] };
   const analysis = data?.newsAnalysis ?? null;
@@ -183,8 +167,7 @@ export function MonitorScreen({
         translating={translating || analyzingNews}
         monitorSession={monitorSession ?? data?.aiSession ?? data?.monitorSession}
         sessionBusy={sessionBusy}
-        onStartMonitor={() => void handleStartMonitor()}
-        onStopMonitor={() => void handleStopMonitor()}
+        onRequestForecast={() => void handleStartMonitor()}
         isAdmin={isAdmin}
         onOpenAdmin={onOpenAdmin}
         onOpenSettings={onOpenSettings}

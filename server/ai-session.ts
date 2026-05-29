@@ -2,7 +2,7 @@ import type { AiPhase, AiTradeSignal } from "../shared/ai-trade-signal";
 import type { MonitorSessionInfo } from "../shared/types";
 
 let phase: AiPhase = "idle";
-let messageUz = "AI kutilmoqda — savdo signali uchun AI START bosing";
+let messageUz = "YANGI PROGNOZ tugmasini bosing — bir martalik AI signal";
 let aiSignal: AiTradeSignal | null = null;
 let onSessionChange: ((status: MonitorSessionInfo) => void) | null = null;
 let analysisRunner: (() => Promise<void>) | null = null;
@@ -101,7 +101,7 @@ export function failAiSession(errorUz: string): MonitorSessionInfo {
 
 export function stopAiSession(_reason: "user" | "auto" = "user"): MonitorSessionInfo {
   phase = "idle";
-  messageUz = "AI kutilmoqda — yangi signal uchun AI START bosing";
+  messageUz = "YANGI PROGNOZ tugmasini bosing — bir martalik AI signal";
   aiSignal = null;
   notifyChange();
   return getAiSessionStatus();
