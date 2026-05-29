@@ -39,13 +39,13 @@ export function shouldBlockAiForecast(input: {
   if (capitalShield.allowAiForecast === false) {
     const hard =
       capitalShield.messagesUz.find((m) =>
-        /tanaffus|zarar limiti|makro|bozor sifati/i.test(m)
+        /tanaffus|makro|bozor sifati|ketma-ket zarar/i.test(m)
       ) ?? capitalShield.messagesUz[0];
     return { block: true, reasonUz: hard ?? "Kapital himoyasi" };
   }
 
   const soft = capitalShield.messagesUz.find((m) =>
-    /foyda maqsadi|signal limiti|greed/i.test(m)
+    /foyda maqsadi|zarar limiti|signal limiti|greed/i.test(m)
   );
   if (soft) {
     return {

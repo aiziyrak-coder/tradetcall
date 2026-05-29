@@ -7,7 +7,6 @@ import {
   getJournalSnapshot,
   getJournalStats,
   getTodayShieldStats,
-  recordSignalIfNew,
   resolvePendingSignals,
 } from "./signal-journal-store";
 
@@ -42,27 +41,7 @@ export function enrichSnapshotWithPlatform(
     discipline: platform.discipline,
     marketQuality: platform.marketQuality,
   };
-  let guarded = applyProfitProtectionToSnapshot(snap, blockCtx);
-
-  const tradingBlocked =
-    !platform.capitalShield.allowNewTrades ||
-    !platform.marketQuality.tradeable ||
-    platform.discipline.score < 60;
-
-  if (price != null && price > 0 && !tradingBlocked) {
-    const ai = guarded.aiSignal;
-    if (ai && (ai.action === "BUY" || ai.action === "SELL") && ai.confidence >= 55) {
-      recordSignalIfNew({
-        horizon: "short",
-        action: ai.action,
-        strength: ai.confidence,
-        entry: ai.entry,
-        stopLoss: ai.stopLoss,
-        takeProfit: ai.takeProfit,
-        price,
-      });
-    }
-  }
+  const guarded = applyProfitProtectionToSnapshot(snap, blockCtx);
 
   lastPlatform = platform;
 

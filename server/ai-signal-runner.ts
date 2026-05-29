@@ -27,6 +27,7 @@ import {
   refreshNewsDeepAnalysis,
 } from "./monitor-service";
 import { emitMonitorEvent } from "./events";
+import { recordSignalIfNew } from "./signal-journal-store";
 
 export async function runOneShotAiAnalysis(): Promise<void> {
   const key = getApiKey();
@@ -184,6 +185,22 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       };
     }
     completeAiSession(signal);
+
+    if (
+      signal.action === "BUY" ||
+      signal.action === "SELL"
+    ) {
+      recordSignalIfNew({
+        horizon: "short",
+        action: signal.action,
+        strength: signal.confidence,
+        entry: signal.entry,
+        stopLoss: signal.stopLoss,
+        takeProfit: signal.takeProfit,
+        price: ctx.gold.price,
+        dedupeMs: 45 * 60 * 1000,
+      });
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI tahlil xatosi";
     failAiSession(msg);

@@ -95,12 +95,10 @@ export function evaluateCapitalShield(input: {
   }
 
   if (stats.estimatedLossPct >= prefs.maxDailyLossPct) {
-    allowed = false;
     allowNewTrades = false;
-    allowAiForecast = false;
-    level = "red";
+    level = level === "red" ? "red" : "yellow";
     messages.push(
-      `Kunlik zarar limiti: ${stats.estimatedLossPct.toFixed(1)}% / ${prefs.maxDailyLossPct}%`
+      `Kunlik zarar limiti: ${stats.estimatedLossPct.toFixed(1)}% / ${prefs.maxDailyLossPct}% — yangi lot ochmang`
     );
   }
 

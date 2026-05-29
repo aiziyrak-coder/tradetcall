@@ -11,6 +11,7 @@ import type { JournalStats } from "../shared/platform-insight";
 import { buildWeeklyReport } from "../shared/weekly-report";
 import { triggerLossPause, getPauseUntil } from "./shield-runtime";
 import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
+import { journalImpactUsd } from "../shared/journal-pnl";
 
 function maybeTriggerLossPause(): void {
   const today = new Date().toISOString().slice(0, 10);
@@ -88,7 +89,11 @@ export function getJournalStats(): JournalStats {
   return statsFromEntries(loadFile().entries);
 }
 
-export function getTodayShieldStats(accountUsd = 1000): {
+export function getTodayShieldStats(
+  accountUsd = 1000,
+  riskPercent = 1,
+  maxClosedForPct = DEFAULT_CAPITAL_SHIELD.maxTradesPerDay
+): {
   dateKey: string;
   trades: number;
   wins: number;
@@ -104,19 +109,26 @@ export function getTodayShieldStats(accountUsd = 1000): {
   const wins = closed.filter((e) => e.outcome === "win").length;
   const losses = closed.filter((e) => e.outcome === "loss").length;
 
+  const closedForPct = [...closed]
+    .sort((a, b) => (b.closedAt ?? b.createdAt).localeCompare(a.closedAt ?? a.createdAt))
+    .slice(0, Math.max(maxClosedForPct, 1));
+
   let profitUsd = 0;
   let lossUsd = 0;
-  for (const e of closed) {
-    const moveUsd = e.pnlPts ?? 0;
-    if (e.outcome === "win" && moveUsd > 0) profitUsd += moveUsd;
-    if (e.outcome === "loss") lossUsd += Math.abs(moveUsd);
+  for (const e of closedForPct) {
+    const impact = journalImpactUsd(e, accountUsd, riskPercent);
+    if (e.outcome === "win" && impact > 0) profitUsd += impact;
+    if (e.outcome === "loss") lossUsd += impact;
   }
   const base = Math.max(accountUsd, 100);
   const estimatedProfitPct = Math.round((profitUsd / base) * 1000) / 10;
   const estimatedLossPct = Math.round((lossUsd / base) * 1000) / 10;
 
+  const streakPool = [...closed]
+    .sort((a, b) => (b.closedAt ?? b.createdAt).localeCompare(a.closedAt ?? a.createdAt))
+    .slice(0, 8);
   let consecutiveLosses = 0;
-  for (const e of [...closed].reverse()) {
+  for (const e of streakPool) {
     if (e.outcome === "loss") consecutiveLosses += 1;
     else if (e.outcome === "win") break;
   }
@@ -146,8 +158,6 @@ export function setJournalNote(id: string, noteUz: string): boolean {
   return true;
 }
 
-let lastRecorded: { short: string; long: string } = { short: "", long: "" };
-
 export function recordSignalIfNew(input: {
   horizon: "long" | "short";
   action: TradeAction;
@@ -156,15 +166,23 @@ export function recordSignalIfNew(input: {
   stopLoss: number;
   takeProfit: number;
   price: number;
+  /** Bir xil signalni qayta yozmaslik (ms), default 30 daqiqa */
+  dedupeMs?: number;
 }): SignalJournalEntry | null {
   if (input.action !== "BUY" && input.action !== "SELL") return null;
-  const key = `${input.horizon}:${input.action}:${Math.round(input.strength)}`;
-  const prev = input.horizon === "short" ? lastRecorded.short : lastRecorded.long;
-  if (prev === key) return null;
-  if (input.horizon === "short") lastRecorded.short = key;
-  else lastRecorded.long = key;
+  const dedupeMs = input.dedupeMs ?? 30 * 60 * 1000;
 
-  const entry: SignalJournalEntry = {
+  const file = loadFile();
+  const recent = file.entries.find(
+    (e) =>
+      e.horizon === input.horizon &&
+      e.action === input.action &&
+      e.outcome === "pending" &&
+      Date.now() - new Date(e.createdAt).getTime() < dedupeMs
+  );
+  if (recent) return null;
+
+  const journalEntry: SignalJournalEntry = {
     id: `${Date.now()}-${input.horizon}-${input.action}`,
     createdAt: new Date().toISOString(),
     horizon: input.horizon,
@@ -177,11 +195,10 @@ export function recordSignalIfNew(input: {
     outcome: "pending",
   };
 
-  const file = loadFile();
-  file.entries.unshift(entry);
+  file.entries.unshift(journalEntry);
   if (file.entries.length > MAX_ENTRIES) file.entries.length = MAX_ENTRIES;
   saveFile(file);
-  return entry;
+  return journalEntry;
 }
 
 export function resolvePendingSignals(price: number): void {
