@@ -1,17 +1,21 @@
 //+------------------------------------------------------------------+
-//| TradeBridgeEA.mq5 — XAUUSD tick → tradeapi.ziyrak.org              |
+//| TradeBridgeEA.mq5 — XAUUSD tick → tradeapi (real-time)            |
 //| MT5: Tools → Options → Expert Advisors → WebRequest allow URL     |
 //+------------------------------------------------------------------+
 #property copyright "Ziyrak Trade"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
 
 input string ApiUrl      = "https://tradeapi.ziyrak.org/api/mt5/tick";
-input string Mt5Secret   = "";  // server .env MT5_BRIDGE_SECRET bilan bir xil
-input int    SendEveryMs = 1000;
+input string Mt5Secret   = "";
+input int    SendEveryMs = 200;
+input int    HeartbeatMs = 2000;
 input bool   OnlyXau     = true;
 
-datetime g_lastSend = 0;
+ulong g_lastSend = 0;
+ulong g_lastHeartbeat = 0;
+double g_lastBid = 0;
+double g_lastAsk = 0;
 
 bool PostTick()
 {
@@ -33,7 +37,7 @@ bool PostTick()
    int    t      = (int)TimeCurrent();
 
    string body = StringFormat(
-      "{\"symbol\":\"%s\",\"bid\":%.2f,\"ask\":%.2f,\"time\":%d,\"broker\":\"%s\",\"account\":\"%s\"}",
+      "{\"symbol\":\"%s\",\"bid\":%.3f,\"ask\":%.3f,\"time\":%d,\"broker\":\"%s\",\"account\":\"%s\"}",
       sym, bid, ask, t, broker, acc
    );
 
@@ -44,7 +48,7 @@ bool PostTick()
    ArrayResize(post, ArraySize(post) - 1);
 
    string resultHeaders;
-   int timeout = 5000;
+   int timeout = 3000;
    int res = WebRequest("POST", ApiUrl, headers, timeout, post, result, resultHeaders);
    if(res == -1)
      {
@@ -54,27 +58,48 @@ bool PostTick()
    return true;
 }
 
+void TrySend(bool force)
+{
+   ulong now = GetTickCount();
+   string sym = _Symbol;
+   double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+   double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
+   bool changed = (bid != g_lastBid || ask != g_lastAsk);
+   bool heartbeat = (now - g_lastHeartbeat >= (ulong)HeartbeatMs);
+
+   if(!force && !changed && !heartbeat) return;
+   if(!force && (now - g_lastSend < (ulong)SendEveryMs)) return;
+
+   if(PostTick())
+     {
+      g_lastSend = now;
+      g_lastBid = bid;
+      g_lastAsk = ask;
+      if(heartbeat || force) g_lastHeartbeat = now;
+     }
+}
+
 void OnTick()
 {
-   if(GetTickCount() - g_lastSend < (uint)SendEveryMs) return;
-   if(PostTick()) g_lastSend = GetTickCount();
+   TrySend(false);
 }
 
 int OnInit()
 {
-   Print("TradeBridgeEA: ", ApiUrl);
+   Print("TradeBridgeEA v1.10: ", ApiUrl, " har ", SendEveryMs, "ms");
    if(StringLen(Mt5Secret) < 16)
      {
-      Print("MT5_SECRET kiritilmagan (min 16 belgi)");
+      Print("MT5_SECRET kiritilmagan (min 16 belgi) — EA to'xtadi");
       return INIT_FAILED;
      }
    EventSetMillisecondTimer(SendEveryMs);
+   TrySend(true);
    return INIT_SUCCEEDED;
 }
 
 void OnTimer()
 {
-   PostTick();
+   TrySend(true);
 }
 
 void OnDeinit(const int reason)

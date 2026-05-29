@@ -19,8 +19,15 @@ import {
   updateUserWithToken,
 } from "./auth";
 import { djangoHealth } from "./django-client";
-import { addMonitorClient } from "./events";
+import { addMonitorClient, emitMonitorEvent } from "./events";
 import { checkInternet } from "./network";
+import {
+  getAiSessionStatus,
+  isAiSessionActive,
+  setAiSessionChangeHandler,
+  startAiSession,
+  stopAiSession,
+} from "./ai-session";
 import {
   buildSnapshot,
   getChartData,
@@ -285,13 +292,11 @@ app.post("/api/settings/api-key", (req, res) => {
     res.status(400).json({ error: "Kalit bo'sh" });
     return;
   }
-  clearEnvApiKeys();
   persistApiKey(key.trim());
-  setClaudeKey(getApiKey());
   res.json({ ok: true });
 });
 
-app.post("/api/settings/api-key/test", async (req, res) => {
+app.post("/api/settings/api-key/test", requireAuth, requireAiSession, async (req, res) => {
   if (authSession(req).role !== "admin") {
     res.status(403).json({ error: "Faqat admin" });
     return;
@@ -303,6 +308,8 @@ app.post("/api/settings/api-key/test", async (req, res) => {
     return;
   }
   try {
+    clearEnvApiKeys();
+    setClaudeKey(toTest);
     const { hint, model } = await testApiKey(toTest);
     res.json({ ok: true, hint, model });
   } catch (e) {
@@ -310,6 +317,8 @@ app.post("/api/settings/api-key/test", async (req, res) => {
       ok: false,
       error: e instanceof Error ? e.message : "Test xatosi",
     });
+  } finally {
+    setClaudeKey("");
   }
 });
 
@@ -394,6 +403,38 @@ app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) =
 
 app.use("/api/monitor", requireAuth);
 
+function requireAiSession(
+  _req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) {
+  if (!isAiSessionActive()) {
+    res.status(403).json({
+      error: "AI uchun START bosing (30 daqiqa, keyin avto-o'chadi). Narx/signallar doim ishlaydi.",
+    });
+    return;
+  }
+  next();
+}
+
+app.get("/api/monitor/session", (_req, res) => {
+  res.json(getAiSessionStatus());
+});
+
+app.post("/api/monitor/start", (_req, res) => {
+  const session = startAiSession();
+  const snap = getLastSnapshot();
+  if (snap) emitMonitorEvent("monitor:update", snap);
+  res.json(session);
+});
+
+app.post("/api/monitor/stop", (_req, res) => {
+  const session = stopAiSession("user");
+  const snap = getLastSnapshot();
+  if (snap) emitMonitorEvent("monitor:update", snap);
+  res.json(session);
+});
+
 app.get("/api/monitor/snapshot", async (_req, res) => {
   try {
     const snap = await buildSnapshot();
@@ -418,7 +459,7 @@ app.post("/api/monitor/chart-interval", async (req, res) => {
   }
 });
 
-app.post("/api/monitor/forecast", async (_req, res) => {
+app.post("/api/monitor/forecast", requireAiSession, async (_req, res) => {
   try {
     const forecast = await runForecast();
     res.json(forecast);
@@ -427,7 +468,7 @@ app.post("/api/monitor/forecast", async (_req, res) => {
   }
 });
 
-app.post("/api/monitor/news/deep-analysis", async (_req, res) => {
+app.post("/api/monitor/news/deep-analysis", requireAiSession, async (_req, res) => {
   try {
     const analysis = await runNewsDeepAnalysis();
     res.json({ analysis });
@@ -531,10 +572,16 @@ wss.on("connection", (ws, req) => {
   })();
 });
 
+setAiSessionChangeHandler(() => {
+  const snap = getLastSnapshot();
+  if (snap) emitMonitorEvent("monitor:update", snap);
+});
+
 startMonitorService();
 
 function shutdown(signal: string) {
   console.log(`${signal} — to'xtatilmoqda`);
+  stopAiSession("user");
   stopMonitorService();
   wss.close();
   server.close(() => process.exit(0));

@@ -19,6 +19,8 @@ export interface TradeGateInput {
   adx?: number;
   tfAligned?: number;
   tfTotal?: number;
+  masterLongScore?: number;
+  masterShortScore?: number;
 }
 
 export interface TradeGateResult {
@@ -35,11 +37,11 @@ const MIN_RR: Record<TradeMode, number> = {
 };
 const MIN_CONFLUENCE: Record<TradeMode, number> = {
   longterm: LONG_THRESHOLDS.minConfluence,
-  short: SHORT_THRESHOLDS.minConfluence,
+  short: 38,
 };
 const MIN_CONFIDENCE: Record<TradeMode, number> = {
   longterm: LONG_THRESHOLDS.minNewsConfidence + 10,
-  short: SHORT_THRESHOLDS.minNewsConfidence + 6,
+  short: 28,
 };
 const MIN_SCORE: Record<TradeMode, number> = {
   longterm: LONG_THRESHOLDS.minBiasScore,
@@ -165,15 +167,20 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
   }
 
   const session = getMarketSession();
+  const masterStrong =
+    input.mode === "short" &&
+    Math.max(input.masterLongScore ?? 0, input.masterShortScore ?? 0) >= 52;
   if (
     input.mode === "short" &&
     !session.active &&
-    session.volatility === "past"
+    session.volatility === "past" &&
+    !masterStrong &&
+    (input.adx ?? 0) < 14
   ) {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: "Scalp uchun bozor faol emas — London/NY ochilishini kuting.",
+      reasonUz: "Bozor juda sokin — London/NY yoki kuchli impuls kuting.",
       capitalRuleUz,
       newsVerdictUz: input.news?.recommendationUz ?? session.hintUz,
     };
@@ -243,11 +250,15 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     };
   }
 
-  if (input.confluencePct < MIN_CONFLUENCE[input.mode]) {
+  const confMin =
+    input.mode === "short" && masterStrong
+      ? MIN_CONFLUENCE.short - 8
+      : MIN_CONFLUENCE[input.mode];
+  if (input.confluencePct < confMin) {
     return {
       allowed: false,
       effectiveBias: "wait",
-      reasonUz: `Moslik ${input.confluencePct}% — kamida ${MIN_CONFLUENCE[input.mode]}% kerak.`,
+      reasonUz: `Moslik ${input.confluencePct}% — kamida ${confMin}% kerak.`,
       capitalRuleUz,
       newsVerdictUz: newsCheck.verdictUz,
     };
@@ -257,8 +268,10 @@ export function applyTradeGate(input: TradeGateInput): TradeGateResult {
     (input.tfTotal ?? 0) > 0 ? (input.tfAligned ?? 0) / (input.tfTotal ?? 1) : 0;
   const scalpMomentum =
     input.mode === "short" &&
-    tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio &&
-    (input.adx ?? 0) >= MIN_ADX.short;
+    (tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio ||
+      masterStrong ||
+      Math.max(input.masterLongScore ?? 0, input.masterShortScore ?? 0) >= 48) &&
+    ((input.adx ?? 0) >= MIN_ADX.short || masterStrong);
 
   if (input.confidence < MIN_CONFIDENCE[input.mode] && !scalpMomentum) {
     return {

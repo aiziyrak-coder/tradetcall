@@ -136,9 +136,10 @@ export function analyzeTechnicals(candles: Candle[]): TechnicalAnalysis {
   const prior = priorDayLevels(candles);
 
   let trend: TechnicalAnalysis["trend"] = "neutral";
-  if (current > sma20 && sma20 > sma50 && rsiVal > 50 && adxVal >= 18) trend = "bullish";
-  else if (current < sma20 && sma20 < sma50 && rsiVal < 50 && adxVal >= 18) trend = "bearish";
-  else if (adxVal < 18) trend = "neutral";
+  const adxTrendMin = 16;
+  if (current > sma20 && sma20 > sma50 && rsiVal > 48 && adxVal >= adxTrendMin) trend = "bullish";
+  else if (current < sma20 && sma20 < sma50 && rsiVal < 52 && adxVal >= adxTrendMin) trend = "bearish";
+  else if (adxVal < adxTrendMin) trend = "neutral";
 
   let momentum = "Barqaror";
   if (rsiVal > 70) momentum = "Haddan tashqari sotib olingan — tuzatish mumkin";

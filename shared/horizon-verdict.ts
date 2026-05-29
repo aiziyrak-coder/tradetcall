@@ -1,3 +1,4 @@
+import type { PriceImpulse } from "./price-impulse";
 import type { SignalCheckItem, SignalDetail } from "./signal-detail";
 import { LONG_THRESHOLDS, SHORT_THRESHOLDS } from "./signal-thresholds";
 import type { TradeGateResult } from "./trade-gate";
@@ -40,7 +41,10 @@ function applyCapitalProtection(
   signal: SignalDetail,
   confluencePct: number,
   tfAligned: number,
-  tfTotal: number
+  tfTotal: number,
+  impulse?: PriceImpulse | null,
+  masterLongScore?: number,
+  masterShortScore?: number
 ): { action: TradeAction; reliabilityUz: string } {
   const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
 
@@ -54,7 +58,19 @@ function applyCapitalProtection(
       ? news?.overallBias !== "bearish" || (news?.biasStrength ?? 0) < 35
       : news?.overallBias !== "bullish" || (news?.biasStrength ?? 0) < 35;
 
-  const shortRelaxed = horizon === "short";
+  const impulseOk =
+    !!impulse &&
+    impulse.moveUsd >= 1.2 &&
+    ((action === "BUY" && impulse.direction === "long") ||
+      (action === "SELL" && impulse.direction === "short"));
+
+  const masterStrong =
+    horizon === "short" &&
+    Math.max(masterLongScore ?? 0, masterShortScore ?? 0) >= 52;
+  const shortRelaxed = horizon === "short" || impulseOk || masterStrong;
+  const minFiltersNeeded = shortRelaxed
+    ? Math.max(2, cfg.minFilters - 1)
+    : cfg.minFilters;
   const checks = [
     gate.allowed,
     !news || news.confidence >= cfg.minNewsConfidence || (shortRelaxed && tfOk),
@@ -65,7 +81,7 @@ function applyCapitalProtection(
     strength >= (shortRelaxed ? cfg.minStrength - 4 : cfg.minStrength),
   ];
   const passed = checks.filter(Boolean).length;
-  if (passed < cfg.minFilters) {
+  if (passed < minFiltersNeeded) {
     return {
       action: "HOLD",
       reliabilityUz: `Aniq emas — ${passed}/${cfg.filterTotal} filter — kichik lot yoki kuting`,
@@ -111,6 +127,9 @@ export function buildHorizonVerdict(input: {
   tfAligned?: number;
   tfTotal?: number;
   leadTimeframeUz?: string;
+  impulse?: PriceImpulse | null;
+  masterLongScore?: number;
+  masterShortScore?: number;
 }): HorizonVerdict {
   const { horizon, finalBias, gate, news, tech, signal } = input;
   const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
@@ -119,14 +138,32 @@ export function buildHorizonVerdict(input: {
   const tfTotal = input.tfTotal ?? (forLong ? 1 : 4);
 
   const tfRatio = tfTotal > 0 ? tfAligned / tfTotal : 0;
+  const masterWin = Math.max(input.masterLongScore ?? 0, input.masterShortScore ?? 0);
+  const masterLead =
+    (input.masterLongScore ?? 0) - (input.masterShortScore ?? 0);
   const shortScalp =
     horizon === "short" &&
-    tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio &&
-    input.confidence >= SHORT_THRESHOLDS.minNewsConfidence;
+    (tfRatio >= SHORT_THRESHOLDS.minTfVoteRatio ||
+      masterWin >= 50 ||
+      Math.abs(masterLead) >= 10) &&
+    input.confidence >= SHORT_THRESHOLDS.minNewsConfidence - 6;
 
   let action: TradeAction = "HOLD";
   if (finalBias === "long" && (gate.allowed || shortScalp)) action = "BUY";
   else if (finalBias === "short" && (gate.allowed || shortScalp)) action = "SELL";
+  else if (
+    horizon === "short" &&
+    masterWin >= 55 &&
+    (input.masterLongScore ?? 0) >= (input.masterShortScore ?? 0) + 8
+  ) {
+    action = "BUY";
+  } else if (
+    horizon === "short" &&
+    masterWin >= 55 &&
+    (input.masterShortScore ?? 0) >= (input.masterLongScore ?? 0) + 8
+  ) {
+    action = "SELL";
+  }
 
   const newsDir = newsDirectionScore(news, forLong);
   const techDir =
@@ -143,8 +180,12 @@ export function buildHorizonVerdict(input: {
     rawStrength += (tfAligned / tfTotal) * 18;
   }
 
-  if (!news || news.confidence < cfg.minNewsConfidence) rawStrength = Math.min(rawStrength, 48);
-  if (!gate.allowed) rawStrength = Math.min(rawStrength, 50);
+  if (!news || news.confidence < cfg.minNewsConfidence) {
+    rawStrength = Math.min(rawStrength, horizon === "short" && masterWin >= 50 ? 62 : 48);
+  }
+  if (!gate.allowed && !(horizon === "short" && masterWin >= 54)) {
+    rawStrength = Math.min(rawStrength, 50);
+  }
 
   const actionBoost =
     action !== "HOLD" && gate.allowed && signal.inEntryZone ? 10 : 0;
@@ -159,7 +200,10 @@ export function buildHorizonVerdict(input: {
     signal,
     input.confluencePct,
     tfAligned,
-    tfTotal
+    tfTotal,
+    input.impulse,
+    input.masterLongScore,
+    input.masterShortScore
   );
   action = cap.action;
   if (action === "HOLD") strength = Math.min(strength, 55);

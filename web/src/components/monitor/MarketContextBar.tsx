@@ -33,16 +33,33 @@ export function MarketContextBar({
   return (
     <div className="monitor-context-bar flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
       {mt5Bridge && (
-        <span className={mt5Bridge.connected ? "font-bold text-emerald-400" : "text-amber-500"}>
+        <span
+          className={
+            mt5Bridge.connected
+              ? "font-bold text-emerald-400"
+              : mt5Bridge.enabled === false
+                ? "font-bold text-red-400"
+                : "font-bold text-amber-400"
+          }
+          title={mt5Bridge.setupHintUz ?? mt5Bridge.lastError ?? undefined}
+        >
           {mt5Bridge.connected
-            ? `MT5 LIVE · ${mt5Bridge.spread != null ? mt5Bridge.spread.toFixed(2) : "—"} spread`
-            : "MT5 OFF"}
+            ? `MT5 LIVE${mt5Bridge.ageMs != null ? ` · ${mt5Bridge.ageMs}ms` : ""} · spr ${mt5Bridge.spread != null ? mt5Bridge.spread.toFixed(3) : "—"}`
+            : mt5Bridge.enabled === false
+              ? "MT5: server SECRET yo'q"
+              : `MT5 KUTILMOQDA${mt5Bridge.tickCount ? ` (${mt5Bridge.tickCount})` : ""}`}
         </span>
       )}
       {gold?.feed === "mt5" && gold.bid != null && gold.ask != null && (
         <span className="font-mono-ui text-[8px]">
-          BID <span className="text-emerald-400">${gold.bid}</span> ASK{" "}
-          <span className="text-red-400">${gold.ask}</span>
+          BID <span className="text-emerald-400">${gold.bid.toFixed(3)}</span> ASK{" "}
+          <span className="text-red-400">${gold.ask.toFixed(3)}</span> MID{" "}
+          <span className="text-[var(--term-gold)]">${gold.price.toFixed(3)}</span>
+        </span>
+      )}
+      {gold?.feed !== "mt5" && mt5Bridge?.enabled && (
+        <span className="text-[8px] font-bold text-red-300">
+          ⚠ Yahoo narx — MT5 EA/python_bridge yoqing (broker = TradingView)
         </span>
       )}
       <span>

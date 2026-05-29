@@ -213,9 +213,19 @@ export interface NewsMarketAnalysis {
 export type { PlatformInsight, JournalStats } from "./platform-insight";
 export type { SignalJournalEntry, SignalJournalSnapshot } from "./signal-journal-types";
 
+export interface MonitorSessionInfo {
+  active: boolean;
+  endsAt: string | null;
+  remainingMs: number;
+  autoStopMinutes: number;
+}
+
 export interface MonitorSnapshot {
   timestamp: string;
   online: boolean;
+  /** @deprecated aiSession bilan bir xil — eski klientlar uchun */
+  monitorSession?: MonitorSessionInfo;
+  aiSession?: MonitorSessionInfo;
   priceStale?: boolean;
   feedError?: string | null;
   gold: PriceData | null;

@@ -1,25 +1,25 @@
 /** Signal qattiqligi — uzoq yumsharoq, yaqin TF + impuls uchun yumshoq */
 
 export const LONG_THRESHOLDS = {
-  minFilters: 5,
+  minFilters: 4,
   filterTotal: 7,
-  minStrength: 62,
-  minConfluence: 70,
-  minRiskReward: 2.0,
-  minNewsConfidence: 48,
-  minNewsStrength: 42,
-  minBiasScore: 2.4,
+  minStrength: 58,
+  minConfluence: 65,
+  minRiskReward: 1.9,
+  minNewsConfidence: 44,
+  minNewsStrength: 38,
+  minBiasScore: 2.0,
 };
 
 /** Yaqin (scalp) — tez bozor harakatida signal berish uchun yumshoq */
 export const SHORT_THRESHOLDS = {
-  minFilters: 4,
+  minFilters: 2,
   filterTotal: 7,
-  minStrength: 48,
-  minConfluence: 55,
-  minRiskReward: 1.6,
-  minNewsConfidence: 36,
-  minNewsStrength: 28,
-  minBiasScore: 1.4,
-  minTfVoteRatio: 0.26,
+  minStrength: 40,
+  minConfluence: 38,
+  minRiskReward: 1.35,
+  minNewsConfidence: 28,
+  minNewsStrength: 20,
+  minBiasScore: 0.85,
+  minTfVoteRatio: 0.2,
 };

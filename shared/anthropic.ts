@@ -5,7 +5,7 @@ import {
   normalizeApiKey,
   validateApiKeyFormat,
 } from "./api-key";
-import { CLAUDE_MODELS } from "./models";
+import { CLAUDE_MODEL_PRIMARY, CLAUDE_MODELS } from "./models";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
@@ -72,20 +72,12 @@ export async function testApiKey(key: string): Promise<{ hint: string; model: st
   const formatErr = validateApiKeyFormat(normalized);
   if (formatErr) throw new Error(formatErr);
 
-  let lastErr: unknown;
-  for (const model of CLAUDE_MODELS) {
-    try {
-      await fetchTest(normalized, model);
-      return { hint: apiKeyHint(normalized), model };
-    } catch (e) {
-      lastErr = e;
-      const status = (e as { status?: number })?.status;
-      if (status === 401 || status === 403) throw new Error(formatApiError(e));
-      if (status === 404) continue;
-      throw new Error(formatApiError(e));
-    }
+  try {
+    await fetchTest(normalized, CLAUDE_MODEL_PRIMARY);
+    return { hint: apiKeyHint(normalized), model: CLAUDE_MODEL_PRIMARY };
+  } catch (e) {
+    throw new Error(formatApiError(e));
   }
-  throw new Error(formatApiError(lastErr));
 }
 
 async function createMessage(
@@ -114,20 +106,28 @@ export async function askClaude(
     throw new Error(formatErr ?? "API kalit kiritilmagan. Sozlamalarga o'ting.");
   }
 
-  let lastErr: unknown;
-  for (const model of CLAUDE_MODELS) {
-    try {
-      const response = await createMessage(model, system, userMessage, maxTokens);
-      const block = response.content.find((b) => b.type === "text");
-      if (!block || block.type !== "text") throw new Error("Claude javob bermadi");
-      return block.text;
-    } catch (e) {
-      lastErr = e;
-      const status = (e as { status?: number })?.status;
-      if (status === 401 || status === 403) throw new Error(formatApiError(e));
-      if (status === 404) continue;
-      throw new Error(formatApiError(e));
+  try {
+    const response = await createMessage(CLAUDE_MODEL_PRIMARY, system, userMessage, maxTokens);
+    const block = response.content.find((b) => b.type === "text");
+    if (!block || block.type !== "text") throw new Error("Claude javob bermadi");
+    return block.text;
+  } catch (e) {
+    const status = (e as { status?: number })?.status;
+    if (status === 404 && CLAUDE_MODELS.length > 1) {
+      for (const model of CLAUDE_MODELS.slice(1)) {
+        try {
+          const response = await createMessage(model, system, userMessage, maxTokens);
+          const block = response.content.find((b) => b.type === "text");
+          if (!block || block.type !== "text") throw new Error("Claude javob bermadi");
+          return block.text;
+        } catch (inner) {
+          const innerStatus = (inner as { status?: number })?.status;
+          if (innerStatus === 401 || innerStatus === 403) throw new Error(formatApiError(inner));
+          if (innerStatus === 404) continue;
+          throw new Error(formatApiError(inner));
+        }
+      }
     }
+    throw new Error(formatApiError(e));
   }
-  throw new Error(formatApiError(lastErr));
 }

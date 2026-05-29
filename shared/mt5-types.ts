@@ -11,6 +11,7 @@ export interface Mt5TickPayload {
 }
 
 export interface Mt5BridgeStatus {
+  enabled?: boolean;
   connected: boolean;
   stale: boolean;
   lastTickAt: string | null;
@@ -21,4 +22,6 @@ export interface Mt5BridgeStatus {
   spread: number | null;
   tickCount: number;
   ageMs: number | null;
+  lastError?: string | null;
+  setupHintUz?: string | null;
 }

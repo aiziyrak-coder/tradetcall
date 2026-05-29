@@ -1,12 +1,16 @@
+import { roundGoldPrice } from "./gold-price";
 import type { Mt5TickPayload } from "./mt5-types";
 import type { PriceData } from "./types";
 
-export function priceDataFromMt5Tick(tick: Mt5TickPayload): PriceData {
-  const bid = Math.round(tick.bid * 100) / 100;
-  const ask = Math.round(tick.ask * 100) / 100;
-  const mid = Math.round(((bid + ask) / 2) * 100) / 100;
-  const spread = Math.round((ask - bid) * 100) / 100;
-  const t = tick.time ?? Math.floor(Date.now() / 1000);
+/** @param receivedAtIso — server qabul vaqti (staleness uchun) */
+export function priceDataFromMt5Tick(
+  tick: Mt5TickPayload,
+  receivedAtIso?: string
+): PriceData {
+  const bid = roundGoldPrice(tick.bid);
+  const ask = roundGoldPrice(tick.ask);
+  const mid = roundGoldPrice((bid + ask) / 2);
+  const spread = roundGoldPrice(ask - bid);
   return {
     symbol: tick.symbol || "XAUUSD",
     price: mid,
@@ -15,7 +19,7 @@ export function priceDataFromMt5Tick(tick: Mt5TickPayload): PriceData {
     spread,
     change: 0,
     changePercent: 0,
-    timestamp: new Date(t * 1000).toISOString(),
+    timestamp: receivedAtIso ?? new Date().toISOString(),
     source: tick.broker ? `MT5 · ${tick.broker}` : "MT5 Live",
     feed: "mt5",
   };

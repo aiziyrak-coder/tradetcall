@@ -13,6 +13,7 @@ import { evaluateMarketRegime } from "./market-regime";
 import { getSwingSessionWindow } from "./market-session";
 import { analyzeTechnicals } from "./technical";
 import { LONG_THRESHOLDS } from "./signal-thresholds";
+import type { PriceImpulse } from "./price-impulse";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
 
@@ -71,7 +72,8 @@ export function computeLongTermStrategy(
   candles: Candle[],
   drivers: MarketQuote[],
   _news: NewsItem[],
-  newsAnalysis?: NewsMarketAnalysis | null
+  newsAnalysis?: NewsMarketAnalysis | null,
+  impulse?: PriceImpulse | null
 ): LongTermStrategy {
   const tech = analyzeTechnicals(candles);
   const regime = evaluateMarketRegime(drivers);
@@ -92,9 +94,16 @@ export function computeLongTermStrategy(
   score += regime.goldLongAdjust;
   score += newsScoreFromAnalysis(na);
 
+  let minScore = LONG_THRESHOLDS.minBiasScore;
+  if (impulse && impulse.moveUsd >= 1.5) minScore *= 0.72;
+
   let bias: LongTermStrategy["bias"] = "wait";
-  if (score >= LONG_THRESHOLDS.minBiasScore) bias = "long";
-  else if (score <= -LONG_THRESHOLDS.minBiasScore) bias = "short";
+  if (score >= minScore) bias = "long";
+  else if (score <= -minScore) bias = "short";
+  else if (impulse && impulse.moveUsd >= 2) {
+    if (impulse.direction === "long" && score >= minScore * 0.55) bias = "long";
+    else if (impulse.direction === "short" && score <= -minScore * 0.55) bias = "short";
+  }
 
   const sup = tech.support[0] ?? price - atrVal * 2;
   const res = tech.resistance[0] ?? price + atrVal * 2;
@@ -326,6 +335,7 @@ export function computeLongTermStrategy(
     tfAligned,
     tfTotal: 1,
     leadTimeframeUz: "kunlik / asosiy grafik",
+    impulse,
   });
 
   return {

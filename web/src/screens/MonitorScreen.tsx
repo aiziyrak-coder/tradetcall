@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MonitorSnapshot } from "../../../shared/types";
+import type { MonitorSessionInfo, MonitorSnapshot } from "../../../shared/types";
 import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { PlatformCommandCenter } from "../components/monitor/PlatformCommandCenter";
@@ -51,8 +51,26 @@ export function MonitorScreen({
   const [online, setOnline] = useState(true);
   const [wsLive, setWsLive] = useState(false);
   const [lastStreamAt, setLastStreamAt] = useState(0);
+  const [monitorSession, setMonitorSession] = useState<MonitorSessionInfo | null>(null);
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   useSignalNotifications(data);
+
+  useEffect(() => {
+    void api.monitor.getSession().then(setMonitorSession).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const endsAt = monitorSession?.endsAt ?? data?.aiSession?.endsAt;
+    if (!monitorSession?.active || !endsAt) return;
+    const tick = () => {
+      const remainingMs = Math.max(0, new Date(endsAt).getTime() - Date.now());
+      setMonitorSession((prev) => (prev?.active ? { ...prev, remainingMs } : prev));
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [monitorSession?.active, monitorSession?.endsAt]);
 
   useEffect(() => {
     void requestNotificationPermission();
@@ -63,6 +81,8 @@ export function MonitorScreen({
       .getSnapshot()
       .then((s) => {
         setData(s);
+        const sess = s.aiSession ?? s.monitorSession;
+        if (sess) setMonitorSession(sess);
         setChartInterval(s.chart?.interval ?? "5m");
         setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
@@ -76,6 +96,8 @@ export function MonitorScreen({
     const disconnect = connectMonitor({
       onUpdate: (s) => {
         setData(s);
+        const sess = s.aiSession ?? s.monitorSession;
+        if (sess) setMonitorSession(sess);
         setChartInterval(s.chart?.interval ?? "5m");
         setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
@@ -104,6 +126,8 @@ export function MonitorScreen({
         .getSnapshot()
         .then((s) => {
           setData(s);
+          const sess = s.aiSession ?? s.monitorSession;
+        if (sess) setMonitorSession(sess);
           setLastStreamAt(Date.now());
           setLastUpdate(formatLiveTime(s));
           setOnline(s.online);
@@ -112,6 +136,39 @@ export function MonitorScreen({
     }, 1000);
     return () => clearInterval(poll);
   }, [lastStreamAt]);
+
+  const handleStartMonitor = async () => {
+    setSessionBusy(true);
+    setError(null);
+    try {
+      const session = await api.monitor.start();
+      setMonitorSession(session);
+      const s = await api.monitor.getSnapshot();
+      setData(s);
+      setOnline(s.online);
+      setLastUpdate(formatLiveTime(s));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Start xatosi");
+    } finally {
+      setSessionBusy(false);
+    }
+  };
+
+  const handleStopMonitor = async () => {
+    setSessionBusy(true);
+    try {
+      const session = await api.monitor.stop();
+      setMonitorSession(session);
+      const s = await api.monitor.getSnapshot();
+      setData(s);
+      if (s.aiSession) setMonitorSession(s.aiSession);
+      else if (s.monitorSession) setMonitorSession(s.monitorSession);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Stop xatosi");
+    } finally {
+      setSessionBusy(false);
+    }
+  };
 
   const handleIntervalChange = async (iv: "1m" | "5m" | "15m" | "1h") => {
     setChartInterval(iv);
@@ -150,6 +207,10 @@ export function MonitorScreen({
         priceStale={data?.priceStale}
         feedError={data?.feedError}
         translating={translating || analyzingNews}
+        monitorSession={monitorSession ?? data?.aiSession ?? data?.monitorSession}
+        sessionBusy={sessionBusy}
+        onStartMonitor={() => void handleStartMonitor()}
+        onStopMonitor={() => void handleStopMonitor()}
         mt5Bridge={data?.mt5Bridge ?? null}
         goldFeed={data?.gold?.feed}
         isAdmin={isAdmin}
@@ -167,12 +228,35 @@ export function MonitorScreen({
       />
       <CalendarEventsStrip calendar={data?.calendar ?? null} />
 
+      {!monitorSession?.active && !sessionBusy && (
+        <div className="shrink-0 bg-violet-950/50 px-2 py-0.5 text-center text-[9px] text-violet-200">
+          Narx, signallar, yangiliklar <b>doim ishlaydi</b>. <b>AI START</b> — faqat Claude token (
+          {monitorSession?.autoStopMinutes ?? 30} daq, keyin avto-o&apos;chadi).
+        </div>
+      )}
+
+      {data?.gold?.feed !== "mt5" && (
+        <div className="shrink-0 bg-red-950/80 px-2 py-1 text-center text-[9px] text-red-200">
+          <b>MT5 ulanmagan</b> — narx Yahoo dan kechikadi. Windows MT5 da{" "}
+          <code className="text-amber-300">TradeBridgeEA</code> yoki{" "}
+          <code className="text-amber-300">python_bridge.py</code> ishga tushiring; server{" "}
+          <code className="text-amber-300">MT5_BRIDGE_SECRET</code> bir xil bo&apos;lsin.
+          {data?.mt5Bridge?.setupHintUz ? ` ${data.mt5Bridge.setupHintUz}` : ""}
+        </div>
+      )}
+
       {error && (
         <div className="shrink-0 bg-red-950/60 px-2 py-0.5 text-center text-[9px] text-[var(--term-red)]">
           {error}
           <button type="button" className="ml-2 underline" onClick={() => setError(null)}>
             yopish
           </button>
+        </div>
+      )}
+
+      {data?.feedError && !error && (
+        <div className="shrink-0 bg-slate-900/80 px-2 py-0.5 text-center text-[9px] text-slate-300">
+          {data.feedError}
         </div>
       )}
 

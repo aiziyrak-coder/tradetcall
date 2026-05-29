@@ -16,6 +16,8 @@ import { getMarketSession } from "./market-session";
 import { analyzeTechnicals } from "./technical";
 import { getDynamicLevelMultipliers } from "./dynamic-levels";
 import { SHORT_THRESHOLDS } from "./signal-thresholds";
+import type { PriceImpulse } from "./price-impulse";
+import { computeShortMasterSignal } from "./short-master-signal";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
 import { waitTradeLevels } from "./strategy-levels";
 
@@ -33,10 +35,12 @@ function round2(n: number) {
 }
 
 function tfBias(tech: ReturnType<typeof analyzeTechnicals>): TimeframeSignal["bias"] {
-  if (tech.trend === "bullish" && tech.rsi < 70) return "long";
-  if (tech.trend === "bearish" && tech.rsi > 30) return "short";
-  if (tech.rsi > 70) return "short";
-  if (tech.rsi < 30) return "long";
+  if (tech.trend === "bullish" && tech.rsi < 72) return "long";
+  if (tech.trend === "bearish" && tech.rsi > 28) return "short";
+  if (tech.rsi > 68) return "short";
+  if (tech.rsi < 32) return "long";
+  if (tech.rsi >= 52) return "long";
+  if (tech.rsi <= 48) return "short";
   return "neutral";
 }
 
@@ -59,24 +63,13 @@ function formatClockOffset(minutes: number): string {
   return d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
 }
 
-function newsScoreShort(na: NewsMarketAnalysis | null): number {
-  if (!na) return 0;
-  let s = 0;
-  if (na.overallBias === "bullish") s += na.biasStrength / 14;
-  if (na.overallBias === "bearish") s -= na.biasStrength / 14;
-  if (na.newsCandleAligned) s *= 1.4;
-  else s *= 0.3;
-  if (na.contradictionsUz) return 0;
-  s += (na.confidence - 50) / 30;
-  return s;
-}
-
 export function computeShortTermStrategy(
   price: number,
   multiCandles: Partial<Record<ChartInterval, Candle[]>>,
   drivers: MarketQuote[],
   _news: NewsItem[],
-  newsAnalysis?: NewsMarketAnalysis | null
+  newsAnalysis?: NewsMarketAnalysis | null,
+  impulse?: PriceImpulse | null
 ): ShortTermStrategy {
   const primary = multiCandles["5m"]?.length
     ? multiCandles["5m"]!
@@ -94,23 +87,24 @@ export function computeShortTermStrategy(
   const atr1 = tech1.atr || atr5 * 0.6;
   const na = newsAnalysis ?? null;
 
-  const timeframes: TimeframeSignal[] = [];
-  let score = 0;
-  let aligned = 0;
+  const master = computeShortMasterSignal({
+    price,
+    multiCandles,
+    drivers,
+    news: na,
+    regime,
+    calendar,
+    session,
+    impulse,
+  });
 
+  const timeframes: TimeframeSignal[] = [];
   for (const tf of SHORT_TFS) {
     const candles = multiCandles[tf];
     if (!candles?.length) continue;
     const tech = analyzeTechnicals(candles);
     const tb = tfBias(tech);
     const meta = TF_META[tf];
-    if (tb === "long") {
-      score += meta.weight;
-      aligned++;
-    } else if (tb === "short") {
-      score -= meta.weight;
-      aligned++;
-    }
     timeframes.push({
       interval: tf,
       labelUz: meta.labelUz,
@@ -121,53 +115,16 @@ export function computeShortTermStrategy(
     });
   }
 
-  const dollar = drivers.find((d) => d.name.toLowerCase().includes("dollar"));
-  if (dollar && dollar.changePercent > 0.2) score -= 1;
-  if (dollar && dollar.changePercent < -0.2) score += 1;
-  score += regime.goldLongAdjust * 0.8;
-  if (!session.primeWindow && session.volatility === "past") score *= 0.65;
-  score += newsScoreShort(na);
-
   const longVotes = timeframes.filter((t) => t.bias === "long").length;
   const shortVotes = timeframes.filter((t) => t.bias === "short").length;
-
   const activeTf = timeframes.length || 1;
-  const atrPct = price > 0 ? (atr5 / price) * 100 : 0;
-  const volatile =
-    atrPct >= 0.055 ||
-    tech5.adx >= 16 ||
-    Math.abs(tech5.rsi - 50) >= 11 ||
-    session.primeWindow;
-
-  let minVotes = Math.max(1, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
-  let minScore = SHORT_THRESHOLDS.minBiasScore;
-  if (volatile) {
-    minVotes = Math.max(1, minVotes - 1);
-    minScore *= 0.75;
-  }
-
-  const tf5 = timeframes.find((t) => t.interval === "5m");
-  const tf15 = timeframes.find((t) => t.interval === "15m");
-  const tf1 = timeframes.find((t) => t.interval === "1m");
-
-  let bias: ShortTermStrategy["bias"] = "wait";
-  if (score >= minScore && longVotes >= minVotes && longVotes >= shortVotes) bias = "long";
-  else if (score <= -minScore && shortVotes >= minVotes && shortVotes >= longVotes) bias = "short";
-  else if (
-    tf5 &&
-    tf15 &&
-    tf5.bias === tf15.bias &&
-    tf5.bias !== "neutral" &&
-    Math.abs(score) >= minScore - 0.25
-  ) {
-    bias = tf5.bias === "long" ? "long" : "short";
-  } else if (volatile && tf5 && tf5.bias !== "neutral") {
-    const impulsScore = minScore * 0.55;
-    if (tf5.bias === "long" && score >= impulsScore && longVotes >= shortVotes) bias = "long";
-    else if (tf5.bias === "short" && score <= -impulsScore && shortVotes >= longVotes) bias = "short";
-  } else if (volatile && tf1 && tf5 && tf1.bias === tf5.bias && tf1.bias !== "neutral") {
-    bias = tf1.bias === "long" ? "long" : "short";
-  }
+  let bias: ShortTermStrategy["bias"] = master.bias;
+  const score =
+    bias === "long"
+      ? master.longScore / 14
+      : bias === "short"
+        ? -master.shortScore / 14
+        : (master.longScore - master.shortScore) / 20;
 
   const leadTimeframeUz = pickLeadTimeframe(timeframes, bias);
   const dyn = getDynamicLevelMultipliers(atr5, price, tech5.adx);
@@ -204,7 +161,7 @@ export function computeShortTermStrategy(
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
     };
-    situationUz = `Scalp LONG: ${longVotes}/${activeTf} TF. ${dyn.noteUz} $${price}.`;
+    situationUz = `${master.summaryUz} LONG ${longVotes}/${activeTf} TF. ${dyn.noteUz}`;
   } else if (bias === "short") {
     const entryFrom = round2(price - atr1 * 0.12);
     const entryTo = round2(price + atr5 * 0.4);
@@ -226,7 +183,7 @@ export function computeShortTermStrategy(
       priceFrom: round2(takeProfit - atr1 * 0.1),
       priceTo: round2(takeProfit + atr1 * 0.15),
     };
-    situationUz = `Scalp SHORT: ${shortVotes}/${activeTf} TF. $${price}.`;
+    situationUz = `${master.summaryUz} SHORT ${shortVotes}/${activeTf} TF.`;
   } else {
     entry = {
       title: "KIRISH",
@@ -238,7 +195,7 @@ export function computeShortTermStrategy(
     exit = { title: "CHIQISH", whenUz: "—", priceHint: "—" };
     stopLoss = round2(price - atr5 * 1.2);
     takeProfit = round2(price + atr5 * 1.2);
-    situationUz = `30 daqiqalik savdo uchun signal yo'q. Yangiliklar panelini kuzating.`;
+    situationUz = `${master.summaryUz} Kuting — panel: ${master.panelUz.slice(0, 120)}`;
   }
 
   const entryFrom = entry.priceFrom ?? round2(price - atr5);
@@ -255,11 +212,9 @@ export function computeShortTermStrategy(
 
   const tfTotal = Math.max(activeTf, SHORT_TFS.length);
   const tfAligned = bias === "long" ? longVotes : bias === "short" ? shortVotes : 0;
-  const confluencePct = Math.min(
-    100,
-    Math.round((tfAligned / Math.max(activeTf, 1)) * 85 + (na?.newsCandleAligned ? 12 : 0))
-  );
-  const confidence = Math.min(92, Math.round(36 + Math.abs(score) * 7 + tfAligned * 5 + (na?.confidence ?? 0) * 0.15));
+  const minVotes = Math.max(1, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
+  const confluencePct = master.confluencePct;
+  const confidence = master.confidence;
 
   const gate = applyTradeGate({
     bias,
@@ -274,6 +229,8 @@ export function computeShortTermStrategy(
     adx: tech5.adx,
     tfAligned,
     tfTotal: activeTf,
+    masterLongScore: master.longScore,
+    masterShortScore: master.shortScore,
   });
 
   const finalBias = gate.effectiveBias;
@@ -330,14 +287,15 @@ export function computeShortTermStrategy(
 
   const playbookUz =
     finalBias === "long"
-      ? `SCALP LONG: ${longVotes}/4 TF mos. Kirish $${entry.priceFrom}–$${entry.priceTo}, chiqish ${exitBy} gacha. Spread keng bo'lsa SKIP.`
+      ? `MASTER LONG L${master.longScore}/S${master.shortScore}. ${master.panelUz}. Kirish $${entry.priceFrom}–$${entry.priceTo}.`
       : finalBias === "short"
-        ? `SCALP SHORT: ${shortVotes}/4 TF. Qarshilikdan rad → $${takeProfit}. 30 daqiqa qoidasi qat'iy.`
-        : `SCALP STANDBY: TF mos emas (${longVotes}L/${shortVotes}S). Faqat aniq impuls + yangiliklar MOS.`;
+        ? `MASTER SHORT L${master.longScore}/S${master.shortScore}. ${master.panelUz}. TP $${takeProfit}.`
+        : `STANDBY L${master.longScore} S${master.shortScore}. ${master.panelUz}`;
 
   const tacticsUz: string[] =
     finalBias === "long"
       ? [
+          `MASTER: L${master.longScore} S${master.shortScore} — ${master.panelUz.slice(0, 100)}`,
           `1m/5m impuls long — kirish zona $${entry.priceFrom}–$${entry.priceTo}.`,
           `SL $${stopLoss} · 1m yopilish, TP $${takeProfit}, R:R ${riskReward}.`,
           `${tfAligned}/4 TF + yangiliklar sinxron.`,
@@ -347,6 +305,7 @@ export function computeShortTermStrategy(
         ]
       : finalBias === "short"
         ? [
+            `MASTER: L${master.longScore} S${master.shortScore} — ${master.panelUz.slice(0, 100)}`,
             `Short impuls — zona $${entry.priceFrom}–$${entry.priceTo}.`,
             `SL $${stopLoss}, TP $${takeProfit}, R:R ${riskReward}.`,
             `${shortVotes}/4 TF short ovoz.`,
@@ -355,6 +314,7 @@ export function computeShortTermStrategy(
             gate.allowed ? "GATE: ruxsat" : `GATE: ${gate.reasonUz.slice(0, 70)}`,
           ]
         : [
+            `MASTER: L${master.longScore} S${master.shortScore} — ${master.summaryUz}`,
             "Hozir scalp yo'q — spread va yangiliklar tekshiring.",
             `TF: ${timeframes.map((t) => `${t.labelUz[0]}${t.bias[0]}`).join(" ")}.`,
             `Kuzatuv $${round2(sup)}/$${round2(res)}.`,
@@ -375,6 +335,9 @@ export function computeShortTermStrategy(
     tfAligned,
     tfTotal: activeTf,
     leadTimeframeUz,
+    impulse,
+    masterLongScore: master.longScore,
+    masterShortScore: master.shortScore,
   });
 
   return {

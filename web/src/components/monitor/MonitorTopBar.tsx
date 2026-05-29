@@ -1,6 +1,7 @@
 import type {
   LongTermStrategy,
   MarketQuote,
+  MonitorSessionInfo,
   Mt5BridgeStatus,
   PriceData,
   ShortTermStrategy,
@@ -22,6 +23,10 @@ interface Props {
   priceStale?: boolean;
   feedError?: string | null;
   translating: boolean;
+  monitorSession?: MonitorSessionInfo | null;
+  sessionBusy?: boolean;
+  onStartMonitor?: () => void;
+  onStopMonitor?: () => void;
   mt5Bridge?: Mt5BridgeStatus | null;
   goldFeed?: string;
   isAdmin?: boolean;
@@ -43,6 +48,10 @@ export function MonitorTopBar({
   priceStale,
   feedError,
   translating,
+  monitorSession,
+  sessionBusy,
+  onStartMonitor,
+  onStopMonitor,
   mt5Bridge,
   goldFeed,
   isAdmin,
@@ -59,12 +68,49 @@ export function MonitorTopBar({
       : `${up ? "+" : ""}${gold.change.toFixed(2)}`);
 
   const mt5Ok = mt5Bridge?.connected && !mt5Bridge?.stale;
+  const aiOn = monitorSession?.active ?? false;
   const liveOk = online && streamLive && !priceStale && !feedError;
+  const remainMin = monitorSession?.active
+    ? Math.ceil((monitorSession.remainingMs ?? 0) / 60_000)
+    : 0;
 
   return (
     <header className="monitor-topbar shrink-0 border-b border-[var(--term-border)] bg-[var(--term-panel-2)]">
       <div className="flex h-8 flex-wrap items-center gap-2 px-2 py-0.5">
         <span className="font-display text-[10px] font-bold text-[var(--term-gold)]">{UZ.appTitle}</span>
+
+        <div className="flex items-center gap-1">
+          {!aiOn ? (
+            <button
+              type="button"
+              disabled={sessionBusy}
+              onClick={onStartMonitor}
+              className="rounded bg-violet-600 px-2 py-0.5 text-[9px] font-black text-white disabled:opacity-50"
+              title="Claude AI token — 30 daqiqadan keyin avto-o'chadi"
+            >
+              {sessionBusy ? "…" : UZ.monitorStart}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={sessionBusy}
+                onClick={onStopMonitor}
+                className="rounded bg-red-700/90 px-2 py-0.5 text-[9px] font-black text-white disabled:opacity-50"
+              >
+                {UZ.monitorStop}
+              </button>
+              <span className="text-[8px] font-bold text-violet-300">
+                {UZ.monitorActive} · {remainMin}m
+              </span>
+            </>
+          )}
+          {!aiOn && (
+            <span className="text-[8px] text-slate-500">
+              {UZ.monitorAutoStop} {monitorSession?.autoStopMinutes ?? 30}m · narx/signallar doim
+            </span>
+          )}
+        </div>
 
         <span
           className={`flex items-center gap-1 text-[9px] font-bold ${liveOk ? "text-emerald-400" : "text-amber-400"}`}
@@ -84,7 +130,9 @@ export function MonitorTopBar({
 
         {gold && (
           <div className="font-mono-ui flex items-baseline gap-1.5" key={`${gold.timestamp}-${tickFlash}`}>
-            <span className="text-base font-bold text-[var(--term-gold)]">${gold.price.toFixed(2)}</span>
+            <span className="text-base font-bold text-[var(--term-gold)]">
+              ${gold.feed === "mt5" ? gold.price.toFixed(3) : gold.price.toFixed(2)}
+            </span>
             <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
               {up ? "▲" : "▼"} {changeLabel}
             </span>

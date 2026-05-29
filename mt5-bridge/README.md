@@ -6,7 +6,7 @@ Broker narxini serverga yuborish.
 
 ```env
 MT5_BRIDGE_SECRET=uzun-tasodifiy-kalit-min-16-belgi
-MT5_STALE_MS=8000
+MT5_STALE_MS=12000
 ```
 
 ## MT5 EA
@@ -15,4 +15,6 @@ MT5_STALE_MS=8000
 2. WebRequest: `https://tradeapi.ziyrak.org`
 3. XAUUSD grafikda EA, secret bir xil
 
-MT5 yo'q bo'lsa — Yahoo+spot ishlaydi.
+EA har 200ms yoki narx o'zgarganda tick yuboradi (3 xona aniqlik).
+
+MT5 yo'q bo'lsa — Yahoo+spot ishlaydi (kechikadi, TradingView bilan farq qiladi).

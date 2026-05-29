@@ -8,10 +8,10 @@ export interface SignalStabilityState {
   pendingSince: number;
 }
 
-const SHORT_HOLD_MS = 75 * 1000;
-const SHORT_CONFIRM_MS = 5 * 1000;
-const LONG_HOLD_MS = 12 * 60 * 1000;
-const LONG_CONFIRM_MS = 25 * 1000;
+const SHORT_HOLD_MS = 22 * 1000;
+const SHORT_CONFIRM_MS = 2 * 1000;
+const LONG_HOLD_MS = 7 * 60 * 1000;
+const LONG_CONFIRM_MS = 18 * 1000;
 
 export function createSignalStabilityState(): SignalStabilityState {
   return {

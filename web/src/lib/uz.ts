@@ -5,6 +5,11 @@ export const UZ = {
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",
+  monitorStart: "AI START",
+  monitorStop: "AI STOP",
+  monitorIdle: "AI O'CHIQ",
+  monitorActive: "AI YONIQ",
+  monitorAutoStop: "AI avto-stop",
   settings: "Sozlamalar",
   logout: "Chiqish",
 

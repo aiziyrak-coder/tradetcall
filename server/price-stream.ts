@@ -8,29 +8,29 @@ let cached: PriceData | null = null;
 let lastFetchAt = 0;
 let sessionOpen = 0;
 
-/** Tez tick — MT5 yoki kesh; Yahoo ~1s */
+function withSessionChange(mt5: PriceData): PriceData {
+  if (sessionOpen <= 0) sessionOpen = mt5.price;
+  const change = Math.round((mt5.price - sessionOpen) * 1000) / 1000;
+  const changePercent =
+    sessionOpen !== 0 ? Math.round((change / sessionOpen) * 10000) / 100 : 0;
+  return { ...mt5, change, changePercent };
+}
+
+/** Tez tick — MT5 broker narxi birinchi; Yahoo faqat MT5 yo'q bo'lsa */
 export async function pullLiveGoldPrice(prev: PriceData | null): Promise<PriceData> {
   const mt5 = getMt5PriceData();
   if (mt5) {
-    if (sessionOpen <= 0) sessionOpen = mt5.price;
-    const change = Math.round((mt5.price - sessionOpen) * 100) / 100;
-    const changePercent =
-      sessionOpen !== 0 ? Math.round((change / sessionOpen) * 10000) / 100 : 0;
-    cached = {
-      ...mt5,
-      change,
-      changePercent,
-      timestamp: new Date().toISOString(),
-    };
+    cached = withSessionChange(mt5);
     return cached;
   }
 
   const now = Date.now();
+  if (cached && cached.feed === "mt5") {
+    cached = null;
+    sessionOpen = 0;
+  }
   if (cached && now - lastFetchAt < FETCH_MS) {
-    return {
-      ...cached,
-      timestamp: new Date().toISOString(),
-    };
+    return cached;
   }
 
   const fresh = await getXAUUSDPriceLive(prev ?? cached);
@@ -42,6 +42,13 @@ export async function pullLiveGoldPrice(prev: PriceData | null): Promise<PriceDa
 
 export function peekCachedGoldPrice(): PriceData | null {
   const mt5 = getMt5PriceData();
-  if (mt5) return { ...mt5, timestamp: new Date().toISOString() };
-  return cached ? { ...cached, timestamp: new Date().toISOString() } : null;
+  if (mt5) {
+    cached = withSessionChange(mt5);
+    return cached;
+  }
+  return cached;
+}
+
+export function resetPriceStreamSession(): void {
+  sessionOpen = 0;
 }
