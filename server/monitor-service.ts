@@ -5,6 +5,7 @@ import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
 import { detectPriceImpulse, detectScalpImpulse, type PriceImpulse } from "../shared/price-impulse";
 import { analyzeM1ScalpLead } from "../shared/m1-scalp";
+import { getLiveMomentum } from "../shared/scalp-signal-guard";
 import { getCalendarStatus } from "../shared/economic-calendar";
 import {
   disposePriceStreamHooks,
@@ -141,6 +142,7 @@ export function getMonitorContextForAi(): {
   candles5m: Candle[];
   candles15m: Candle[];
   m1Scalp: ReturnType<typeof analyzeM1ScalpLead> | null;
+  impulse: PriceImpulse | null;
   disciplineScore?: number;
 } {
   const gold = lastSnapshot?.gold ?? null;
@@ -156,6 +158,7 @@ export function getMonitorContextForAi(): {
     candles5m: c5,
     candles15m: multiTfCandles["15m"] ?? [],
     m1Scalp: gold && c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, lastImpulse) : null,
+    impulse: lastImpulse,
     disciplineScore: lastSnapshot?.platform?.discipline?.score,
   };
 }
@@ -436,6 +439,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
   const c5 = multiTfCandles["5m"] ?? [];
   const m1Scalp =
     c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, impulse) : null;
+  const liveMomentum = c1.length >= 2 ? getLiveMomentum(c1, gold.price) : null;
   mergeSnapshot({
     online: true,
     priceStale: false,
@@ -445,6 +449,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
     priceUpdatedAt: gold.timestamp,
     ...(marketTechnical ? { marketTechnical } : {}),
     m1Scalp,
+    liveMomentum,
   });
   broadcast("monitor:update", lastSnapshot);
 }

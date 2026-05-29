@@ -15,19 +15,20 @@ HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qol
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
-export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD M1 SKALPING mutaxassisisiz (MetaTrader 1 daqiqa).
-Vazifa: trendni OLDINDAN aniqlang (forming) va bitta aniq scalp signal bering.
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD M1 SKALPING mutaxassisisiz.
+ASOSIY: oxirgi 2–3 M1 sham yopilish yo'nalishi (jonli momentum) — EMA/SMA dan MUHIMROQ.
 
 QAT'IY:
-- Faqat JSON qaytaring
-- action: "BUY" | "SELL" | "HOLD"
-- M1 yo'nalish va 5m filter MOS bo'lmasa — HOLD
-- phase "exhausted" yoki "range" bo'lsa — HOLD
-- SL qisqa: M1 ATR ~0.8–1.2×; TP 1.3–2× risk (8–12 daqiqa ichida)
-- SELL: stopLoss > entry > takeProfit; BUY: stopLoss < entry < takeProfit
-- riskReward kamida 1.25
-- Teskari trendga qarshi BUY/SELL bermang
-- O'zbek tilida, qisqa`;
+- Faqat JSON
+- action: BUY | SELL | HOLD
+- Jonli momentum UP → SELL TAQLANGAN (faqat BUY yoki HOLD)
+- Jonli momentum DOWN → BUY TAQLANGAN (faqat SELL yoki HOLD)
+- RSI < 38 oversold → SELL taqiq (qaytish/bounce)
+- RSI > 62 overbought → BUY taqiq
+- Yangiliklar uzoq muddat — M1 zid bo'lsa HOLD
+- SL qisqa (M1 ATR), TP 1.3–2× risk, max 12 daq
+- Ishonchsiz bo'lsa HOLD — taxminiy signal bermang
+- O'zbek tilida`;
 
 export function buildTranslatePrompt(
   articles: { id: string; title: string; summary: string }[]
@@ -46,6 +47,7 @@ export function buildAiTradeSignalPrompt(input: {
   tech: TechnicalAnalysis;
   tech5m?: TechnicalAnalysis;
   m1ScalpBlock?: string;
+  liveMomentumBlock?: string;
   newsAnalysis: NewsMarketAnalysis | null;
   newsTitles: string[];
   drivers: { name: string; changePercent: number }[];
@@ -63,6 +65,8 @@ NARX HOZIR: $${input.price} (${input.changePercent}%)
 24s: ${input.low24h ?? "?"} — ${input.high24h ?? "?"}
 
 ${input.m1ScalpBlock ?? "M1 skalp: ma'lumot yetarli emas — ehtiyotkor HOLD"}
+
+${input.liveMomentumBlock ?? ""}
 
 TEXNIK M1 (asosiy):
 - Trend: ${input.tech.trend}, RSI ${input.tech.rsi}, ADX ${input.tech.adx}

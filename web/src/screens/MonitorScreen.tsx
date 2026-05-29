@@ -254,6 +254,7 @@ export function MonitorScreen({
           <TechnicalIndicatorsPanel
             technical={data?.marketTechnical}
             m1Scalp={data?.m1Scalp}
+            liveMomentum={data?.liveMomentum}
             gold={data?.gold ?? null}
           />
         </div>

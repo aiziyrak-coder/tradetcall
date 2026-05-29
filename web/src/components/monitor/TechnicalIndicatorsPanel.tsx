@@ -1,4 +1,5 @@
 import type { M1ScalpLead } from "../../../../shared/m1-scalp";
+import type { LiveMomentum } from "../../../../shared/scalp-signal-guard";
 import type { PriceData, TechnicalAnalysis } from "../../../../shared/types";
 import { RsiGauge } from "./RsiGauge";
 import { TermCard } from "./TermCard";
@@ -6,6 +7,7 @@ import { TermCard } from "./TermCard";
 interface Props {
   technical: TechnicalAnalysis | null | undefined;
   m1Scalp?: M1ScalpLead | null;
+  liveMomentum?: LiveMomentum | null;
   gold: PriceData | null;
 }
 
@@ -29,7 +31,7 @@ const phaseStyle: Record<string, string> = {
   range: "text-slate-400",
 };
 
-export function TechnicalIndicatorsPanel({ technical, m1Scalp, gold }: Props) {
+export function TechnicalIndicatorsPanel({ technical, m1Scalp, liveMomentum, gold }: Props) {
   const price = gold?.price ?? 0;
 
   return (
@@ -73,6 +75,16 @@ export function TechnicalIndicatorsPanel({ technical, m1Scalp, gold }: Props) {
             </div>
 
             <p className="text-[8px] leading-snug text-slate-400">{technical.momentum}</p>
+
+            {liveMomentum && liveMomentum.direction !== "flat" && (
+              <p
+                className={`text-[8px] font-bold ${
+                  liveMomentum.direction === "up" ? "text-emerald-400" : "text-red-400"
+                }`}
+              >
+                {liveMomentum.summaryUz}
+              </p>
+            )}
 
             {m1Scalp && (
               <div className="rounded border border-violet-500/30 bg-violet-950/25 p-1.5">

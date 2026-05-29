@@ -7,6 +7,11 @@ import {
 import { askClaude } from "../shared/anthropic";
 import { setApiKey as setClaudeKey } from "../shared/anthropic";
 import { formatM1ScalpForAi } from "../shared/m1-scalp";
+import {
+  formatLiveMomentumForAi,
+  getLiveMomentum,
+  guardScalpAiSignal,
+} from "../shared/scalp-signal-guard";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
 import {
@@ -45,15 +50,28 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       close: ctx.gold.price,
     },
   ];
-  const tech = analyzeTechnicals(candles1m.length ? candles1m : fallback);
+  const c1 = candles1m.length ? candles1m : fallback;
+  const tech = analyzeTechnicals(c1);
   const tech5 = analyzeTechnicals(candles5m.length ? candles5m : fallback);
 
+  const live = getLiveMomentum(c1, ctx.gold.price);
   const m1ScalpBlock =
-    ctx.m1Scalp != null
-      ? formatM1ScalpForAi(ctx.m1Scalp, tech, tech5)
-      : undefined;
+    ctx.m1Scalp != null ? formatM1ScalpForAi(ctx.m1Scalp, tech, tech5) : undefined;
+  const liveMomentumBlock = formatLiveMomentumForAi(live, ctx.gold.changePercent);
 
-  const newsTitles = ctx.newsItems.map((n) => n.titleUz || n.title).slice(0, 12);
+  if (
+    ctx.m1Scalp &&
+    (ctx.m1Scalp.phase === "range" || ctx.m1Scalp.direction === "neutral") &&
+    live.direction === "flat"
+  ) {
+    failAiSession(
+      "HOLD — aniq M1 trend yo'q. Jonli narx yon. 1–2 daqiqa kutib YANGI PROGNOZ bosing."
+    );
+    broadcastUpdate();
+    return;
+  }
+
+  const newsTitles = ctx.newsItems.map((n) => n.titleUz || n.title).slice(0, 8);
 
   const prompt = buildAiTradeSignalPrompt({
     price: ctx.gold.price,
@@ -63,6 +81,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     tech,
     tech5m: tech5,
     m1ScalpBlock,
+    liveMomentumBlock,
     newsAnalysis: ctx.newsAnalysis,
     newsTitles,
     drivers: ctx.drivers.map((d) => ({ name: d.name, changePercent: d.changePercent })),
@@ -72,7 +91,19 @@ export async function runOneShotAiAnalysis(): Promise<void> {
 
   try {
     const raw = await askClaude(SYSTEM_AI_TRADE_SIGNAL, prompt, 2048);
-    const signal = parseAiTradeSignalJson(raw, ctx.gold.price);
+    let signal = parseAiTradeSignalJson(raw, ctx.gold.price);
+    const guarded = guardScalpAiSignal(signal, {
+      candles1m: c1,
+      price: ctx.gold.price,
+      changePercent: ctx.gold.changePercent,
+      tech1: tech,
+      m1Scalp: ctx.m1Scalp,
+      impulse: ctx.impulse,
+    });
+    signal = guarded.signal;
+    if (guarded.adjusted) {
+      console.log("[ai-signal] guard HOLD:", guarded.reasonUz);
+    }
     completeAiSession(signal);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI tahlil xatosi";

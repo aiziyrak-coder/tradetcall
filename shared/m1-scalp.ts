@@ -31,6 +31,30 @@ function ema(closes: number[], period: number): number {
   return v;
 }
 
+/** Oxirgi 3–4 sham yopilish yo'nalishi — EMA dan muhimroq (skalp) */
+function recentCloseMomentum(candles: Candle[]): {
+  score: number;
+  direction: "up" | "down" | "flat";
+  note: string;
+} {
+  const slice = candles.slice(-4);
+  if (slice.length < 2) return { score: 0, direction: "flat", note: "—" };
+  let score = 0;
+  for (let i = 1; i < slice.length; i++) {
+    score += slice[i].close - slice[i - 1].close;
+  }
+  const last = slice[slice.length - 1];
+  score += (last.close - last.open) * 0.5;
+  const direction = score > 0.25 ? "up" : score < -0.25 ? "down" : "flat";
+  const note =
+    direction === "up"
+      ? `Oxirgi shamlar YUQORI (+$${score.toFixed(2)})`
+      : direction === "down"
+        ? `Oxirgi shamlar PAST ($${score.toFixed(2)})`
+        : "Oxirgi shamlar yon";
+  return { score, direction, note };
+}
+
 function structureBias(candles: Candle[]): { long: number; short: number; note: string } {
   const slice = candles.slice(-6);
   if (slice.length < 4) return { long: 0, short: 0, note: "Sham yetarli emas" };
@@ -84,11 +108,15 @@ export function analyzeM1ScalpLead(
   const prevEma21 = ema(prevCloses, Math.min(21, prevCloses.length));
 
   const struct = structureBias(c1);
+  const recent = recentCloseMomentum(c1);
   let longPts = struct.long;
   let shortPts = struct.short;
 
-  if (ema9 > ema21) longPts += 22;
-  else if (ema9 < ema21) shortPts += 22;
+  if (recent.direction === "up") longPts += 32;
+  else if (recent.direction === "down") shortPts += 32;
+
+  if (ema9 > ema21) longPts += 14;
+  else if (ema9 < ema21) shortPts += 14;
   if (prevEma9 <= prevEma21 && ema9 > ema21) longPts += 28;
   if (prevEma9 >= prevEma21 && ema9 < ema21) shortPts += 28;
 
@@ -100,10 +128,19 @@ export function analyzeM1ScalpLead(
   if (price > ema9 && ema9 > ema21) longPts += 12;
   if (price < ema9 && ema9 < ema21) shortPts += 12;
 
-  if (tech1.rsi > 72) shortPts += 14;
-  else if (tech1.rsi < 28) longPts += 14;
-  else if (tech1.rsi > 55) longPts += 8;
-  else if (tech1.rsi < 45) shortPts += 8;
+  if (tech1.rsi > 72) {
+    shortPts += 12;
+    longPts -= 12;
+  } else if (tech1.rsi < 28) {
+    longPts += 18;
+    shortPts -= 14;
+  } else if (tech1.rsi > 62) {
+    shortPts += 8;
+    longPts -= 6;
+  } else if (tech1.rsi < 38) {
+    longPts += 16;
+    shortPts -= 12;
+  }
 
   if (impulse && impulse.moveUsd >= 0.35) {
     if (impulse.direction === "long") longPts += 20 + impulse.moveUsd * 6;
@@ -112,8 +149,17 @@ export function analyzeM1ScalpLead(
 
   const lead = longPts - shortPts;
   let direction: M1ScalpLead["direction"] = "neutral";
-  if (lead >= 18) direction = "long";
-  else if (lead <= -18) direction = "short";
+  if (lead >= 22 && recent.direction !== "down") direction = "long";
+  else if (lead <= -22 && recent.direction !== "up") direction = "short";
+  else if (recent.direction === "up" && lead >= 8) direction = "long";
+  else if (recent.direction === "down" && lead <= -8) direction = "short";
+
+  if (direction === "short" && tech1.rsi < 40 && recent.direction !== "down") {
+    direction = "neutral";
+  }
+  if (direction === "long" && tech1.rsi > 60 && recent.direction !== "up") {
+    direction = "neutral";
+  }
 
   let phase: M1ScalpPhase = "range";
   if (Math.abs(lead) >= 35 && tech1.adx >= 14) phase = "active";
@@ -123,6 +169,13 @@ export function analyzeM1ScalpLead(
     (direction === "short" && tech1.rsi < 26)
   ) {
     phase = "exhausted";
+  }
+  if (
+    (recent.direction === "up" && direction === "short") ||
+    (recent.direction === "down" && direction === "long")
+  ) {
+    phase = "reversal";
+    direction = recent.direction === "up" ? "long" : "short";
   }
   if (
     (tech5.trend === "bullish" && direction === "short" && lead <= -25) ||
@@ -177,7 +230,7 @@ export function analyzeM1ScalpLead(
         ? `Keyingi harakat: pastga $${tpHint} (8–12 daq)`
         : `Kutish: $${tech1.support[0] ?? "—"} / $${tech1.resistance[0] ?? "—"}`;
 
-  const summaryUz = `M1 ${direction.toUpperCase()} ${strength}% · ${phaseUz[phase]} · ${struct.note}`;
+  const summaryUz = `M1 ${direction.toUpperCase()} ${strength}% · ${phaseUz[phase]} · ${recent.note} · ${struct.note}`;
 
   return {
     direction,
@@ -207,5 +260,5 @@ export function formatM1ScalpForAi(
 - Tavsiya zona: kirish ~$${lead.entryHint}, SL ~$${lead.stopHint}, TP ~$${lead.tpHint}, max ${lead.maxHoldMin} daq
 - 1m: RSI ${tech1.rsi}, ADX ${tech1.adx}, ATR $${tech1.atr}, trend ${tech1.trend}
 - 5m filter: trend ${tech5.trend}, RSI ${tech5.rsi}
-QOIDA: 1m yo'nalish bilan ZID BUY/SELL bermang. Range/exhausted bo'lsa HOLD. SL qisqa (M1 ATR), TP 1.3–2× risk.`;
+QOIDA: JONLI sham yo'nalishi EMA dan ustun. RSI<38 da SELL taqiq. RSI>62 da BUY taqiq. Range/exhausted — HOLD.`;
 }

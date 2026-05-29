@@ -45,14 +45,14 @@ export function MarketForecastHub({ analysis, drivers, aiSignal, calendarSourceU
                 className={`rounded border px-2 py-0.5 text-[10px] font-black ${biasStyle[analysis.overallBias]}`}
               >
                 {analysis.overallBias === "bullish"
-                  ? "YUQORI"
+                  ? "LONG moyil"
                   : analysis.overallBias === "bearish"
-                    ? "PASTGA"
+                    ? "SHORT moyil"
                     : "NEYTRAL"}{" "}
                 {analysis.biasStrength}%
               </span>
               <span className="text-[8px] text-[var(--term-muted)]">
-                ishonch {analysis.confidence}% · ↑{analysis.bullCount} ↓{analysis.bearCount}
+                yangiliklar · ishonch {analysis.confidence}% · ↑{analysis.bullCount} ↓{analysis.bearCount}
               </span>
               {analysis.newsCandleAligned ? (
                 <span className="text-[8px] font-bold text-emerald-400">✓ Yangilik + sham</span>
