@@ -107,9 +107,9 @@ export function getTodayShieldStats(accountUsd = 1000): {
   let profitUsd = 0;
   let lossUsd = 0;
   for (const e of closed) {
-    const pts = e.pnlPts ?? 0;
-    if (e.outcome === "win" && pts > 0) profitUsd += pts * 10;
-    if (e.outcome === "loss" && pts < 0) lossUsd += Math.abs(pts) * 10;
+    const moveUsd = e.pnlPts ?? 0;
+    if (e.outcome === "win" && moveUsd > 0) profitUsd += moveUsd;
+    if (e.outcome === "loss") lossUsd += Math.abs(moveUsd);
   }
   const base = Math.max(accountUsd, 100);
   const estimatedProfitPct = Math.round((profitUsd / base) * 1000) / 10;

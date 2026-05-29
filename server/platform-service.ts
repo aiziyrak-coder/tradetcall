@@ -45,7 +45,7 @@ export function enrichSnapshotWithPlatform(
   let guarded = applyProfitProtectionToSnapshot(snap, blockCtx);
 
   const tradingBlocked =
-    !platform.capitalShield.allowed ||
+    !platform.capitalShield.allowNewTrades ||
     !platform.marketQuality.tradeable ||
     platform.discipline.score < 60;
 

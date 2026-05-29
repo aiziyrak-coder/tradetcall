@@ -14,7 +14,7 @@ export interface CapitalShieldPrefs {
 export const DEFAULT_CAPITAL_SHIELD: CapitalShieldPrefs = {
   enabled: true,
   maxDailyLossPct: 2.5,
-  maxDailyProfitPct: 1.0,
+  maxDailyProfitPct: 3.0,
   maxTradesPerDay: 4,
   pauseAfterLosses: 2,
   pauseCooldownMinutes: 90,
@@ -34,6 +34,10 @@ export interface CapitalShieldDayStats {
 
 export interface CapitalShieldState {
   allowed: boolean;
+  /** Yangi lot/signal yozish (journal) */
+  allowNewTrades: boolean;
+  /** YANGI PROGNOZ (AI) — greed stop bloklamaydi */
+  allowAiForecast: boolean;
   level: "green" | "yellow" | "red";
   levelUz: string;
   messagesUz: string[];
@@ -59,6 +63,8 @@ export function evaluateCapitalShield(input: {
   if (!prefs.enabled) {
     return {
       allowed: true,
+      allowNewTrades: true,
+      allowAiForecast: true,
       level: "green",
       levelUz: "Himoya o'chirilgan",
       messagesUz: ["Kapital himoyasi o'chiq — o'zingiz nazorat qiling"],
@@ -67,25 +73,31 @@ export function evaluateCapitalShield(input: {
   }
 
   let allowed = true;
+  let allowNewTrades = true;
+  let allowAiForecast = true;
   let level: CapitalShieldState["level"] = "green";
 
   const pauseMin = pauseRemainingMinutes(stats.pauseUntil);
   if (pauseMin > 0) {
     allowed = false;
+    allowNewTrades = false;
+    allowAiForecast = false;
     level = "red";
     messages.push(`Tanaffus — ${pauseMin} daqiqa qoldi (ketma-ket zarar)`);
   }
 
   if (stats.estimatedProfitPct >= prefs.maxDailyProfitPct) {
-    allowed = false;
-    level = "red";
+    allowNewTrades = false;
+    level = level === "red" ? "red" : "yellow";
     messages.push(
-      `Kunlik foyda maqsadi yetdi: ${stats.estimatedProfitPct.toFixed(1)}% / ${prefs.maxDailyProfitPct}% — greed stop`
+      `Kunlik foyda maqsadi yetdi: ${stats.estimatedProfitPct.toFixed(1)}% / ${prefs.maxDailyProfitPct}% — yangi lot ochmang`
     );
   }
 
   if (stats.estimatedLossPct >= prefs.maxDailyLossPct) {
     allowed = false;
+    allowNewTrades = false;
+    allowAiForecast = false;
     level = "red";
     messages.push(
       `Kunlik zarar limiti: ${stats.estimatedLossPct.toFixed(1)}% / ${prefs.maxDailyLossPct}%`
@@ -93,13 +105,15 @@ export function evaluateCapitalShield(input: {
   }
 
   if (stats.trades >= prefs.maxTradesPerDay) {
-    allowed = false;
-    level = "red";
+    allowNewTrades = false;
+    level = level === "red" ? "red" : "yellow";
     messages.push(`Kunlik signal limiti: ${stats.trades}/${prefs.maxTradesPerDay}`);
   }
 
   if (stats.consecutiveLosses >= prefs.pauseAfterLosses && pauseMin <= 0) {
     allowed = false;
+    allowNewTrades = false;
+    allowAiForecast = false;
     level = "red";
     messages.push(
       `${stats.consecutiveLosses} ketma-ket zarar — ${prefs.pauseCooldownMinutes} daqiqa tanaffus tavsiya`
@@ -108,15 +122,21 @@ export function evaluateCapitalShield(input: {
 
   if (marketQuality.score < prefs.minMarketQuality) {
     allowed = false;
+    allowNewTrades = false;
+    allowAiForecast = false;
     level = level === "red" ? "red" : "yellow";
     messages.push(`Bozor sifati past: ${marketQuality.score} (min ${prefs.minMarketQuality})`);
   }
 
   if (calendar?.inHighImpactWindow) {
     allowed = false;
+    allowNewTrades = false;
+    allowAiForecast = false;
     level = "red";
     messages.push(calendar.hintUz ?? "Makro oyna — savdo taqiq");
   }
+
+  allowed = allowNewTrades && allowAiForecast;
 
   if (allowed && stats.trades > 0) {
     messages.push(
@@ -135,5 +155,13 @@ export function evaluateCapitalShield(input: {
         ? "Sariq — ehtiyot"
         : "Qizil — savdo to'xtatilgan";
 
-  return { allowed, level, levelUz, messagesUz: messages, stats };
+  return {
+    allowed,
+    allowNewTrades,
+    allowAiForecast,
+    level,
+    levelUz,
+    messagesUz: messages,
+    stats,
+  };
 }

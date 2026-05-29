@@ -18,7 +18,7 @@ import {
   formatSetupQualityForAi,
   minScoreForTrade,
 } from "../shared/setup-quality";
-import { shouldBlockNewTrades } from "../shared/profit-protection";
+import { shouldBlockAiForecast } from "../shared/profit-protection";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
 import {
@@ -47,8 +47,9 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   }
 
   const snap = getLastSnapshot();
+  let capitalWarning: string | undefined;
   if (snap?.platform) {
-    const block = shouldBlockNewTrades({
+    const block = shouldBlockAiForecast({
       capitalShield: snap.platform.capitalShield,
       discipline: snap.platform.discipline,
       marketQuality: snap.platform.marketQuality,
@@ -58,6 +59,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       broadcastUpdate();
       return;
     }
+    capitalWarning = block.warningUz;
   }
 
   const candles1m = ctx.candles1m.length ? ctx.candles1m : ctx.candles5m;
@@ -175,6 +177,12 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       console.log("[ai-signal] swing reject:", swing.reasonUz);
     }
 
+    if (capitalWarning && signal.action !== "HOLD") {
+      signal = {
+        ...signal,
+        summaryUz: `${signal.summaryUz} · ${capitalWarning}`,
+      };
+    }
     completeAiSession(signal);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI tahlil xatosi";

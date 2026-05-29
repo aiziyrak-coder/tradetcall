@@ -166,7 +166,7 @@ export function getMonitorContextForAi(): {
     impulse: lastImpulse,
     setupQuality: computeSetupQualitySnapshot(),
     disciplineScore: lastSnapshot?.platform?.discipline?.score,
-    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowed ?? true,
+    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowAiForecast ?? true,
   };
 }
 
@@ -250,7 +250,7 @@ function computeSetupQualitySnapshot(): import("../shared/setup-quality").SetupQ
     calendar: lastSnapshot?.calendar,
     marketQualityScore: mq.score,
     disciplineScore: lastSnapshot?.platform?.discipline?.score,
-    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowed ?? true,
+    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowAiForecast ?? true,
   });
 }
 

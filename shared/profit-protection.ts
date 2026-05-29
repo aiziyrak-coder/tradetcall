@@ -28,6 +28,48 @@ export function useStrictShortMode(journal: JournalStats | null | undefined): bo
   return journal.last7WinRatePct < ADAPTIVE_WR_CUTOFF;
 }
 
+/** YANGI PROGNOZ — faqat jiddiy xavf (zarar limiti, tanaffus, makro) */
+export function shouldBlockAiForecast(input: {
+  capitalShield: CapitalShieldState;
+  discipline: TradingDiscipline;
+  marketQuality: MarketQuality;
+}): { block: boolean; reasonUz: string; warningUz?: string } {
+  const { capitalShield, discipline, marketQuality } = input;
+
+  if (capitalShield.allowAiForecast === false) {
+    const hard =
+      capitalShield.messagesUz.find((m) =>
+        /tanaffus|zarar limiti|makro|bozor sifati/i.test(m)
+      ) ?? capitalShield.messagesUz[0];
+    return { block: true, reasonUz: hard ?? "Kapital himoyasi" };
+  }
+
+  const soft = capitalShield.messagesUz.find((m) =>
+    /foyda maqsadi|signal limiti|greed/i.test(m)
+  );
+  if (soft) {
+    return {
+      block: false,
+      reasonUz: "",
+      warningUz: `${soft} — prognoz mumkin, ehtiyot bilan`,
+    };
+  }
+
+  if (!marketQuality.tradeable) {
+    return {
+      block: true,
+      reasonUz: `Bozor ${marketQuality.grade} (${marketQuality.score}) — avval shartlarni tuzating`,
+    };
+  }
+  if (discipline.score < 55) {
+    return {
+      block: true,
+      reasonUz: `Qoidalar ${discipline.score}% — bugun ehtiyotkor bo'ling`,
+    };
+  }
+  return { block: false, reasonUz: "" };
+}
+
 export function shouldBlockNewTrades(input: {
   capitalShield: CapitalShieldState;
   discipline: TradingDiscipline;
@@ -35,6 +77,12 @@ export function shouldBlockNewTrades(input: {
 }): { block: boolean; reasonUz: string } {
   const { capitalShield, discipline, marketQuality } = input;
 
+  if (!capitalShield.allowNewTrades) {
+    return {
+      block: true,
+      reasonUz: capitalShield.messagesUz[0] ?? "Kapital himoyasi — bugun yangi savdo cheklangan",
+    };
+  }
   if (!capitalShield.allowed) {
     return {
       block: true,
