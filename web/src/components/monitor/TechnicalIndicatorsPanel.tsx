@@ -1,9 +1,11 @@
+import type { M1ScalpLead } from "../../../../shared/m1-scalp";
 import type { PriceData, TechnicalAnalysis } from "../../../../shared/types";
 import { RsiGauge } from "./RsiGauge";
 import { TermCard } from "./TermCard";
 
 interface Props {
   technical: TechnicalAnalysis | null | undefined;
+  m1Scalp?: M1ScalpLead | null;
   gold: PriceData | null;
 }
 
@@ -19,11 +21,19 @@ const trendLabel = {
   neutral: "NEYTRAL",
 };
 
-export function TechnicalIndicatorsPanel({ technical, gold }: Props) {
+const phaseStyle: Record<string, string> = {
+  forming: "text-violet-300",
+  active: "text-emerald-400",
+  exhausted: "text-amber-400",
+  reversal: "text-orange-400",
+  range: "text-slate-400",
+};
+
+export function TechnicalIndicatorsPanel({ technical, m1Scalp, gold }: Props) {
   const price = gold?.price ?? 0;
 
   return (
-    <TermCard title="Indikatorlar" subtitle="RSI · ADX · ATR · darajalar" accent="cyan">
+    <TermCard title="M1 skalp" subtitle="Trend oldindan · RSI · ADX" accent="cyan">
       <div className="p-2">
         {!technical ? (
           <p className="text-[8px] text-amber-400">Shamlar yuklanmoqda…</p>
@@ -63,6 +73,20 @@ export function TechnicalIndicatorsPanel({ technical, gold }: Props) {
             </div>
 
             <p className="text-[8px] leading-snug text-slate-400">{technical.momentum}</p>
+
+            {m1Scalp && (
+              <div className="rounded border border-violet-500/30 bg-violet-950/25 p-1.5">
+                <p className="text-[7px] font-bold uppercase text-violet-300">M1 yo&apos;nalish</p>
+                <p className="text-[9px] font-black text-white">
+                  {m1Scalp.direction.toUpperCase()} · {m1Scalp.strength}%
+                  <span className={`ml-1 font-semibold ${phaseStyle[m1Scalp.phase] ?? ""}`}>
+                    {m1Scalp.phase}
+                  </span>
+                </p>
+                <p className="text-[8px] leading-snug text-violet-100/90">{m1Scalp.nextMoveUz}</p>
+                <p className="text-[7px] text-slate-500">{m1Scalp.emaCrossUz}</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded border border-emerald-900/30 bg-emerald-950/15 p-1.5">

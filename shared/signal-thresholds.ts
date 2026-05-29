@@ -14,17 +14,17 @@ export const LONG_THRESHOLDS = {
   minBiasScore: 2.0,
 };
 
-/** Yaqin (scalp) — tez bozor harakatida signal berish uchun yumshoq */
+/** M1 skalping — 1m trend ustun, tez kirish/chiqish */
 export const SHORT_THRESHOLDS = {
   minFilters: 2,
   filterTotal: 7,
-  minStrength: 40,
-  minConfluence: 38,
-  minRiskReward: 1.35,
-  minNewsConfidence: 28,
-  minNewsStrength: 20,
-  minBiasScore: 0.85,
-  minTfVoteRatio: 0.2,
+  minStrength: 36,
+  minConfluence: 32,
+  minRiskReward: 1.25,
+  minNewsConfidence: 22,
+  minNewsStrength: 16,
+  minBiasScore: 0.7,
+  minTfVoteRatio: 0.15,
 };
 
 export type ShortThresholdSet = typeof SHORT_THRESHOLDS;

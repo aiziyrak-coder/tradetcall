@@ -6,6 +6,7 @@ import {
 } from "../shared/prompts";
 import { askClaude } from "../shared/anthropic";
 import { setApiKey as setClaudeKey } from "../shared/anthropic";
+import { formatM1ScalpForAi } from "../shared/m1-scalp";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
 import {
@@ -33,22 +34,26 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     return;
   }
 
-  const candles = ctx.candles5m.length ? ctx.candles5m : ctx.candles15m;
-  const tech = analyzeTechnicals(
-    candles.length
-      ? candles
-      : [
-          {
-            time: 0,
-            open: ctx.gold.price,
-            high: ctx.gold.price,
-            low: ctx.gold.price,
-            close: ctx.gold.price,
-          },
-        ]
-  );
+  const candles1m = ctx.candles1m.length ? ctx.candles1m : ctx.candles5m;
+  const candles5m = ctx.candles5m.length ? ctx.candles5m : ctx.candles15m;
+  const fallback = [
+    {
+      time: 0,
+      open: ctx.gold.price,
+      high: ctx.gold.price,
+      low: ctx.gold.price,
+      close: ctx.gold.price,
+    },
+  ];
+  const tech = analyzeTechnicals(candles1m.length ? candles1m : fallback);
+  const tech5 = analyzeTechnicals(candles5m.length ? candles5m : fallback);
 
-  const newsTitles = ctx.newsItems.map((n) => n.titleUz || n.title).slice(0, 20);
+  const m1ScalpBlock =
+    ctx.m1Scalp != null
+      ? formatM1ScalpForAi(ctx.m1Scalp, tech, tech5)
+      : undefined;
+
+  const newsTitles = ctx.newsItems.map((n) => n.titleUz || n.title).slice(0, 12);
 
   const prompt = buildAiTradeSignalPrompt({
     price: ctx.gold.price,
@@ -56,6 +61,8 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     high24h: ctx.gold.high24h,
     low24h: ctx.gold.low24h,
     tech,
+    tech5m: tech5,
+    m1ScalpBlock,
     newsAnalysis: ctx.newsAnalysis,
     newsTitles,
     drivers: ctx.drivers.map((d) => ({ name: d.name, changePercent: d.changePercent })),

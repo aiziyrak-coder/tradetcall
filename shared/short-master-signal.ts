@@ -15,6 +15,7 @@ import type { PriceImpulse } from "./price-impulse";
 import type { MarketRegime } from "./market-regime";
 import type { CalendarStatus } from "./calendar-types";
 import type { MarketSessionInfo } from "./market-session";
+import { analyzeM1ScalpLead } from "./m1-scalp";
 
 export interface TraderVote {
   traderUz: string;
@@ -43,10 +44,10 @@ export interface ShortMasterSignal {
 }
 
 const TF_WEIGHT: Record<string, number> = {
-  "1m": 1.2,
-  "5m": 2,
-  "15m": 2.5,
-  "1h": 3,
+  "1m": 3.8,
+  "5m": 2.2,
+  "15m": 1.1,
+  "1h": 0.7,
 };
 
 function emaLast(closes: number[], period: number): number {
@@ -188,8 +189,8 @@ export function computeShortMasterSignal(input: {
   }
 
   const np = newsPillar(news);
-  longTotal += np.long * 1.4;
-  shortTotal += np.short * 1.4;
+  longTotal += np.long * 0.85;
+  shortTotal += np.short * 0.85;
   pillars.push({
     labelUz: "Yangiliklar markazi",
     longPts: Math.round(np.long),
@@ -262,6 +263,35 @@ export function computeShortMasterSignal(input: {
     });
   }
 
+  const m1c = multiCandles["1m"];
+  const m5c = multiCandles["5m"] ?? [];
+  if (m1c?.length) {
+    const m1Lead = analyzeM1ScalpLead(m1c, m5c, price, impulse);
+    if (m1Lead.direction === "long") longTotal += m1Lead.strength * 0.75;
+    else if (m1Lead.direction === "short") shortTotal += m1Lead.strength * 0.75;
+    if (m1Lead.phase === "forming") {
+      if (m1Lead.direction === "long") longTotal += 18;
+      if (m1Lead.direction === "short") shortTotal += 18;
+    }
+    pillars.push({
+      labelUz: "M1 skalp (oldindan)",
+      longPts: m1Lead.direction === "long" ? m1Lead.strength : 0,
+      shortPts: m1Lead.direction === "short" ? m1Lead.strength : 0,
+      noteUz: m1Lead.summaryUz.slice(0, 80),
+    });
+    votes.push({
+      traderUz: "M1 scalper",
+      side:
+        m1Lead.direction === "long"
+          ? "long"
+          : m1Lead.direction === "short"
+            ? "short"
+            : "neutral",
+      weight: 3.2,
+      noteUz: m1Lead.nextMoveUz.slice(0, 60),
+    });
+  }
+
   if (calendar.inHighImpactWindow) {
     longTotal *= 0.35;
     shortTotal *= 0.35;
@@ -278,15 +308,15 @@ export function computeShortMasterSignal(input: {
   const shortScore = Math.min(100, Math.round((shortTotal / maxSide) * 58 + tfShort * 9));
 
   const primary =
-    multiCandles["5m"]?.length ? multiCandles["5m"]! : multiCandles["1m"] ?? [];
-  const tech5 = analyzeTechnicals(
+    multiCandles["1m"]?.length ? multiCandles["1m"]! : multiCandles["5m"] ?? [];
+  const tech1 = analyzeTechnicals(
     primary.length ? primary : [{ time: 0, open: price, high: price, low: price, close: price }]
   );
 
   let bias: "long" | "short" | "wait" = "wait";
-  const lead = 6;
-  const strong = 48;
-  const dominant = 55;
+  const lead = 5;
+  const strong = 44;
+  const dominant = 50;
 
   if (longScore >= dominant && longScore - shortScore >= lead) bias = "long";
   else if (shortScore >= dominant && shortScore - longScore >= lead) bias = "short";
@@ -294,8 +324,8 @@ export function computeShortMasterSignal(input: {
   else if (shortScore >= strong && shortScore >= longScore * 1.12) bias = "short";
   else if (tfLong >= 3 && tfLong > tfShort) bias = "long";
   else if (tfShort >= 3 && tfShort > tfLong) bias = "short";
-  else if (tech5.rsi < 28 && tech5.trend !== "bearish") bias = "long";
-  else if (tech5.rsi > 72 && tech5.trend !== "bullish") bias = "short";
+  else if (tech1.rsi < 28 && tech1.trend !== "bearish") bias = "long";
+  else if (tech1.rsi > 72 && tech1.trend !== "bullish") bias = "short";
 
   const voteLong = votes.filter((v) => v.side === "long").reduce((a, v) => a + v.weight, 0);
   const voteShort = votes.filter((v) => v.side === "short").reduce((a, v) => a + v.weight, 0);
@@ -320,7 +350,7 @@ export function computeShortMasterSignal(input: {
         winScore * 0.35 +
         tfAligned * 8 +
         (news?.confidence ?? 0) * 0.15 +
-        (tech5.adx >= 16 ? 8 : 0)
+        (tech1.adx >= 14 ? 10 : 0)
     )
   );
 

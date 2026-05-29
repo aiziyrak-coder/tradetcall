@@ -36,6 +36,11 @@ export function detectPriceImpulse(
   };
 }
 
+/** M1 skalp — qisqa oyna, kichik harakat */
+export function detectScalpImpulse(price: number): PriceImpulse | null {
+  return detectPriceImpulse(price, { minUsd: 0.4, windowMs: 22_000 });
+}
+
 export function resetPriceImpulseRing(): void {
   RING.length = 0;
 }

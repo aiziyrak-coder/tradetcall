@@ -15,18 +15,19 @@ HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qol
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
-export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional savdo strategisiz.
-Vazifa: BIR MARTA to'liq tahlil — aniq savdo signali bering.
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD M1 SKALPING mutaxassisisiz (MetaTrader 1 daqiqa).
+Vazifa: trendni OLDINDAN aniqlang (forming) va bitta aniq scalp signal bering.
 
 QAT'IY:
-- Faqat JSON qaytaring, boshqa matn yo'q
-- action: "BUY" | "SELL" | "HOLD" (HOLD = hozir kirmang, aniq sabab)
-- entry, stopLoss, takeProfit — aniq raqam ($)
+- Faqat JSON qaytaring
+- action: "BUY" | "SELL" | "HOLD"
+- M1 yo'nalish va 5m filter MOS bo'lmasa — HOLD
+- phase "exhausted" yoki "range" bo'lsa — HOLD
+- SL qisqa: M1 ATR ~0.8–1.2×; TP 1.3–2× risk (8–12 daqiqa ichida)
 - SELL: stopLoss > entry > takeProfit; BUY: stopLoss < entry < takeProfit
-- riskReward kamida 1.5 (reward/risk)
-- triggerUz: qisqa — masalan "Narx $2650 atrofida — BUY oching" yoki "Hozir kirmang — makro oyna"
-- YAQIN/UZOQ, scalp/swing, lot, vaqt so'zlari ISHLATMANG
-- O'zbek tilida`;
+- riskReward kamida 1.25
+- Teskari trendga qarshi BUY/SELL bermang
+- O'zbek tilida, qisqa`;
 
 export function buildTranslatePrompt(
   articles: { id: string; title: string; summary: string }[]
@@ -43,6 +44,8 @@ export function buildAiTradeSignalPrompt(input: {
   high24h?: number;
   low24h?: number;
   tech: TechnicalAnalysis;
+  tech5m?: TechnicalAnalysis;
+  m1ScalpBlock?: string;
   newsAnalysis: NewsMarketAnalysis | null;
   newsTitles: string[];
   drivers: { name: string; changePercent: number }[];
@@ -52,19 +55,26 @@ export function buildAiTradeSignalPrompt(input: {
   const na = input.newsAnalysis;
   const newsBlock = input.newsTitles.slice(0, 18).map((t, i) => `${i + 1}. ${t}`).join("\n");
 
-  return `XAUUSD — TO'LIQ AI SAVDO TAHLILI (bir martalik)
+  const t5 = input.tech5m ?? input.tech;
+
+  return `XAUUSD — M1 SKALPING TAHLILI (bir martalik, 8–12 daq)
 
 NARX HOZIR: $${input.price} (${input.changePercent}%)
 24s: ${input.low24h ?? "?"} — ${input.high24h ?? "?"}
 
-TEXNIK (5m/15m/1h asosida):
+${input.m1ScalpBlock ?? "M1 skalp: ma'lumot yetarli emas — ehtiyotkor HOLD"}
+
+TEXNIK M1 (asosiy):
 - Trend: ${input.tech.trend}, RSI ${input.tech.rsi}, ADX ${input.tech.adx}
 - SMA20 ${input.tech.sma20}, SMA50 ${input.tech.sma50}
 - Qo'llab-quvvatlash: ${input.tech.support.slice(0, 3).join(", ")}
 - Qarshilik: ${input.tech.resistance.slice(0, 3).join(", ")}
 - ${input.tech.momentum}
 
-YANGILIKLAR TAHLILI:
+TEXNIK 5m (filter):
+- Trend: ${t5.trend}, RSI ${t5.rsi}, ADX ${t5.adx}
+
+YANGILIKLAR (ikkinchi daraja — M1 zid bo'lsa e'tiborsiz):
 ${na ? `Bias: ${na.overallBias} ${na.biasStrength}%, ishonch ${na.confidence}%
 Hukm: ${na.tradeVerdictUz ?? na.recommendationUz}
 ${na.aiDiscussionUz ?? na.recommendationUz}` : "Yangiliklar tahlili hali tayyor emas"}
@@ -123,8 +133,8 @@ export function parseAiTradeSignalJson(text: string, currentPrice: number): AiTr
     const reward = Math.abs(takeProfit - entry);
     riskReward = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
   }
-  if (action !== "HOLD" && riskReward < 1.2) {
-    throw new Error(`Risk/reward ${riskReward} juda past (min 1.2)`);
+  if (action !== "HOLD" && riskReward < 1.15) {
+    throw new Error(`Risk/reward ${riskReward} juda past (min 1.15)`);
   }
 
   return {

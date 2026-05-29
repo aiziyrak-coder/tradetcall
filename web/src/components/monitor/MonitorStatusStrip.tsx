@@ -14,8 +14,8 @@ export function MonitorStatusStrip({ phase, busy }: Props) {
       <p className="text-[9px] text-violet-100/90">
         <span className="font-bold text-violet-300">{UZ.monitorForecast}</span>
         {" — "}
-        yangiliklar, indikatorlar va bashorat asosida bir martalik{" "}
-        <span className="text-[var(--term-gold)]">BUY / SELL</span> signal (kirish, SL, TP)
+        M1 skalp — trend oldindan, 8–12 daqiqa ichida{" "}
+        <span className="text-[var(--term-gold)]">BUY / SELL</span> (qisqa SL, TP)
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 /** Oltin treyder platformasi — o'zbekcha */
 export const UZ = {
   appTitle: "Oltin Signal",
-  subtitle: "Narx · bashorat · AI savdo signali",
+  subtitle: "M1 skalp · narx · AI signal",
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",
@@ -9,7 +9,7 @@ export const UZ = {
   monitorIdle: "Prognoz uchun tugmani bosing",
   monitorActive: "AI tahlil…",
   monitorReady: "Signal tayyor",
-  monitorOneShot: "Bir marta · token tejash",
+  monitorOneShot: "M1 skalp · 8–12 daq",
   settings: "Sozlamalar",
   logout: "Chiqish",
 

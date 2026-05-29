@@ -241,6 +241,8 @@ export interface MonitorSnapshot {
   calendar?: CalendarStatus;
   /** Jonli texnik (RSI, ADX, qo'llab-quvvatlash) — strategiyasiz */
   marketTechnical?: TechnicalAnalysis | null;
+  /** M1 skalp trend oldindan */
+  m1Scalp?: import("./m1-scalp").M1ScalpLead | null;
   platform?: import("./platform-insight").PlatformInsight;
 }
 

@@ -25,10 +25,10 @@ import { waitTradeLevels } from "./strategy-levels";
 const SHORT_TFS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 
 const TF_META: Record<string, { labelUz: string; weight: number }> = {
-  "1m": { labelUz: "1 daqiqa", weight: 1 },
-  "5m": { labelUz: "5 daqiqa", weight: 1.5 },
-  "15m": { labelUz: "15 daqiqa", weight: 2 },
-  "1h": { labelUz: "1 soat", weight: 2.5 },
+  "1m": { labelUz: "1 daqiqa", weight: 3.5 },
+  "5m": { labelUz: "5 daqiqa", weight: 2 },
+  "15m": { labelUz: "15 daqiqa", weight: 1.2 },
+  "1h": { labelUz: "1 soat", weight: 0.8 },
 };
 
 function round2(n: number) {
@@ -49,8 +49,8 @@ function pickLeadTimeframe(
   timeframes: TimeframeSignal[],
   bias: "long" | "short" | "wait"
 ): string {
-  if (bias === "wait") return "5 daqiqa";
-  const order: ChartInterval[] = ["5m", "15m", "1m", "1h"];
+  if (bias === "wait") return "1 daqiqa";
+  const order: ChartInterval[] = ["1m", "5m", "15m", "1h"];
   for (const id of order) {
     const t = timeframes.find((x) => x.interval === id);
     if (t?.bias === bias) return t.labelUz;
@@ -74,9 +74,9 @@ export function computeShortTermStrategy(
   journalStats?: JournalStats | null
 ): ShortTermStrategy {
   const shortCfg = getShortThresholds(journalStats);
-  const primary = multiCandles["5m"]?.length
-    ? multiCandles["5m"]!
-    : multiCandles["1m"] ?? [];
+  const primary = multiCandles["1m"]?.length
+    ? multiCandles["1m"]!
+    : multiCandles["5m"] ?? [];
   const tech5 = analyzeTechnicals(
     primary.length ? primary : [{ time: 0, open: price, high: price, low: price, close: price }]
   );
@@ -135,7 +135,7 @@ export function computeShortTermStrategy(
   const sup = tech5.support[0] ?? price - atr5;
   const res = tech5.resistance[0] ?? price + atr5;
   const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
-  const exitBy = formatClockOffset(30);
+  const exitBy = formatClockOffset(12);
 
   let entry: StrategyStep;
   let exit: StrategyStep;
@@ -149,17 +149,17 @@ export function computeShortTermStrategy(
     const entryMid = round2((entryFrom + entryTo) / 2);
     entry = {
       title: "KIRISH long",
-      whenUz: `${nowStr} — 15 daqiqa, max 30 daqiqa lot`,
+      whenUz: `${nowStr} — M1 skalp, max 12 daqiqa`,
       priceHint: `$${entryFrom} — $${entryTo}`,
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
-    stopLoss = round2(Math.min(sup - atr5 * 0.4 * dyn.slAtr, price - atr5 * 1.05 * dyn.slAtr));
-    takeProfit = round2(price + Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
+    stopLoss = round2(Math.min(sup - atr1 * 0.25 * dyn.slAtr, price - atr1 * 0.95 * dyn.slAtr));
+    takeProfit = round2(price + Math.max(atr1 * 1.1 * dyn.tpAtr, atr1 * 1.45 * dyn.tpAtr));
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", shortCfg.minRiskReward);
     exit = {
       title: "CHIQISH",
-      whenUz: `TP yoki ${exitBy} · 30 daqiqa`,
+      whenUz: `TP yoki ${exitBy} · max 12 daqiqa`,
       priceHint: `TP $${takeProfit}`,
       priceFrom: round2(takeProfit - atr1 * 0.15),
       priceTo: round2(takeProfit + atr1 * 0.1),
@@ -176,8 +176,8 @@ export function computeShortTermStrategy(
       priceFrom: entryFrom,
       priceTo: entryTo,
     };
-    stopLoss = round2(Math.max(res + atr5 * 0.4 * dyn.slAtr, price + atr5 * 1.05 * dyn.slAtr));
-    takeProfit = round2(price - Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
+    stopLoss = round2(Math.max(res + atr1 * 0.25 * dyn.slAtr, price + atr1 * 0.95 * dyn.slAtr));
+    takeProfit = round2(price - Math.max(atr1 * 1.1 * dyn.tpAtr, atr1 * 1.45 * dyn.tpAtr));
     takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", shortCfg.minRiskReward);
     exit = {
       title: "CHIQISH",
@@ -345,16 +345,16 @@ export function computeShortTermStrategy(
 
   return {
     bias: finalBias,
-    horizonUz: "Maksimum 30 daqiqa",
+    horizonUz: "M1 skalp · maksimum 12 daqiqa",
     confidence,
     situationUz: verdict.analysisUz,
     entry,
     exit,
     stopLoss,
     takeProfit,
-    maxHoldMinutes: 30,
+    maxHoldMinutes: 12,
     lotRuleUz:
-      "30 daqiqa qoidasi. SL majburiy. Yangiliklar zid bo'lsa lot OCHMANG. R:R past bo'lsa KIRMANG.",
+      "M1 skalp: 12 daqiqa ichida yoping. SL majburiy. 1m trendga qarshi kirmang. R:R < 1.25 — KIRMANG.",
     timeframes,
     invalidationUz:
       finalBias === "long"

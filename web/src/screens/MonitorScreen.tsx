@@ -251,7 +251,11 @@ export function MonitorScreen({
               }
             />
           </div>
-          <TechnicalIndicatorsPanel technical={data?.marketTechnical} gold={data?.gold ?? null} />
+          <TechnicalIndicatorsPanel
+            technical={data?.marketTechnical}
+            m1Scalp={data?.m1Scalp}
+            gold={data?.gold ?? null}
+          />
         </div>
 
         <div

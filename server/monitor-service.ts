@@ -3,7 +3,8 @@ import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
-import { detectPriceImpulse, type PriceImpulse } from "../shared/price-impulse";
+import { detectPriceImpulse, detectScalpImpulse, type PriceImpulse } from "../shared/price-impulse";
+import { analyzeM1ScalpLead } from "../shared/m1-scalp";
 import { getCalendarStatus } from "../shared/economic-calendar";
 import {
   disposePriceStreamHooks,
@@ -49,8 +50,8 @@ import { runOneShotAiAnalysis } from "./ai-signal-runner";
 
 const PRICE_FAST_MS = 600;
 const PRICE_FETCH_MS = 900;
-const STRATEGY_TICK_MS = 3000;
-const STRATEGY_TICK_IMPULSE_MS = 900;
+const STRATEGY_TICK_MS = 2000;
+const STRATEGY_TICK_IMPULSE_MS = 700;
 const HEARTBEAT_MS = 1500;
 const INTERNET_CHECK_MS = 25_000;
 const DRIVERS_TICK_MS = 20_000;
@@ -60,7 +61,7 @@ const TRANSLATE_TICK_MS = 30_000;
 const TRANSLATE_BATCH = 4;
 const PRICE_STALE_MS = 20_000;
 const MAX_PRICE_FAILS = 5;
-const MULTI_TF_REFRESH_MS = 12_000;
+const MULTI_TF_REFRESH_MS = 8_000;
 
 let priceInterval: ReturnType<typeof setInterval> | null = null;
 let strategyInterval: ReturnType<typeof setInterval> | null = null;
@@ -99,10 +100,10 @@ let strategyTickMs = STRATEGY_TICK_MS;
 
 function getPrimaryCandles(): Candle[] {
   return (
+    multiTfCandles["1m"] ??
     multiTfCandles["5m"] ??
     multiTfCandles["15m"] ??
     multiTfCandles["1h"] ??
-    multiTfCandles["1m"] ??
     []
   );
 }
@@ -136,19 +137,25 @@ export function getMonitorContextForAi(): {
   newsItems: ReturnType<typeof getTranslatedNews>;
   drivers: MonitorSnapshot["drivers"];
   calendar: MonitorSnapshot["calendar"];
+  candles1m: Candle[];
   candles5m: Candle[];
   candles15m: Candle[];
+  m1Scalp: ReturnType<typeof analyzeM1ScalpLead> | null;
   disciplineScore?: number;
 } {
   const gold = lastSnapshot?.gold ?? null;
+  const c1 = multiTfCandles["1m"] ?? [];
+  const c5 = multiTfCandles["5m"] ?? [];
   return {
     gold,
     newsAnalysis: lastNewsAnalysis,
     newsItems: getTranslatedNews(),
     drivers: lastSnapshot?.drivers ?? [],
     calendar: lastSnapshot?.calendar,
-    candles5m: multiTfCandles["5m"] ?? [],
+    candles1m: c1,
+    candles5m: c5,
     candles15m: multiTfCandles["15m"] ?? [],
+    m1Scalp: gold && c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, lastImpulse) : null,
     disciplineScore: lastSnapshot?.platform?.discipline?.score,
   };
 }
@@ -410,13 +417,9 @@ async function ensureOnline(): Promise<boolean> {
 }
 
 function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { forceStrategy?: boolean }) {
-  const impulse = detectPriceImpulse(gold.price, {
-    minUsd: 1.2,
-    windowMs: 45_000,
-  });
-  const impulseChanged =
-    impulse?.direction !== lastImpulse?.direction ||
-    Math.abs((impulse?.moveUsd ?? 0) - (lastImpulse?.moveUsd ?? 0)) >= 0.5;
+  const impulse =
+    detectScalpImpulse(gold.price) ??
+    detectPriceImpulse(gold.price, { minUsd: 0.65, windowMs: 30_000 });
   lastImpulse = impulse;
 
   markPriceOk();
@@ -429,6 +432,10 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
   lastStrategyPrice = gold.price;
 
   const marketTechnical = computeMarketTechnical(gold.price);
+  const c1 = multiTfCandles["1m"] ?? [];
+  const c5 = multiTfCandles["5m"] ?? [];
+  const m1Scalp =
+    c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, impulse) : null;
   mergeSnapshot({
     online: true,
     priceStale: false,
@@ -437,6 +444,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
     tickSeq,
     priceUpdatedAt: gold.timestamp,
     ...(marketTechnical ? { marketTechnical } : {}),
+    m1Scalp,
   });
   broadcast("monitor:update", lastSnapshot);
 }
