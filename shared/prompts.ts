@@ -1,5 +1,61 @@
 import type { NewsMarketAnalysis, TechnicalAnalysis } from "./types";
 import type { AiTradeSignal } from "./ai-trade-signal";
+import { SWING_MIN_RR } from "./pip-targets";
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+function parseRiskRewardValue(
+  raw: unknown,
+  entry: number,
+  stopLoss: number,
+  takeProfit: number
+): number {
+  if (typeof raw === "string") {
+    const s = raw.trim().replace(/%/g, "");
+    const ratio = s.match(/^1\s*:\s*([\d.]+)$/i);
+    if (ratio) return Number(ratio[1]) || 0;
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+  }
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return n;
+  const risk = Math.abs(entry - stopLoss);
+  const reward = Math.abs(takeProfit - entry);
+  return risk > 0 ? round2(reward / risk) : 0;
+}
+
+/** TP ni R:R ga moslashtiradi — xato o'rniga tashlamaydi */
+export function fixSignalLevelsForMinRr(
+  action: "BUY" | "SELL",
+  entry: number,
+  stopLoss: number,
+  takeProfit: number,
+  minRr = SWING_MIN_RR
+): { entry: number; stopLoss: number; takeProfit: number; riskReward: number } {
+  const risk = Math.abs(entry - stopLoss);
+  if (risk <= 0) {
+    return { entry, stopLoss, takeProfit, riskReward: minRr };
+  }
+  let reward = Math.abs(takeProfit - entry);
+  let rr = reward / risk;
+  let tp = takeProfit;
+  if (rr < minRr) {
+    reward = risk * minRr;
+    tp =
+      action === "BUY"
+        ? round2(entry + reward)
+        : round2(entry - reward);
+    rr = minRr;
+  }
+  return {
+    entry: round2(entry),
+    stopLoss: round2(stopLoss),
+    takeProfit: tp,
+    riskReward: round2(rr),
+  };
+}
 
 export const SYSTEM_NEWS_ANALYST = `Siz XAUUSD oltin bozori BOSH ANALITIK va professional savdogarsiz.
 ASOSIY MAQSAD: har bir yangilikni oltin narxiga ta'sirini baholash — savdogar shu asosida qaror qiladi.
@@ -138,21 +194,24 @@ export function parseAiTradeSignalJson(text: string, currentPrice: number): AiTr
     }
   }
 
-  let riskReward = Number(raw.riskReward);
-  if (!Number.isFinite(riskReward)) {
-    const risk = Math.abs(entry - stopLoss);
-    const reward = Math.abs(takeProfit - entry);
-    riskReward = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
-  }
-  if (action !== "HOLD" && riskReward < 1.4) {
-    throw new Error(`Risk/reward ${riskReward} juda past (min 1.4)`);
+  let outEntry = entry;
+  let outSl = stopLoss;
+  let outTp = takeProfit;
+  let riskReward = parseRiskRewardValue(raw.riskReward, entry, stopLoss, takeProfit);
+
+  if (action === "BUY" || action === "SELL") {
+    const fixed = fixSignalLevelsForMinRr(action, entry, stopLoss, takeProfit);
+    outEntry = fixed.entry;
+    outSl = fixed.stopLoss;
+    outTp = fixed.takeProfit;
+    riskReward = fixed.riskReward;
   }
 
   return {
     action,
-    entry: Math.round(entry * 100) / 100,
-    stopLoss: Math.round(stopLoss * 100) / 100,
-    takeProfit: Math.round(takeProfit * 100) / 100,
+    entry: outEntry,
+    stopLoss: outSl,
+    takeProfit: outTp,
     confidence: Math.min(100, Math.max(0, Math.round(Number(raw.confidence) || 50))),
     riskReward,
     currentPrice: Math.round(currentPrice * 100) / 100,

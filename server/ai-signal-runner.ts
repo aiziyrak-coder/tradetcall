@@ -169,8 +169,22 @@ export async function runOneShotAiAnalysis(): Promise<void> {
 
     const swing = enforceSwingTargets(signal, ctx.gold.price, tech5);
     signal = swing.signal;
-    if (swing.rejected) {
-      console.log("[ai-signal] swing reject:", swing.reasonUz);
+    if (swing.rejected || signal.action === "HOLD") {
+      const rule = deriveClearSignal({
+        price: ctx.gold.price,
+        tech,
+        tech5,
+        setupQ,
+        m1Scalp: ctx.m1Scalp,
+        live,
+      });
+      if (rule) {
+        const swing2 = enforceSwingTargets(rule, ctx.gold.price, tech5);
+        signal = swing2.rejected ? rule : swing2.signal;
+        console.log("[ai-signal] fallback after enforce:", signal.action);
+      } else if (swing.rejected) {
+        console.log("[ai-signal] swing reject:", swing.reasonUz);
+      }
     }
 
     const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
@@ -198,8 +212,39 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       });
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "AI tahlil xatosi";
-    failAiSession(msg);
+    console.warn("[ai-signal] parse/run error:", e);
+    const rule = deriveClearSignal({
+      price: ctx.gold.price,
+      tech,
+      tech5,
+      setupQ,
+      m1Scalp: ctx.m1Scalp,
+      live,
+    });
+    if (rule) {
+      const swing = enforceSwingTargets(rule, ctx.gold.price, tech5);
+      let signal = swing.rejected ? rule : swing.signal;
+      const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
+      if (extra && signal.action !== "HOLD") {
+        signal = { ...signal, summaryUz: `${signal.summaryUz} · ${extra}` };
+      }
+      completeAiSession(signal);
+      if (signal.action === "BUY" || signal.action === "SELL") {
+        recordSignalIfNew({
+          horizon: "short",
+          action: signal.action,
+          strength: signal.confidence,
+          entry: signal.entry,
+          stopLoss: signal.stopLoss,
+          takeProfit: signal.takeProfit,
+          price: ctx.gold.price,
+          dedupeMs: 45 * 60 * 1000,
+        });
+      }
+    } else {
+      const msg = e instanceof Error ? e.message : "AI tahlil xatosi";
+      failAiSession(msg);
+    }
   }
 
   broadcastUpdate();

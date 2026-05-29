@@ -66,9 +66,10 @@ export function enforceSwingTargets(
   const maxSl = pipsToUsd(SWING_MAX_SL_PIPS);
 
   const room = roomToMoveUsd(price, tech, signal.action);
-  if (room < minReward * 0.85) {
+  const minRoom = pipsToUsd(Math.max(8, SWING_MIN_TP_PIPS - 2));
+  if (room < minRoom) {
     return {
-      signal: holdSignal(signal, price, `Bo'sh joy yetarli emas — maqsadga ~${usdToPips(room)} pip (${room.toFixed(2)}$)`),
+      signal: holdSignal(signal, price, `Bo'sh joy yetarli emas — maqsadga ~${usdToPips(room)} pip`),
       adjusted: true,
       rejected: true,
       reasonUz: `Kamida ${SWING_MIN_TP_PIPS} pip uchun joy yo'q`,
@@ -83,7 +84,10 @@ export function enforceSwingTargets(
   let risk = Math.abs(entry - sl);
 
   if (reward < minReward) {
-    const targetReward = Math.min(maxReward, Math.max(minReward, defaultReward, room * 0.9));
+    const targetReward = Math.min(
+      maxReward,
+      Math.max(minReward, defaultReward, room * 0.95, minRoom)
+    );
     tp =
       signal.action === "BUY"
         ? round2(entry + targetReward)
@@ -125,12 +129,12 @@ export function enforceSwingTargets(
   }
 
   reward = Math.abs(tp - entry);
-  if (reward < minReward * 0.98) {
+  if (reward < minRoom * 0.95) {
     return {
       signal: holdSignal(
         signal,
         price,
-        `TP kam — kerak min ${SWING_MIN_TP_PIPS} pip ($${minReward}), hozir ~${usdToPips(reward)} pip`
+        `TP juda kichik — hozir ~${usdToPips(reward)} pip`
       ),
       adjusted: true,
       rejected: true,
