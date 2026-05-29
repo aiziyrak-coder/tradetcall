@@ -46,14 +46,14 @@ export function AuthScreen({ onLogin }: Props) {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-amber-500/20 to-cyan-500/10 shadow-[0_0_40px_rgba(34,211,238,0.2)]">
               <span className="text-3xl">⚡</span>
             </div>
-            <h1 className="font-display text-2xl font-bold tracking-[0.2em] text-amber-400 fx-glow-text">
-              XAUUSD
+            <h1 className="font-display text-2xl font-bold tracking-[0.15em] text-amber-400 fx-glow-text">
+              Oltin Signal
             </h1>
-            <p className="mt-1 font-display text-xs tracking-[0.35em] text-cyan-400/90">
-              OLTIN TRADER
+            <p className="mt-1 font-display text-xs tracking-[0.25em] text-cyan-400/90">
+              XAUUSD · BASHORAT · AI SIGNAL
             </p>
             <p className="mt-3 font-mono-ui text-[10px] uppercase tracking-widest text-slate-500">
-              Neural trading terminal · v2.0
+              Yangiliklar · indikatorlar · aniq savdo
             </p>
           </div>
 

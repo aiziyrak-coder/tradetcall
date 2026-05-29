@@ -1,4 +1,5 @@
-import type { LongTermStrategy, NewsMarketAnalysis, TechnicalAnalysis } from "./types";
+import type { NewsMarketAnalysis, TechnicalAnalysis } from "./types";
+import type { AiTradeSignal } from "./ai-trade-signal";
 
 export const SYSTEM_NEWS_ANALYST = `Siz XAUUSD oltin bozori BOSH ANALITIK va professional savdogarsiz.
 ASOSIY MAQSAD: har bir yangilikni oltin narxiga ta'sirini baholash — savdogar shu asosida qaror qiladi.
@@ -9,20 +10,23 @@ tradeVerdictUz: bir qatorda aniq HUKM (LONG/SHORT/KUTING) va narx zonasi.
 aiFutureOutlookUz: 24 soat, 72 soat, 1 hafta — alohida jumlalar.
 O'zbek tilida, aniq. JSON formatida javob.`;
 
-export const SYSTEM_ANALYST = `Siz XAUUSD professional swing murabbiyisiz (1 hafta — 1 oy).
-FOYDALANUVCHI haqiqiy trader: zarar kamaytirish, har lotda R:R ≥ 1:2, haftada 0–1 savdo.
-
-QAT'IY:
-- BUY, SELL, HOLD, WAIT ISHLATMANG
-- Noaniq bo'lsa bias=wait
-- stopLoss va takeProfit raqamli — TP har doim SL dan kamida 2 barobar uzoq
-- riskWarning da kapital himoyasi
-- JSON formatida javob`;
-
 export const SYSTEM_TRANSLATOR = `Siz XAUUSD oltin bozori yangiliklari professional tarjimoni.
 HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qoldirmang.
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
+
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional savdo strategisiz.
+Vazifa: BIR MARTA to'liq tahlil — aniq savdo signali bering.
+
+QAT'IY:
+- Faqat JSON qaytaring, boshqa matn yo'q
+- action: "BUY" | "SELL" | "HOLD" (HOLD = hozir kirmang, aniq sabab)
+- entry, stopLoss, takeProfit — aniq raqam ($)
+- SELL: stopLoss > entry > takeProfit; BUY: stopLoss < entry < takeProfit
+- riskReward kamida 1.5 (reward/risk)
+- triggerUz: qisqa — masalan "Narx $2650 atrofida — BUY oching" yoki "Hozir kirmang — makro oyna"
+- YAQIN/UZOQ, scalp/swing, lot, vaqt so'zlari ISHLATMANG
+- O'zbek tilida`;
 
 export function buildTranslatePrompt(
   articles: { id: string; title: string; summary: string }[]
@@ -33,53 +37,117 @@ export function buildTranslatePrompt(
   return `Oltin yangiliklari — o'zbekcha:\n${list}\n\nJSON:\n[{"id":"...","titleUz":"...","summaryUz":"...","goldImpactUz":"..."}]`;
 }
 
-export function buildForecastPrompt(
-  price: number,
-  change: number,
-  changePercent: number,
-  high24h: number | undefined,
-  low24h: number | undefined,
-  tech: TechnicalAnalysis,
-  base: LongTermStrategy,
-  news: { title: string; summary: string }[],
-  newsBrief?: string
-): string {
-  const newsBlock = news.slice(0, 12).map((n, i) => `${i + 1}. ${n.title}`).join("\n");
-  return `XAUUSD UZOQ MUDDATLI TAHLIL
-Hozir: $${price} (${changePercent}%)
-24s: ${low24h ?? "?"} — ${high24h ?? "?"}
+export function buildAiTradeSignalPrompt(input: {
+  price: number;
+  changePercent: number;
+  high24h?: number;
+  low24h?: number;
+  tech: TechnicalAnalysis;
+  newsAnalysis: NewsMarketAnalysis | null;
+  newsTitles: string[];
+  drivers: { name: string; changePercent: number }[];
+  calendarHint?: string;
+  disciplineScore?: number;
+}): string {
+  const na = input.newsAnalysis;
+  const newsBlock = input.newsTitles.slice(0, 18).map((t, i) => `${i + 1}. ${t}`).join("\n");
 
-TEXNIK: RSI ${tech.rsi}, trend ${tech.trend}, SMA20 ${tech.sma20}, SMA50 ${tech.sma50}
-Qo'llab: ${tech.support.join(", ")} | Qarshi: ${tech.resistance.join(", ")}
-${tech.momentum}
+  return `XAUUSD — TO'LIQ AI SAVDO TAHLILI (bir martalik)
 
-AVTO-REJA (bias ${base.bias}):
-Kirish: ${base.entry.whenUz} | ${base.entry.priceHint}
-Chiqish: ${base.exit.whenUz} | ${base.exit.priceHint}
-SL ${base.stopLoss} TP ${base.takeProfit}
+NARX HOZIR: $${input.price} (${input.changePercent}%)
+24s: ${input.low24h ?? "?"} — ${input.high24h ?? "?"}
 
-YANGILIKLAR MUHOKAMASI:
-${newsBrief ?? "—"}
+TEXNIK (5m/15m/1h asosida):
+- Trend: ${input.tech.trend}, RSI ${input.tech.rsi}, ADX ${input.tech.adx}
+- SMA20 ${input.tech.sma20}, SMA50 ${input.tech.sma50}
+- Qo'llab-quvvatlash: ${input.tech.support.slice(0, 3).join(", ")}
+- Qarshilik: ${input.tech.resistance.slice(0, 3).join(", ")}
+- ${input.tech.momentum}
+
+YANGILIKLAR TAHLILI:
+${na ? `Bias: ${na.overallBias} ${na.biasStrength}%, ishonch ${na.confidence}%
+Hukm: ${na.tradeVerdictUz ?? na.recommendationUz}
+${na.aiDiscussionUz ?? na.recommendationUz}` : "Yangiliklar tahlili hali tayyor emas"}
+
+DRIVERLAR: ${input.drivers.map((d) => `${d.name} ${d.changePercent}%`).join(" · ") || "—"}
+KALENDAR: ${input.calendarHint ?? "—"}
+DISCIPLINE: ${input.disciplineScore ?? "—"}/100
 
 SARLAVHALAR:
 ${newsBlock}
 
-Foydalanuvchi uchun JSON (BUY/SELL/HOLD/WAIT YO'Q — faqat long|short|wait):
+JSON (faqat shu format):
 {
-  "bias": "long"|"short"|"wait",
-  "horizonUz": "masalan 2-4 hafta",
-  "confidence": 0-100,
-  "situationUz": "5-8 jumlalik to'liq vaziyat — nima bo'layapti, nima kutish kerak",
-  "entry": {"title":"KIRISH ...","whenUz":"aniq kun va soat","priceHint":"aniq narx zonasi","priceFrom":number,"priceTo":number},
-  "exit": {"title":"CHIQISH ...","whenUz":"...","priceHint":"...","priceFrom":number,"priceTo":number},
+  "action": "BUY"|"SELL"|"HOLD",
+  "entry": number,
   "stopLoss": number,
   "takeProfit": number,
-  "invalidationUz": "reja bekor bo'lish sharti",
-  "weekPlanUz": "haftalik reja: dushanba nima, juma nima",
-  "keyFactors": ["string"],
-  "riskWarning": "string",
-  "summaryUz": "2-3 jumlalik xulosa"
+  "confidence": 0-100,
+  "riskReward": number,
+  "analysisUz": "6-10 jumlalik tahlil — nima ko'ryapsiz, nima qilish",
+  "triggerUz": "1-2 jumla — qachon va qanday kirish (aniq narx)",
+  "invalidationUz": "qaysi narxda reja bekor",
+  "summaryUz": "1 jumlalik xulosa"
 }`;
+}
+
+export function parseAiTradeSignalJson(text: string, currentPrice: number): AiTradeSignal {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("AI javobida JSON topilmadi");
+  const raw = JSON.parse(match[0]) as Record<string, unknown>;
+  const action = String(raw.action ?? "HOLD").toUpperCase();
+  if (action !== "BUY" && action !== "SELL" && action !== "HOLD") {
+    throw new Error("action BUY, SELL yoki HOLD bo'lishi kerak");
+  }
+
+  const entry = Number(raw.entry);
+  const stopLoss = Number(raw.stopLoss);
+  const takeProfit = Number(raw.takeProfit);
+  if (![entry, stopLoss, takeProfit].every((n) => Number.isFinite(n) && n > 100)) {
+    throw new Error("entry, stopLoss, takeProfit raqam bo'lishi kerak");
+  }
+
+  if (action === "BUY") {
+    if (!(stopLoss < entry && entry < takeProfit)) {
+      throw new Error("BUY: stopLoss < entry < takeProfit bo'lishi kerak");
+    }
+  } else if (action === "SELL") {
+    if (!(takeProfit < entry && entry < stopLoss)) {
+      throw new Error("SELL: takeProfit < entry < stopLoss bo'lishi kerak");
+    }
+  }
+
+  let riskReward = Number(raw.riskReward);
+  if (!Number.isFinite(riskReward)) {
+    const risk = Math.abs(entry - stopLoss);
+    const reward = Math.abs(takeProfit - entry);
+    riskReward = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
+  }
+  if (action !== "HOLD" && riskReward < 1.2) {
+    throw new Error(`Risk/reward ${riskReward} juda past (min 1.2)`);
+  }
+
+  return {
+    action,
+    entry: Math.round(entry * 100) / 100,
+    stopLoss: Math.round(stopLoss * 100) / 100,
+    takeProfit: Math.round(takeProfit * 100) / 100,
+    confidence: Math.min(100, Math.max(0, Math.round(Number(raw.confidence) || 50))),
+    riskReward,
+    currentPrice: Math.round(currentPrice * 100) / 100,
+    analysisUz: String(raw.analysisUz ?? "").slice(0, 1200),
+    triggerUz: String(raw.triggerUz ?? "").slice(0, 300),
+    invalidationUz: String(raw.invalidationUz ?? "").slice(0, 300),
+    summaryUz: String(raw.summaryUz ?? "").slice(0, 400),
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** @deprecated eski forecast */
+export const SYSTEM_ANALYST = SYSTEM_AI_TRADE_SIGNAL;
+
+export function buildForecastPrompt(): string {
+  return "";
 }
 
 export function buildNewsDeepAnalysisPrompt(

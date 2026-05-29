@@ -1,18 +1,13 @@
-import type {
-  LongTermStrategy,
-  MarketQuote,
-  MonitorSessionInfo,
-  PriceData,
-  ShortTermStrategy,
-} from "../../../../shared/types";
+import type { AiTradeSignal } from "../../../../shared/ai-trade-signal";
+import type { MarketQuote, MonitorSessionInfo, PriceData } from "../../../../shared/types";
 import { getMarketSession } from "../../../../shared/market-session";
 import { DriversStrip } from "./DriversStrip";
 import { UZ } from "../../lib/uz";
 
 interface Props {
   gold: PriceData | null;
-  strategy: LongTermStrategy | null;
-  shortStrategy: ShortTermStrategy | null;
+  aiSignal?: AiTradeSignal | null;
+  aiPhase?: MonitorSessionInfo["phase"];
   drivers?: MarketQuote[];
   username: string;
   lastUpdate: string;
@@ -34,8 +29,8 @@ interface Props {
 
 export function MonitorTopBar({
   gold: _gold,
-  strategy,
-  shortStrategy,
+  aiSignal,
+  aiPhase,
   drivers = [],
   username,
   lastUpdate,
@@ -55,46 +50,46 @@ export function MonitorTopBar({
   onLogout,
 }: Props) {
   const session = getMarketSession();
-  const aiOn = monitorSession?.active ?? false;
+  const phase = aiPhase ?? monitorSession?.phase ?? "idle";
+  const analyzing = phase === "analyzing";
+  const ready = phase === "ready" && aiSignal;
   const liveOk = online && streamLive && !priceStale && !feedError;
-  const remainMin = monitorSession?.active
-    ? Math.ceil((monitorSession.remainingMs ?? 0) / 60_000)
-    : 0;
 
   return (
     <header className="monitor-topbar shrink-0 border-b border-[var(--term-border)] bg-[var(--term-panel-2)]">
       <div className="flex h-8 flex-wrap items-center gap-2 px-2 py-0.5">
-        <span className="font-display text-[10px] font-bold text-[var(--term-gold)]">{UZ.appTitle}</span>
+        <span className="font-display text-[11px] font-bold tracking-wide text-[var(--term-gold)]">
+          {UZ.appTitle}
+        </span>
+        <span className="hidden text-[7px] text-[var(--term-muted)] sm:inline">{UZ.subtitle}</span>
 
         <div className="flex items-center gap-1">
-          {!aiOn ? (
+          {!analyzing ? (
             <button
               type="button"
               disabled={sessionBusy}
               onClick={onStartMonitor}
-              className="rounded bg-violet-600 px-2 py-0.5 text-[9px] font-black text-white disabled:opacity-50"
-              title="Claude AI token — 30 daqiqadan keyin avto-o'chadi"
+              className="btn-ai-start touch-target rounded-md px-2.5 py-1 text-[9px] font-black text-white disabled:opacity-50"
+              title="Bir martalik AI tahlil — token tejash"
             >
               {sessionBusy ? "…" : UZ.monitorStart}
             </button>
           ) : (
-            <>
-              <button
-                type="button"
-                disabled={sessionBusy}
-                onClick={onStopMonitor}
-                className="rounded bg-red-700/90 px-2 py-0.5 text-[9px] font-black text-white disabled:opacity-50"
-              >
-                {UZ.monitorStop}
-              </button>
-              <span className="text-[8px] font-bold text-violet-300">
-                {UZ.monitorActive} · {remainMin}m
-              </span>
-            </>
+            <span className="text-[8px] font-bold text-violet-300">{UZ.monitorActive}</span>
           )}
-          {!aiOn && (
+          {phase === "ready" && onStopMonitor && (
+            <button
+              type="button"
+              disabled={sessionBusy}
+              onClick={onStopMonitor}
+              className="btn-ai-stop touch-target rounded-md px-2 py-1 text-[9px] font-black text-white disabled:opacity-50"
+            >
+              {UZ.monitorStop}
+            </button>
+          )}
+          {!analyzing && (
             <span className="text-[8px] text-slate-500">
-              {UZ.monitorAutoStop} {monitorSession?.autoStopMinutes ?? 30}m · narx/signallar doim
+              {ready ? UZ.monitorReady : UZ.monitorIdle} · {UZ.monitorAutoStop}
             </span>
           )}
         </div>
@@ -117,31 +112,17 @@ export function MonitorTopBar({
 
         <span className="text-[8px] text-[var(--term-muted)]">{session.nameUz}</span>
 
-        {shortStrategy?.verdict && (
+        {aiSignal && phase === "ready" && (
           <span
             className={`rounded px-1.5 py-0 text-[8px] font-black ${
-              shortStrategy.verdict.action === "BUY"
+              aiSignal.action === "BUY"
                 ? "bg-emerald-700 text-white"
-                : shortStrategy.verdict.action === "SELL"
+                : aiSignal.action === "SELL"
                   ? "bg-red-700 text-white"
                   : "bg-amber-800 text-amber-100"
             }`}
           >
-            YAQIN {shortStrategy.verdict.action}
-          </span>
-        )}
-
-        {strategy?.verdict && (
-          <span
-            className={`rounded px-1.5 py-0 text-[8px] font-black ${
-              strategy.verdict.action === "BUY"
-                ? "bg-emerald-900/80 text-white"
-                : strategy.verdict.action === "SELL"
-                  ? "bg-red-900/80 text-white"
-                  : "bg-amber-900/80 text-amber-100"
-            }`}
-          >
-            UZOQ {strategy.verdict.action}
+            AI {aiSignal.action}
           </span>
         )}
 

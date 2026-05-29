@@ -3,6 +3,7 @@ import type { HorizonVerdict } from "./horizon-verdict";
 import type { JournalStats } from "./platform-insight";
 import type { MarketQuality } from "./market-quality";
 import type { TradingDiscipline } from "./trading-discipline";
+import type { AiTradeSignal } from "./ai-trade-signal";
 import type { MonitorSnapshot } from "./types";
 
 /** Scalp uchun qattiq rejim — oxirgi 7 kun WR past bo'lsa */
@@ -102,5 +103,17 @@ export function applyProfitProtectionToSnapshot(
     };
   }
 
-  return { ...snap, shortStrategy, strategy };
+  let aiSignal: AiTradeSignal | null | undefined = snap.aiSignal;
+  if (block && aiSignal && aiSignal.action !== "HOLD") {
+    aiSignal = {
+      ...aiSignal,
+      action: "HOLD",
+      confidence: Math.min(aiSignal.confidence, 45),
+      summaryUz: reasonUz.slice(0, 200),
+      triggerUz: `Hozir kirmang — ${reasonUz.slice(0, 120)}`,
+      analysisUz: `${aiSignal.analysisUz.slice(0, 200)} · ${reasonUz}`,
+    };
+  }
+
+  return { ...snap, shortStrategy, strategy, aiSignal };
 }

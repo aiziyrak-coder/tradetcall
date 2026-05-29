@@ -23,6 +23,7 @@ import {
 import type { Candle, LongTermStrategy, ShortTermStrategy } from "../shared/types";
 import { startCalendarService, stopCalendarService } from "./calendar-service";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
+import { analyzeTechnicals } from "../shared/technical";
 import { computeLongTermStrategy } from "../shared/strategy";
 import {
   computeShortTermStrategy,
@@ -43,7 +44,8 @@ import { checkInternet } from "./network";
 import { enrichSnapshotWithPlatform } from "./platform-service";
 import { getJournalStats } from "./signal-journal-store";
 import { getTranslationCache, setTranslationCache } from "./store";
-import { getAiSessionStatus } from "./ai-session";
+import { getAiPhase, getAiSessionStatus, getAiSignal, setAiAnalysisRunner } from "./ai-session";
+import { runOneShotAiAnalysis } from "./ai-signal-runner";
 
 const PRICE_FAST_MS = 600;
 const PRICE_FETCH_MS = 900;
@@ -114,8 +116,44 @@ function patchMultiTf(price: number): void {
 
 function attachSession(snap: MonitorSnapshot): MonitorSnapshot {
   const ai = getAiSessionStatus();
-  return { ...snap, monitorSession: ai, aiSession: ai };
+  const aiPhase = getAiPhase();
+  const aiSignal = getAiSignal();
+  let out: MonitorSnapshot = {
+    ...snap,
+    monitorSession: ai,
+    aiSession: ai,
+    aiPhase,
+    aiSignal,
+  };
+  // Klient faqat AI signal — eski YAQIN/UZOQ strategiyalar yuborilmaydi
+  out = { ...out, strategy: null, shortStrategy: null };
+  return out;
 }
+
+export function getMonitorContextForAi(): {
+  gold: MonitorSnapshot["gold"];
+  newsAnalysis: NewsMarketAnalysis | null;
+  newsItems: ReturnType<typeof getTranslatedNews>;
+  drivers: MonitorSnapshot["drivers"];
+  calendar: MonitorSnapshot["calendar"];
+  candles5m: Candle[];
+  candles15m: Candle[];
+  disciplineScore?: number;
+} {
+  const gold = lastSnapshot?.gold ?? null;
+  return {
+    gold,
+    newsAnalysis: lastNewsAnalysis,
+    newsItems: getTranslatedNews(),
+    drivers: lastSnapshot?.drivers ?? [],
+    calendar: lastSnapshot?.calendar,
+    candles5m: multiTfCandles["5m"] ?? [],
+    candles15m: multiTfCandles["15m"] ?? [],
+    disciplineScore: lastSnapshot?.platform?.discipline?.score,
+  };
+}
+
+setAiAnalysisRunner(runOneShotAiAnalysis);
 
 async function refreshMultiTimeframes(spot: number): Promise<void> {
   if (
@@ -152,8 +190,15 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
     translating: false,
     analyzingNews: false,
     calendar: getCalendarStatus(),
+    marketTechnical: null,
     ...partial,
   };
+}
+
+function computeMarketTechnical(spot: number) {
+  const candles = patchLastCandle(getPrimaryCandles(), spot);
+  if (candles.length < 5) return null;
+  return analyzeTechnicals(candles);
 }
 
 function broadcast(channel: string, data: unknown) {
@@ -193,8 +238,7 @@ async function runNewsTranslation(): Promise<void> {
       );
       publishSnapshot({
         newsAnalysis: built.newsAnalysis,
-        strategy: built.strategy,
-        shortStrategy: built.shortStrategy,
+        marketTechnical: built.shortStrategy?.technical ?? computeMarketTechnical(lastSnapshot.gold.price),
         translating: false,
       });
     }
@@ -384,6 +428,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
   const bigMove = moveUsd >= 1.0;
   lastStrategyPrice = gold.price;
 
+  const marketTechnical = computeMarketTechnical(gold.price);
   mergeSnapshot({
     online: true,
     priceStale: false,
@@ -391,12 +436,9 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
     gold,
     tickSeq,
     priceUpdatedAt: gold.timestamp,
+    ...(marketTechnical ? { marketTechnical } : {}),
   });
   broadcast("monitor:update", lastSnapshot);
-
-  if (priceMoved || impulseChanged || opts?.forceStrategy || bigMove) {
-    void refreshStrategyLive();
-  }
 }
 
 async function fetchAndPublishPrice() {
@@ -470,8 +512,7 @@ async function refreshStrategyLive() {
     lastStrategyRebuildAt = Date.now();
     publishSnapshot({
       newsAnalysis: built.newsAnalysis,
-      strategy: built.strategy,
-      shortStrategy: built.shortStrategy,
+      marketTechnical: built.shortStrategy?.technical ?? analyzeTechnicals(patchLastCandle(getPrimaryCandles(), gold.price)),
       signalUpdatedAt: new Date().toISOString(),
     });
   } catch {
@@ -502,7 +543,7 @@ async function refreshNews() {
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
-      const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
+      const { shortStrategy, newsAnalysis } = buildStrategies(
         gold,
         getPrimaryCandles(),
         lastSnapshot.drivers ?? [],
@@ -512,8 +553,7 @@ async function refreshNews() {
       publishSnapshot({
         news: newsWithCache(),
         newsAnalysis,
-        strategy,
-        shortStrategy,
+        marketTechnical: shortStrategy?.technical ?? computeMarketTechnical(gold.price),
         online: true,
         feedError: null,
       });
@@ -552,7 +592,7 @@ async function bootstrapSnapshot(): Promise<void> {
       drivers,
       multiTfCandles
     );
-    const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
+    const { shortStrategy, newsAnalysis } = buildStrategies(
       gold,
       candles,
       drivers,
@@ -560,6 +600,8 @@ async function bootstrapSnapshot(): Promise<void> {
       lastImpulse
     );
 
+    const marketTechnical =
+      shortStrategy?.technical ?? (candles.length >= 5 ? analyzeTechnicals(candles) : null);
     mergeSnapshot({
       online: true,
       priceStale: false,
@@ -568,8 +610,7 @@ async function bootstrapSnapshot(): Promise<void> {
       drivers,
       news: newsWithCache(),
       newsAnalysis,
-      strategy,
-      shortStrategy,
+      marketTechnical,
       translating: false,
       analyzingNews: false,
     });
@@ -586,7 +627,7 @@ async function bootstrapSnapshot(): Promise<void> {
 
 function startIntervals() {
   priceInterval = setInterval(refreshPriceFast, PRICE_FAST_MS);
-  strategyInterval = setInterval(() => void refreshStrategyLive(), strategyTickMs);
+  strategyInterval = setInterval(() => void refreshStrategyLive(), STRATEGY_TICK_MS * 4);
   void fetchAndPublishPrice();
   heartbeatInterval = setInterval(() => {
     broadcast("monitor:ping", { t: Date.now() });
@@ -610,8 +651,6 @@ function startIntervals() {
     lastStrategyRebuildAt = Date.now();
     publishSnapshot({
       newsAnalysis: built.newsAnalysis,
-      strategy: built.strategy,
-      shortStrategy: built.shortStrategy,
       signalUpdatedAt: new Date().toISOString(),
     });
   }, NEWS_ANALYSIS_MS);

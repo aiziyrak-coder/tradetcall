@@ -6,9 +6,19 @@ interface Props {
   liveOk: boolean;
   priceStale?: boolean;
   lastUpdate: string;
+  marketBias?: "bullish" | "bearish" | "neutral" | null;
+  verdictUz?: string | null;
 }
 
-export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate }: Props) {
+export function LivePriceHero({
+  gold,
+  tickFlash,
+  liveOk,
+  priceStale,
+  lastUpdate,
+  marketBias,
+  verdictUz,
+}: Props) {
   const up = (gold?.change ?? 0) >= 0;
   const changeLabel =
     gold &&
@@ -30,8 +40,15 @@ export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate 
           ? "Yahoo"
           : gold?.source ?? "—";
 
+  const biasChip =
+    marketBias === "bullish"
+      ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+      : marketBias === "bearish"
+        ? "bg-red-500/15 text-red-400 border-red-500/30"
+        : "bg-amber-500/10 text-amber-300 border-amber-500/25";
+
   return (
-    <div className="live-price-hero flex h-full min-h-0 flex-col items-center justify-center rounded-md border border-[var(--term-border)] bg-gradient-to-b from-[var(--term-panel)] to-[var(--term-panel-2)] px-3 py-4">
+    <div className="live-price-hero term-card flex h-full min-h-0 flex-col items-center justify-center border-[var(--term-gold)]/25 bg-gradient-to-b from-[var(--term-panel)] to-[var(--term-panel-2)] px-3 py-4">
       <div className="mb-2 flex items-center gap-2">
         <span
           className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
@@ -72,7 +89,7 @@ export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate 
               Sotib olish <span className="text-emerald-400">${gold.ask.toFixed(2)}</span>
             </p>
           )}
-          <span className="block text-4xl font-black leading-none text-[var(--term-gold)] sm:text-5xl md:text-6xl">
+          <span className="live-price-main block text-4xl font-black leading-none sm:text-5xl md:text-6xl">
             ${gold.price.toFixed(decimals)}
           </span>
           {gold.bid != null && gold.ask != null && (
@@ -92,7 +109,21 @@ export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate 
         <p className="mt-4 text-2xl font-bold text-[var(--term-muted)]">—</p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-[var(--term-muted)]">
+      {(marketBias || verdictUz) && (
+        <div className="mt-3 max-w-full px-2 text-center">
+          {marketBias && (
+            <span className={`inline-block rounded-full border px-2 py-0.5 text-[8px] font-bold uppercase ${biasChip}`}>
+              Bashorat:{" "}
+              {marketBias === "bullish" ? "↑ Yuqori" : marketBias === "bearish" ? "↓ Past" : "— Neytral"}
+            </span>
+          )}
+          {verdictUz && (
+            <p className="mt-1 line-clamp-2 text-[8px] font-medium text-[var(--term-text-2)]">{verdictUz}</p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-[var(--term-muted)]">
         {gold?.high24h != null && gold?.low24h != null && (
           <span>
             24s{" "}

@@ -14,7 +14,8 @@
     "build": "npm run build:web && npm run build:server",
     "start": "cross-env NODE_ENV=production node dist-server/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.audit.json",
-    "audit": "node scripts/audit.mjs"
+    "audit": "node scripts/audit.mjs",
+    "verify:ai": "tsx scripts/verify-ai-parse.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

@@ -384,7 +384,7 @@ function requireAiSession(
 ) {
   if (!isAiSessionActive()) {
     res.status(403).json({
-      error: "AI uchun START bosing (30 daqiqa, keyin avto-o'chadi). Narx/signallar doim ishlaydi.",
+      error: "AI START bosing — bir martalik tahlil vaqtida ishlaydi.",
     });
     return;
   }

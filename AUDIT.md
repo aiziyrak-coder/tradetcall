@@ -1,72 +1,55 @@
-# XAUUSD — To‘liq audit (tugmalar + funksiyalar)
+# Oltin Signal — Production audit
 
-## Platform PRO (professional qatlam)
-
-| Modul | Vazifa |
-|--------|--------|
-| `shared/market-quality.ts` | Bozor sifati 0–100 (feed, spread, sessiya, kalendar) |
-| `shared/signal-explainer.ts` | Nima uchun HOLD — bloklar va ochilish yo‘li |
-| `shared/capital-shield.ts` | Kunlik zarar/savdo limiti, ketma-ket zarar stop |
-| `shared/platform-audit.ts` | Har snapshot uchun runtime sog‘liq |
-| `shared/backtest-quick.ts` | So‘nggi 5m shamlarda tez backtest |
-| `shared/platform-insight.ts` | Barcha modullarni birlashtirish |
-| `server/signal-journal-store.ts` | Signal jurnali + TP/SL natija |
-| `server/platform-service.ts` | Monitor snapshot boyitish |
-| `PlatformCommandCenter` | UI: sifat, himoya, jurnal, explainer |
-| `PreTradeChecklist` | 7 qadamli professional tekshiruv |
-
-## Avtomatik tekshiruv
+## Avtomatik tekshiruv (54 test)
 
 ```bash
-npm run audit
+npm run audit      # tsc + build + 52 qoida + AI parser
+npm run verify:ai  # faqat AI signal validatsiyasi
+npm run typecheck
 ```
 
-## Tuzatilgan “ishlamaydigan” muammolar
+Oxirgi holat: **Audit OK — 54/54**
 
-| Muammo | Yechim |
+## Arxitektura (2025)
+
+| Qatlam | Vazifa |
 |--------|--------|
-| Yangilik bosilganda hech narsa ochilmasdi | `shell.openExternal` IPC + yangiliklar `<button>` |
-| Sozlamalar → monitor qaytib bo‘lmasdi | **Terminalga qaytish** tugmasi + `restartMonitorService` |
-| API saqlangan, lekin “Saqlash” majburiy edi | **Monitorni ochish** / qaytish alohida |
-| Demo login `Lynxos` ishlamasdi | Login `lynxos` (kichik) normalizatsiya |
-| AI tugmalari jim xato | API yo‘q bo‘lsa aniq xabar; IPC xato ko‘rsatiladi |
-| Grafik interval | Noto‘g‘ri interval rad etiladi |
-| Brauzerda (Vite) ochilsa | `ElectronGuard` — faqat `npm run dev` |
-| Admin tugmalar xato yutardi | try/catch + validatsiya |
-| IPC `app:startMonitor` tartibsiz | Barcha handlerlar `registerIpc` ichida |
+| **Narx** | TradingView `FOREXCOM:XAUUSD`, mid bid/ask |
+| **Bashorat** | `news-intelligence` — hukm, prognoz, xavflar |
+| **Indikatorlar** | `marketTechnical` — RSI, ADX, ATR, darajalar |
+| **AI signal** | `AI START` → bir martalik Claude → BUY/SELL/HOLD + SL/TP |
+| **Himoya** | Kapital/qoidalar/bozor sifati → AI signal HOLD ga tushadi |
 
-## Tugmalar tekshiruvi (qo‘lda)
+Klientga **YAQIN/UZOQ** strategiyalar yuborilmaydi (`attachSession`).
 
-### Login
-- [ ] `TERMINALGA KIRISH` — lynxos / 3888
-- [ ] `Demo: Lynxos` — avto to‘ldirish
-- [ ] `KO'R / YASHIR` parol
+## Tuzatilgan kritik nuqsonlar
 
-### Admin
-- [ ] `+ YANGI USER` → modal → SAQLASH
-- [ ] Tahrirlash / O‘chirish / FAOL-O‘CHIQ
-- [ ] Chiqish
+| Nuqson | Yechim |
+|--------|--------|
+| TypeScript: `calendarHint` null | `?? undefined` |
+| Har tickda **ikki marta** WebSocket broadcast | Bitta `mergeSnapshot` + bitta `broadcast` |
+| Eski strategiyalar UI chalkashligi | Serverdan doim `strategy/shortStrategy: null` |
+| AI signal himoyadan o'tmasdi | `applyProfitProtectionToSnapshot` → `aiSignal` HOLD |
+| Jurnal noto'g'ri yozilishi | Savdo taqiqda signal yozilmaydi |
+| AI JSON noto'g'ri SL/TP | BUY/SELL tartib + min R:R 1.2 |
+| Parallel AI START | `analysisInFlight` qulfi |
+| AI runner ulanmagan | Aniq xato xabari |
+| Push bildirishnoma takrori | `createdAt` bo'yicha dedupe |
 
-### Sozlamalar
-- [ ] Tekshirish (API)
-- [ ] Saqlash va boshlash
-- [ ] Terminalga qaytish (monitordan kelganda)
-- [ ] Kalitni o‘chirish
+## Qo'lda tekshiruv
 
-### Monitor
-- [ ] 1m / 5m / 15m / 1h grafik
-- [ ] AI PROGNOZ OLISH
-- [ ] Maqsad narx + Tahlil qilish (Enter ham)
-- [ ] Yangilik qatorini bosish → brauzer
-- [ ] Sozlamalar / Chiqish
-- [ ] Xato yopish
+1. Login → terminal yuklanishi
+2. Narx jonli yangilanishi (WebSocket)
+3. **AI START** → tahlil → signal paneli
+4. **AI STOP** → kutilmoqda holati
+5. Sozlamalar → Claude API kalit
+6. Yangilik ustiga bosish → havola ochiladi
 
-## Ishga tushirish
+## Deploy
 
 ```bash
-cd E:\XAUUSD
-npm run audit
-npm run dev
+# DEPLOY_PASS env kerak
+node scripts/deploy-production.mjs
 ```
 
-**Muhim:** faqat Electron (`npm run dev`), oddiy brauzerda emas.
+Server: `TRADINGVIEW_SYMBOL=FOREXCOM:XAUUSD` (`.env`)

@@ -1,7 +1,6 @@
 import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
 import { buildPlatformInsight, type PlatformInsight } from "../shared/platform-insight";
 import { applyProfitProtectionToSnapshot } from "../shared/profit-protection";
-import { buildTradePlan } from "../shared/trade-plan";
 import type { MonitorSnapshot } from "../shared/types";
 import { buildWeeklyReport } from "../shared/weekly-report";
 import {
@@ -38,62 +37,30 @@ export function enrichSnapshotWithPlatform(
     weeklyReport: buildWeeklyReport(journalEntries),
   };
 
-  let guarded = applyProfitProtectionToSnapshot(snap, {
+  const blockCtx = {
     capitalShield: platform.capitalShield,
     discipline: platform.discipline,
     marketQuality: platform.marketQuality,
-  });
+  };
+  let guarded = applyProfitProtectionToSnapshot(snap, blockCtx);
 
-  if (price != null && price > 0) {
-    const shortV = guarded.shortStrategy?.verdict;
-    if (shortV && (shortV.action === "BUY" || shortV.action === "SELL") && guarded.shortStrategy) {
-      const plan = buildTradePlan({
+  const tradingBlocked =
+    !platform.capitalShield.allowed ||
+    !platform.marketQuality.tradeable ||
+    platform.discipline.score < 55;
+
+  if (price != null && price > 0 && !tradingBlocked) {
+    const ai = guarded.aiSignal;
+    if (ai && (ai.action === "BUY" || ai.action === "SELL") && ai.confidence >= 55) {
+      recordSignalIfNew({
         horizon: "short",
-        horizonLabelUz: "YAQIN",
-        verdict: shortV,
-        signal: guarded.shortStrategy.signal,
-        accountUsd,
-        riskPercent: 1,
-        maxHoldMinutes: guarded.shortStrategy.maxHoldMinutes ?? 30,
-        tradingAllowed: platform.capitalShield.allowed,
-        disciplineScore: platform.discipline.score,
+        action: ai.action,
+        strength: ai.confidence,
+        entry: ai.entry,
+        stopLoss: ai.stopLoss,
+        takeProfit: ai.takeProfit,
+        price,
       });
-      if (plan.trusted) {
-        recordSignalIfNew({
-          horizon: "short",
-          action: shortV.action,
-          strength: shortV.strength,
-          entry: shortV.entry,
-          stopLoss: shortV.stopLoss,
-          takeProfit: shortV.takeProfit,
-          price,
-        });
-      }
-    }
-
-    const longV = guarded.strategy?.verdict;
-    if (longV && (longV.action === "BUY" || longV.action === "SELL") && guarded.strategy) {
-      const plan = buildTradePlan({
-        horizon: "long",
-        horizonLabelUz: "UZOQ",
-        verdict: longV,
-        signal: guarded.strategy.signal,
-        accountUsd,
-        riskPercent: 1,
-        tradingAllowed: platform.capitalShield.allowed,
-        disciplineScore: platform.discipline.score,
-      });
-      if (plan.trusted) {
-        recordSignalIfNew({
-          horizon: "long",
-          action: longV.action,
-          strength: longV.strength,
-          entry: longV.entry,
-          stopLoss: longV.stopLoss,
-          takeProfit: longV.takeProfit,
-          price,
-        });
-      }
     }
   }
 

@@ -206,8 +206,12 @@ export interface NewsMarketAnalysis {
 export type { PlatformInsight, JournalStats } from "./platform-insight";
 export type { SignalJournalEntry, SignalJournalSnapshot } from "./signal-journal-types";
 
+export type { AiPhase, AiTradeSignal, AiTradeAction } from "./ai-trade-signal";
+
 export interface MonitorSessionInfo {
   active: boolean;
+  phase?: import("./ai-trade-signal").AiPhase;
+  messageUz?: string;
   endsAt: string | null;
   remainingMs: number;
   autoStopMinutes: number;
@@ -227,12 +231,16 @@ export interface MonitorSnapshot {
   newsAnalysis: NewsMarketAnalysis | null;
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
+  aiSignal?: import("./ai-trade-signal").AiTradeSignal | null;
+  aiPhase?: import("./ai-trade-signal").AiPhase;
   tickSeq?: number;
   priceUpdatedAt?: string;
   signalUpdatedAt?: string;
   translating?: boolean;
   analyzingNews?: boolean;
   calendar?: CalendarStatus;
+  /** Jonli texnik (RSI, ADX, qo'llab-quvvatlash) — strategiyasiz */
+  marketTechnical?: TechnicalAnalysis | null;
   platform?: import("./platform-insight").PlatformInsight;
 }
 

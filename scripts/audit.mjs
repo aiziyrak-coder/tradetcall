@@ -44,8 +44,8 @@ const mustExist = [
   "shared/signal-journal-types.ts",
   "server/platform-service.ts",
   "server/signal-journal-store.ts",
-  "web/src/components/monitor/PlatformCommandCenter.tsx",
-  "web/src/components/monitor/PreTradeChecklist.tsx",
+  "web/src/components/monitor/MarketForecastHub.tsx",
+  "web/src/components/monitor/TechnicalIndicatorsPanel.tsx",
   "shared/technical.ts",
   "shared/market-regime.ts",
   "shared/economic-calendar.ts",
@@ -146,7 +146,47 @@ if (!existsSync(resolve(root, "server/mt5-bridge.ts"))) {
   fail("cleanup: no mt5 bridge", "mt5-bridge still present");
 }
 
+const aiRunner = readFileSync(resolve(root, "server/ai-signal-runner.ts"), "utf8");
+if (aiRunner.includes("runOneShotAiAnalysis") && aiRunner.includes("completeAiSession")) {
+  ok("ai: one-shot runner");
+} else {
+  fail("ai: one-shot runner", "incomplete ai-signal-runner");
+}
+
+if (monitorTs.includes("setAiAnalysisRunner") && monitorTs.includes("computeMarketTechnical")) {
+  ok("ai: runner wired + technical");
+} else {
+  fail("ai: runner wired + technical", "missing setAiAnalysisRunner or computeMarketTechnical");
+}
+
+if (monitorTs.includes("strategy: null, shortStrategy: null")) {
+  ok("client: legacy strategies hidden");
+} else {
+  fail("client: legacy strategies hidden", "YAQIN/UZOQ may leak to client");
+}
+
+const profitTs = readFileSync(resolve(root, "shared/profit-protection.ts"), "utf8");
+if (profitTs.includes("aiSignal") && profitTs.includes('action: "HOLD"')) {
+  ok("protection: ai signal guard");
+} else {
+  fail("protection: ai signal guard", "AI signal not protected");
+}
+
+const promptsTs = readFileSync(resolve(root, "shared/prompts.ts"), "utf8");
+if (promptsTs.includes("parseAiTradeSignalJson") && promptsTs.includes("stopLoss < entry")) {
+  ok("ai: signal json validation");
+} else {
+  fail("ai: signal json validation", "missing SL/TP order checks");
+}
+
+if (!existsSync(resolve(root, "web/src/components/monitor/PlatformCommandCenter.tsx"))) {
+  ok("cleanup: no platform pro ui");
+} else {
+  fail("cleanup: no platform pro ui", "PlatformCommandCenter still exists");
+}
+
 run("tsc server+web", "npx tsc --noEmit -p tsconfig.audit.json");
+run("verify ai parse", "npx tsx scripts/verify-ai-parse.ts");
 run("build:web", "npm run build:web");
 run("build:server", "npm run build:server");
 

@@ -1,52 +1,108 @@
+import type { AiPhase, AiTradeSignal } from "../shared/ai-trade-signal";
 import type { MonitorSessionInfo } from "../shared/types";
 
-/** AI (Anthropic) token sarflanadigan rejim — default 30 daqiqa */
-const AI_SESSION_MS = Number(process.env.AI_SESSION_MS || 30 * 60 * 1000);
-const AUTO_STOP_MINUTES = Math.max(1, Math.round(AI_SESSION_MS / 60_000));
-
-let aiActive = false;
-let aiEndsAt = 0;
-let aiTimer: ReturnType<typeof setTimeout> | null = null;
+let phase: AiPhase = "idle";
+let messageUz = "AI kutilmoqda — savdo signali uchun AI START bosing";
+let aiSignal: AiTradeSignal | null = null;
 let onSessionChange: ((status: MonitorSessionInfo) => void) | null = null;
+let analysisRunner: (() => Promise<void>) | null = null;
+
+export function setAiAnalysisRunner(fn: () => Promise<void>): void {
+  analysisRunner = fn;
+}
 
 export function setAiSessionChangeHandler(fn: (status: MonitorSessionInfo) => void): void {
   onSessionChange = fn;
 }
 
+export function getAiPhase(): AiPhase {
+  return phase;
+}
+
+export function getAiSignal(): AiTradeSignal | null {
+  return aiSignal;
+}
+
+export function getAiMessageUz(): string {
+  return messageUz;
+}
+
 function notifyChange(): void {
-  const status = getAiSessionStatus();
-  onSessionChange?.(status);
+  onSessionChange?.(getAiSessionStatus());
 }
 
 export function getAiSessionStatus(): MonitorSessionInfo {
-  const remaining = aiActive ? Math.max(0, aiEndsAt - Date.now()) : 0;
   return {
-    active: aiActive,
-    endsAt: aiActive ? new Date(aiEndsAt).toISOString() : null,
-    remainingMs: remaining,
-    autoStopMinutes: AUTO_STOP_MINUTES,
+    active: phase === "analyzing",
+    phase,
+    messageUz,
+    endsAt: null,
+    remainingMs: 0,
+    autoStopMinutes: 0,
   };
 }
 
 export function isAiSessionActive(): boolean {
-  return aiActive;
+  return phase === "analyzing";
 }
 
+/** Eski API — faqat tahlil ishlayotganda */
+export function isAiAnalysisReady(): boolean {
+  return phase === "ready" && aiSignal != null;
+}
+
+let analysisInFlight = false;
+
 export function startAiSession(): MonitorSessionInfo {
-  if (aiTimer) clearTimeout(aiTimer);
-  aiActive = true;
-  aiEndsAt = Date.now() + AI_SESSION_MS;
-  aiTimer = setTimeout(() => stopAiSession("auto"), AI_SESSION_MS);
-  if (aiTimer && typeof aiTimer.unref === "function") aiTimer.unref();
+  if (phase === "analyzing" || analysisInFlight) return getAiSessionStatus();
+
+  analysisInFlight = true;
+  phase = "analyzing";
+  messageUz =
+    "AI tahlil qilmoqda — yangiliklar, indikatorlar, makro o'rganilmoqda…";
+  aiSignal = null;
+  notifyChange();
+
+  if (analysisRunner) {
+    void analysisRunner()
+      .catch((e) => {
+        phase = "error";
+        messageUz = e instanceof Error ? e.message : "AI tahlil xatosi";
+        notifyChange();
+      })
+      .finally(() => {
+        analysisInFlight = false;
+      });
+  } else {
+    analysisInFlight = false;
+    phase = "error";
+    messageUz = "AI runner ulanmagan — serverni qayta ishga tushiring";
+    notifyChange();
+  }
+
+  return getAiSessionStatus();
+}
+
+export function completeAiSession(signal: AiTradeSignal): MonitorSessionInfo {
+  aiSignal = signal;
+  phase = "ready";
+  messageUz = `AI tahlil tayyor — ${signal.action} · kirish $${signal.entry}`;
+  notifyChange();
+  return getAiSessionStatus();
+}
+
+export function failAiSession(errorUz: string): MonitorSessionInfo {
+  phase = "error";
+  messageUz = errorUz.slice(0, 200);
+  aiSignal = null;
   notifyChange();
   return getAiSessionStatus();
 }
 
 export function stopAiSession(_reason: "user" | "auto" = "user"): MonitorSessionInfo {
-  aiActive = false;
-  aiEndsAt = 0;
-  if (aiTimer) clearTimeout(aiTimer);
-  aiTimer = null;
+  phase = "idle";
+  messageUz = "AI kutilmoqda — yangi signal uchun AI START bosing";
+  aiSignal = null;
   notifyChange();
   return getAiSessionStatus();
 }

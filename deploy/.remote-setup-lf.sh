@@ -40,6 +40,7 @@ cd ..
 
 echo "==> .env"
 SECRET=$(grep -E '^SESSION_SECRET=' .env 2>/dev/null | cut -d= -f2- || openssl rand -hex 32)
+TV_SYM=$(grep -E '^TRADINGVIEW_SYMBOL=' .env 2>/dev/null | cut -d= -f2- || echo "FOREXCOM:XAUUSD")
 cat > .env <<EOF
 NODE_ENV=production
 PORT=3070
@@ -52,6 +53,7 @@ CORS_ORIGINS=$FRONTEND_ORIGIN
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
 DJANGO_PUBLIC_ADMIN_URL=$API_PUBLIC/admin/
 COOKIE_DOMAIN=.ziyrak.org
+TRADINGVIEW_SYMBOL=$TV_SYM
 EOF
 
 echo "==> Node build (VITE_API_BASE=$API_PUBLIC)"

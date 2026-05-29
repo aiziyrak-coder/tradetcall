@@ -1,118 +1,56 @@
 import { useEffect, useRef } from "react";
 import type { MonitorSnapshot } from "../../../shared/types";
-import { buildTradePlan } from "../../../shared/trade-plan";
 import { loadTradePrefs } from "../lib/trade-prefs";
-import { resolvePlatformInsight } from "../lib/platform-client";
 import { playTripleSignalAlert, showSignalNotification } from "../lib/notifications";
 
-const LAST_KEY = "xauusd-last-signal-notify";
+const LAST_KEY = "xauusd-last-ai-signal-notify";
 
-interface LastNotify {
-  short: string;
-  long: string;
-}
-
-function loadLast(): LastNotify {
+function loadLast(): string {
   try {
-    const raw = sessionStorage.getItem(LAST_KEY);
-    if (raw) return JSON.parse(raw) as LastNotify;
+    return sessionStorage.getItem(LAST_KEY) ?? "";
   } catch {
-    /* */
+    return "";
   }
-  return { short: "", long: "" };
 }
 
-function saveLast(v: LastNotify): void {
-  sessionStorage.setItem(LAST_KEY, JSON.stringify(v));
-}
-
-function prevAction(stored: string): string {
-  const i = stored.indexOf(":");
-  return i >= 0 ? stored.slice(0, i) : stored;
+function saveLast(v: string): void {
+  sessionStorage.setItem(LAST_KEY, v);
 }
 
 export function useSignalNotifications(data: MonitorSnapshot | null): void {
-  const lastRef = useRef<LastNotify>(loadLast());
+  const lastRef = useRef(loadLast());
 
   useEffect(() => {
     if (!data) return;
     const prefs = loadTradePrefs();
     if (!prefs.notifyEnabled) return;
-    const platform = resolvePlatformInsight(data);
-    const tradingAllowed = platform?.capitalShield.allowed ?? true;
-    const disciplineScore = platform?.discipline.score ?? 100;
 
-    const shortV = data.shortStrategy?.verdict;
-    const longV = data.strategy?.verdict;
-    if (!shortV && !longV) return;
+    const ai = data.aiSignal;
+    if (!ai || data.aiPhase !== "ready") return;
 
-    if (shortV && data.shortStrategy?.signal) {
-      const plan = buildTradePlan({
-        horizon: "short",
-        horizonLabelUz: "YAQIN",
-        verdict: shortV,
-        signal: data.shortStrategy.signal,
-        accountUsd: prefs.accountUsd,
-        riskPercent: prefs.riskPercent,
-        maxHoldMinutes: data.shortStrategy.maxHoldMinutes ?? 30,
-        tradingAllowed,
-        disciplineScore,
-      });
-
-      const trusted = plan.trusted && (shortV.action === "BUY" || shortV.action === "SELL");
-      const action = shortV.action;
-      const prev = prevAction(lastRef.current.short);
-      const sig = `${action}:${trusted}`;
-
-      if (!trusted || action === "HOLD") {
-        lastRef.current.short = sig;
-        saveLast(lastRef.current);
-      } else if (prev !== action) {
-        lastRef.current.short = sig;
-        saveLast(lastRef.current);
-        void playTripleSignalAlert(action);
-        showSignalNotification(
-          `XAUUSD YAQIN — ${action}`,
-          plan.summaryUz,
-          `signal-short-${action}`
-        );
-      }
+    const action = ai.action;
+    if (action !== "BUY" && action !== "SELL") {
+      lastRef.current = `HOLD:${ai.createdAt}`;
+      saveLast(lastRef.current);
+      return;
     }
 
-    if (longV && data.strategy?.signal) {
-      const plan = buildTradePlan({
-        horizon: "long",
-        horizonLabelUz: "UZOQ",
-        verdict: longV,
-        signal: data.strategy.signal,
-        accountUsd: prefs.accountUsd,
-        riskPercent: prefs.riskPercent,
-        tradingAllowed,
-        disciplineScore,
-      });
-      const trusted = plan.trusted && (longV.action === "BUY" || longV.action === "SELL");
-      const action = longV.action;
-      const prev = prevAction(lastRef.current.long);
-      const sig = `${action}:${trusted}`;
-
-      if (!trusted || action === "HOLD") {
-        lastRef.current.long = sig;
-        saveLast(lastRef.current);
-      } else if (prev !== action) {
-        lastRef.current.long = sig;
-        saveLast(lastRef.current);
-        void playTripleSignalAlert(action);
-        showSignalNotification(
-          `XAUUSD UZOQ — ${action}`,
-          plan.summaryUz,
-          `signal-long-${action}`
-        );
-      }
+    if (ai.confidence < 55) {
+      lastRef.current = `${action}:low`;
+      saveLast(lastRef.current);
+      return;
     }
-  }, [
-    data?.timestamp,
-    data?.shortStrategy?.verdict?.action,
-    data?.shortStrategy?.verdict?.strength,
-    data?.strategy?.verdict?.action,
-  ]);
+
+    const sig = `${action}:${ai.createdAt}`;
+    if (lastRef.current === sig) return;
+
+    lastRef.current = sig;
+    saveLast(sig);
+    void playTripleSignalAlert(action);
+    showSignalNotification(
+      `XAUUSD AI — ${action}`,
+      ai.triggerUz,
+      `signal-ai-${action}-${ai.createdAt}`
+    );
+  }, [data?.aiSignal?.createdAt, data?.aiSignal?.action, data?.aiPhase]);
 }

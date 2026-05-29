@@ -2,30 +2,26 @@ import type {
   CalendarStatus,
   NewsMarketAnalysis,
   PriceData,
-  ShortTermStrategy,
-  LongTermStrategy,
+  TechnicalAnalysis,
 } from "../../../../shared/types";
 import { getMarketSession } from "../../../../shared/market-session";
 
 interface Props {
   gold: PriceData | null;
-  shortStrategy: ShortTermStrategy | null;
-  longStrategy: LongTermStrategy | null;
+  marketTechnical?: TechnicalAnalysis | null;
   newsAnalysis?: NewsMarketAnalysis | null;
   calendar?: CalendarStatus | null;
 }
 
 export function MarketContextBar({
   gold,
-  shortStrategy,
-  longStrategy,
+  marketTechnical,
   newsAnalysis,
   calendar,
 }: Props) {
   const session = getMarketSession();
-  const price = gold?.price ?? 0;
-  const atr = shortStrategy?.signal.atr ?? longStrategy?.signal.atr ?? 0;
-  const adx = longStrategy?.technical.adx ?? shortStrategy?.technical.adx;
+  const atr = marketTechnical?.atr ?? 0;
+  const adx = marketTechnical?.adx;
 
   return (
     <div className="monitor-context-bar flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
@@ -77,6 +73,29 @@ export function MarketContextBar({
           <span className="text-red-400">${gold.low24h.toFixed(2)}</span>
         </span>
       )}
+      {marketTechnical && (
+        <span>
+          Trend{" "}
+          <span
+            className={
+              marketTechnical.trend === "bullish"
+                ? "font-bold text-emerald-400"
+                : marketTechnical.trend === "bearish"
+                  ? "font-bold text-red-400"
+                  : "text-amber-300"
+            }
+          >
+            {marketTechnical.trend === "bullish"
+              ? "↑"
+              : marketTechnical.trend === "bearish"
+                ? "↓"
+                : "—"}
+          </span>
+          <span className="ml-1 text-[var(--term-muted)]">
+            RSI {marketTechnical.rsi}
+          </span>
+        </span>
+      )}
       {atr > 0 && (
         <span>
           ATR <span className="font-mono-ui font-semibold text-[var(--term-gold)]">${atr}</span>
@@ -87,22 +106,13 @@ export function MarketContextBar({
           ADX <span className="font-mono-ui font-semibold">{adx}</span>
         </span>
       )}
-      {shortStrategy && (
-        <span>
-          TF{" "}
-          <span className="font-bold text-cyan-400">
-            {shortStrategy.tfAligned}/{shortStrategy.tfTotal}
-          </span>
-        </span>
-      )}
-      {price > 0 && shortStrategy?.signal && (
-        <span>
-          Zona{" "}
-          <span className="font-mono-ui">${shortStrategy.signal.distanceToEntry.toFixed(2)}</span>
+      {newsAnalysis && (
+        <span className="font-semibold text-[var(--term-gold)]">
+          {newsAnalysis.tradeVerdictUz?.slice(0, 48) ?? newsAnalysis.recommendationUz.slice(0, 48)}
         </span>
       )}
       <span className={newsAnalysis ? "text-emerald-500/80" : "text-amber-500/90"}>
-        {newsAnalysis ? "✓ Yangiliklar tahlili" : "⏳ Yangiliklar kutilmoqda"}
+        {newsAnalysis ? "✓ Bashorat tayyor" : "⏳ Bashorat kutilmoqda"}
       </span>
       <span className="ml-auto text-[8px] text-[var(--term-muted)]">
         {gold?.feed === "tradingview"

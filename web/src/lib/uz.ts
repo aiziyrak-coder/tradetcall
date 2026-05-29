@@ -1,15 +1,16 @@
 /** Oltin treyder platformasi — o'zbekcha */
 export const UZ = {
-  appTitle: "XAUUSD Trader",
-  subtitle: "Chap: uzoq muddat · O'ng: qisqa muddat 30 daqiqa",
+  appTitle: "Oltin Signal",
+  subtitle: "Narx · bashorat · AI savdo signali",
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",
   monitorStart: "AI START",
   monitorStop: "AI STOP",
-  monitorIdle: "AI O'CHIQ",
-  monitorActive: "AI YONIQ",
-  monitorAutoStop: "AI avto-stop",
+  monitorIdle: "AI kutilmoqda",
+  monitorActive: "AI tahlil…",
+  monitorReady: "Signal tayyor",
+  monitorAutoStop: "Bir martalik tahlil",
   settings: "Sozlamalar",
   logout: "Chiqish",
 
@@ -75,7 +76,7 @@ export const UZ = {
   },
 
   newsAnalysis: {
-    title: "YANGILIKLAR VA BOZOR MUHOKAMASI",
+    title: "BOZOR BASHORATI",
     aiBtn: "AI CHUQUR MUHOKAMA",
     discussion: "To'liq muhokama",
     trend: "Tendensiya",
