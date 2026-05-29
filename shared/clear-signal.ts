@@ -22,7 +22,7 @@ function buildLevels(
   price: number,
   tech: TechnicalAnalysis
 ): { entry: number; stopLoss: number; takeProfit: number; riskReward: number } {
-  const slUsd = pipsToUsd(SWING_MIN_SL_PIPS + 5);
+  const slUsd = pipsToUsd(SWING_MIN_SL_PIPS);
   const tpUsd = pipsToUsd(SWING_DEFAULT_TP_PIPS);
   const entry = round2(price);
   if (action === "BUY") {

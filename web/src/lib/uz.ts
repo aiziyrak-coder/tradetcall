@@ -9,7 +9,7 @@ export const UZ = {
   monitorIdle: "Prognoz uchun tugmani bosing",
   monitorActive: "AI tahlil…",
   monitorReady: "Signal tayyor",
-  monitorOneShot: "50–100 pip maqsad",
+  monitorOneShot: "min 10 pip maqsad",
   settings: "Sozlamalar",
   logout: "Chiqish",
 

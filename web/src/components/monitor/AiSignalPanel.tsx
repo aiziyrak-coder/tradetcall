@@ -85,7 +85,7 @@ export function AiSignalPanel({
     return (
       <TermCard
         title="AI savdo signali"
-        subtitle="Maqsad 50–100 pip · SL/TP aniq"
+        subtitle="Skalp min 10 pip · SL/TP aniq"
         accent="gold"
       >
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-5 text-center">

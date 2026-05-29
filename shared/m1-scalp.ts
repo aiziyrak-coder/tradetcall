@@ -5,7 +5,14 @@
 import type { Candle, TechnicalAnalysis } from "./types";
 import { analyzeTechnicals } from "./technical";
 import type { PriceImpulse } from "./price-impulse";
-import { pipsToUsd, SWING_MIN_SL_PIPS, SWING_DEFAULT_TP_PIPS } from "./pip-targets";
+import {
+  pipsToUsd,
+  SWING_MIN_SL_PIPS,
+  SWING_MAX_SL_PIPS,
+  SWING_DEFAULT_TP_PIPS,
+  SWING_MAX_TP_PIPS,
+  usdToPips,
+} from "./pip-targets";
 
 export type M1ScalpPhase = "forming" | "active" | "exhausted" | "reversal" | "range";
 
@@ -187,8 +194,14 @@ export function analyzeM1ScalpLead(
 
   const strength = Math.min(98, Math.round(Math.abs(lead) * 1.1 + tech1.adx * 0.5));
 
-  const slDist = Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 2.5);
-  const tpDist = Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.8, atr * 5);
+  const slDist = Math.min(
+    Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 1.2),
+    pipsToUsd(SWING_MAX_SL_PIPS)
+  );
+  const tpDist = Math.min(
+    Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.3),
+    pipsToUsd(SWING_MAX_TP_PIPS)
+  );
 
   let entryHint = price;
   let stopHint = price;
@@ -226,9 +239,9 @@ export function analyzeM1ScalpLead(
 
   const nextMoveUz =
     direction === "long"
-      ? `Keyingi harakat: yuqoriga $${tpHint} (~50–100 pip)`
+      ? `Keyingi harakat: yuqoriga $${tpHint} (~${usdToPips(tpDist)} pip)`
       : direction === "short"
-        ? `Keyingi harakat: pastga $${tpHint} (~50–100 pip)`
+        ? `Keyingi harakat: pastga $${tpHint} (~${usdToPips(tpDist)} pip)`
         : `Kutish: $${tech1.support[0] ?? "—"} / $${tech1.resistance[0] ?? "—"}`;
 
   const summaryUz = `M1 ${direction.toUpperCase()} ${strength}% · ${phaseUz[phase]} · ${recent.note} · ${struct.note}`;
@@ -261,5 +274,5 @@ export function formatM1ScalpForAi(
 - Tavsiya zona: kirish ~$${lead.entryHint}, SL ~$${lead.stopHint}, TP ~$${lead.tpHint}, max ${lead.maxHoldMin} daq
 - 1m: RSI ${tech1.rsi}, ADX ${tech1.adx}, ATR $${tech1.atr}, trend ${tech1.trend}
 - 5m filter: trend ${tech5.trend}, RSI ${tech5.rsi}
-QOIDA: Maqsad 50–100 pip. Kichik skalp TP bermang. JONLI sham ustun. RSI<38 SELL taqiq.`;
+QOIDA: Maqsad min 10 pip TP. JONLI sham ustun. RSI<38 SELL taqiq.`;
 }

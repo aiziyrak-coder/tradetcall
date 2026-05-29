@@ -1,6 +1,6 @@
 /**
  * XAUUSD pip maqsadlari — 1 pip = $0.10 (standart broker)
- * 50 pip = $5.00 | 100 pip = $10.00
+ * 10 pip = $1.00
  */
 
 import type { AiTradeSignal } from "./ai-trade-signal";
@@ -8,12 +8,12 @@ import type { TechnicalAnalysis } from "./types";
 
 export const GOLD_PIP_USD = 0.1;
 
-export const SWING_MIN_TP_PIPS = 50;
-export const SWING_MAX_TP_PIPS = 100;
-export const SWING_DEFAULT_TP_PIPS = 70;
-export const SWING_MIN_SL_PIPS = 20;
-export const SWING_MAX_SL_PIPS = 40;
-export const SWING_MIN_RR = 1.5;
+export const SWING_MIN_TP_PIPS = 10;
+export const SWING_MAX_TP_PIPS = 25;
+export const SWING_DEFAULT_TP_PIPS = 15;
+export const SWING_MIN_SL_PIPS = 8;
+export const SWING_MAX_SL_PIPS = 15;
+export const SWING_MIN_RR = 1.2;
 
 export function pipsToUsd(pips: number): number {
   return Math.round(pips * GOLD_PIP_USD * 100) / 100;
@@ -51,7 +51,7 @@ export interface SwingEnforceResult {
   targetPips?: number;
 }
 
-/** AI signal — kamida 50 pip TP, max ~100 pip, aniq bo'lmasa HOLD */
+/** AI signal — kamida 10 pip TP, skalp diapazon */
 export function enforceSwingTargets(
   signal: AiTradeSignal,
   price: number,
@@ -134,7 +134,7 @@ export function enforceSwingTargets(
       ),
       adjusted: true,
       rejected: true,
-      reasonUz: "50 pip dan kichik maqsad",
+      reasonUz: `${SWING_MIN_TP_PIPS} pip dan kichik maqsad`,
     };
   }
 
@@ -169,7 +169,7 @@ function holdSignal(base: AiTradeSignal, price: number, reason: string): AiTrade
     confidence: Math.min(base.confidence, 45),
     currentPrice: round2(price),
     summaryUz: `HOLD — ${reason}`,
-    triggerUz: "Katta harakat (50+ pip) hali aniq emas — kuting",
+    triggerUz: `Maqsad (${SWING_MIN_TP_PIPS}+ pip) hali aniq emas — kuting`,
     analysisUz: `${base.analysisUz}\n\n[Maqsad] ${reason}`,
   };
 }
@@ -177,12 +177,11 @@ function holdSignal(base: AiTradeSignal, price: number, reason: string): AiTrade
 export function formatSwingTargetsForAi(price: number, tech: TechnicalAnalysis): string {
   const minUsd = pipsToUsd(SWING_MIN_TP_PIPS);
   const maxUsd = pipsToUsd(SWING_MAX_TP_PIPS);
-  return `SWING MAQSAD (majburiy):
-- Faqat aniq setupda BUY/SELL — aks holda HOLD
-- Take profit: kamida ${SWING_MIN_TP_PIPS} pip ($${minUsd}), ideal ${SWING_DEFAULT_TP_PIPS}–${SWING_MAX_TP_PIPS} pip ($${pipsToUsd(SWING_DEFAULT_TP_PIPS)}–$${maxUsd})
-- Stop loss: ${SWING_MIN_SL_PIPS}–${SWING_MAX_SL_PIPS} pip ($${pipsToUsd(SWING_MIN_SL_PIPS)}–$${pipsToUsd(SWING_MAX_SL_PIPS)})
+  return `MAQSAD (skalp):
+- Take profit: min ${SWING_MIN_TP_PIPS} pip ($${minUsd}), odatda ${SWING_DEFAULT_TP_PIPS}–${SWING_MAX_TP_PIPS} pip
+- Stop loss: ${SWING_MIN_SL_PIPS}–${SWING_MAX_SL_PIPS} pip
 - R:R min 1:${SWING_MIN_RR}
 - Qo'llab-quvvatlash: ${tech.support.slice(0, 2).join(", ") || "—"}
 - Qarshilik: ${tech.resistance.slice(0, 2).join(", ") || "—"}
-- 50 pip dan kam TP bilan signal bermang`;
+- ${SWING_MIN_TP_PIPS} pip dan kam TP bermang`;
 }
