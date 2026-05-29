@@ -14,6 +14,18 @@ export const UZ = {
   settings: "Sozlamalar",
   logout: "Chiqish",
 
+  apiKey: {
+    title: "Claude API kalit",
+    hint: "AI START uchun Anthropic kalit kerak (console.anthropic.com)",
+    placeholder: "sk-ant-api03-…",
+    saved: "Kalit saqlangan",
+    notSaved: "Kalit kiritilmagan — AI ishlamaydi",
+    save: "Saqlash",
+    test: "Tekshirish",
+    clear: "O'chirish",
+    preview: "Joriy",
+  },
+
   price: {
     title: "XAUUSD NARX",
   },

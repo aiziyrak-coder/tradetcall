@@ -133,9 +133,10 @@ export function MonitorTopBar({
             <button
               type="button"
               onClick={onOpenSettings}
-              className="rounded border border-[var(--term-border)] px-1.5 py-0 text-[8px] text-slate-300"
+              className="touch-target rounded border border-cyan-600/50 bg-cyan-950/40 px-2 py-0.5 text-[8px] font-bold text-cyan-200"
+              title="API kalit va bildirishnomalar"
             >
-              ⚙
+              {UZ.settings}
             </button>
           )}
           {isAdmin && onOpenAdmin && (

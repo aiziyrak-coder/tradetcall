@@ -248,33 +248,23 @@ app.use("/api/settings", requireAuth);
 
 app.get("/api/settings/api-key", (req, res) => {
   const key = getApiKey();
-  if (authSession(req).role !== "admin") {
-    res.json({ hasKey: !!key, preview: "" });
-    return;
-  }
-  const preview = key.length > 12 ? `${key.slice(0, 10)}…${key.slice(-4)}` : key ? "••••" : "";
+  const preview =
+    key.length > 12 ? `${key.slice(0, 10)}…${key.slice(-4)}` : key ? "••••" : "";
   res.json({ hasKey: !!key, preview });
 });
 
 app.post("/api/settings/api-key", (req, res) => {
-  if (authSession(req).role !== "admin") {
-    res.status(403).json({ error: "Faqat admin" });
-    return;
-  }
   const { key } = req.body as { key?: string };
   if (!key?.trim()) {
     res.status(400).json({ error: "Kalit bo'sh" });
     return;
   }
   persistApiKey(key.trim());
+  setClaudeKey(key.trim());
   res.json({ ok: true });
 });
 
-app.post("/api/settings/api-key/test", requireAuth, requireAiSession, async (req, res) => {
-  if (authSession(req).role !== "admin") {
-    res.status(403).json({ error: "Faqat admin" });
-    return;
-  }
+app.post("/api/settings/api-key/test", async (req, res) => {
   const { key } = req.body as { key?: string };
   const toTest = key?.trim() || getApiKey();
   if (!toTest) {
@@ -297,10 +287,6 @@ app.post("/api/settings/api-key/test", requireAuth, requireAiSession, async (req
 });
 
 app.delete("/api/settings/api-key", (req, res) => {
-  if (authSession(req).role !== "admin") {
-    res.status(403).json({ error: "Faqat admin" });
-    return;
-  }
   persistApiKey("");
   clearEnvApiKeys();
   setClaudeKey("");

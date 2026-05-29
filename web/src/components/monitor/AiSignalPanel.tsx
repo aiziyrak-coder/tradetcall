@@ -14,6 +14,7 @@ interface Props {
   signal?: AiTradeSignal | null;
   session?: MonitorSessionInfo | null;
   currentPrice?: number;
+  onOpenSettings?: () => void;
 }
 
 function LevelRow({
@@ -37,7 +38,13 @@ function LevelRow({
   );
 }
 
-export function AiSignalPanel({ phase = "idle", signal, session, currentPrice = 0 }: Props) {
+export function AiSignalPanel({
+  phase = "idle",
+  signal,
+  session,
+  currentPrice = 0,
+  onOpenSettings,
+}: Props) {
   const message = session?.messageUz ?? "AI kutilmoqda — savdo signali uchun AI START bosing";
 
   if (phase === "analyzing") {
@@ -55,9 +62,21 @@ export function AiSignalPanel({ phase = "idle", signal, session, currentPrice = 
   }
 
   if (phase === "error") {
+    const needsKey = /API kalit|kalit yo'q/i.test(message);
     return (
       <TermCard title="AI xato" accent="neutral">
-        <div className="p-3 text-[9px] leading-relaxed text-red-300">{message}</div>
+        <div className="space-y-2 p-3 text-[9px] leading-relaxed text-red-300">
+          <p>{message}</p>
+          {needsKey && onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="w-full rounded-md bg-amber-600 px-2 py-2 text-[10px] font-bold text-black"
+            >
+              Sozlamalar → API kalit
+            </button>
+          )}
+        </div>
       </TermCard>
     );
   }
@@ -75,6 +94,15 @@ export function AiSignalPanel({ phase = "idle", signal, session, currentPrice = 
           </span>
           <p className="text-[9px] text-[var(--term-muted)]">{message}</p>
           <p className="text-[8px] text-slate-500">Narx va bashorat jonli. Signal — faqat AI START.</p>
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="mt-2 rounded-md border border-amber-600/50 bg-amber-950/40 px-3 py-1.5 text-[9px] font-bold text-amber-200"
+            >
+              API kalit → Sozlamalar
+            </button>
+          )}
         </div>
       </TermCard>
     );
