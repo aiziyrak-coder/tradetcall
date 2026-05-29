@@ -9,24 +9,9 @@ import type {
 } from "../shared/signal-journal-types";
 import type { JournalStats } from "../shared/platform-insight";
 import { buildWeeklyReport } from "../shared/weekly-report";
-import { triggerLossPause, getPauseUntil } from "./shield-runtime";
+import { getPauseUntil } from "./shield-runtime";
 import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
 import { journalImpactUsd } from "../shared/journal-pnl";
-
-function maybeTriggerLossPause(): void {
-  const today = new Date().toISOString().slice(0, 10);
-  const closed = loadFile()
-    .entries.filter((e) => e.createdAt.startsWith(today))
-    .filter((e) => e.outcome === "win" || e.outcome === "loss");
-  let consecutiveLosses = 0;
-  for (const e of [...closed].reverse()) {
-    if (e.outcome === "loss") consecutiveLosses += 1;
-    else break;
-  }
-  if (consecutiveLosses >= DEFAULT_CAPITAL_SHIELD.pauseAfterLosses && !getPauseUntil()) {
-    triggerLossPause(DEFAULT_CAPITAL_SHIELD.pauseCooldownMinutes);
-  }
-}
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_DIR = process.env.TRADE_DATA_DIR || path.join(root, "data");
@@ -249,7 +234,7 @@ export function resolvePendingSignals(price: number): void {
     if (resolved) {
       e.closedAt = new Date().toISOString();
       changed = true;
-      if (e.outcome === "loss") maybeTriggerLossPause();
+      // Tanaffus prognozni bloklamasligi uchun avto-pause o'chirilgan
     }
   }
 

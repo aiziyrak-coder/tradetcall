@@ -3,7 +3,6 @@ import type { HorizonVerdict } from "./horizon-verdict";
 import type { JournalStats } from "./platform-insight";
 import type { MarketQuality } from "./market-quality";
 import type { TradingDiscipline } from "./trading-discipline";
-import type { AiTradeSignal } from "./ai-trade-signal";
 import type { MonitorSnapshot } from "./types";
 
 /** Scalp uchun qattiq rejim — oxirgi 7 kun WR past bo'lsa */
@@ -28,7 +27,7 @@ export function useStrictShortMode(journal: JournalStats | null | undefined): bo
   return journal.last7WinRatePct < ADAPTIVE_WR_CUTOFF;
 }
 
-/** YANGI PROGNOZ — faqat jiddiy xavf (zarar limiti, tanaffus, makro) */
+/** YANGI PROGNOZ — hech qachon bloklanmaydi; faqat ogohlantirish */
 export function shouldBlockAiForecast(input: {
   capitalShield: CapitalShieldState;
   discipline: TradingDiscipline;
@@ -36,38 +35,24 @@ export function shouldBlockAiForecast(input: {
 }): { block: boolean; reasonUz: string; warningUz?: string } {
   const { capitalShield, discipline, marketQuality } = input;
 
-  if (capitalShield.allowAiForecast === false) {
-    const hard =
-      capitalShield.messagesUz.find((m) =>
-        /tanaffus|makro|bozor sifati|ketma-ket zarar/i.test(m)
-      ) ?? capitalShield.messagesUz[0];
-    return { block: true, reasonUz: hard ?? "Kapital himoyasi" };
+  const hints: string[] = [];
+  for (const m of capitalShield.messagesUz) {
+    if (!/shartlar normal|Kapital himoyasi: shartlar/i.test(m)) hints.push(m);
   }
-
-  const soft = capitalShield.messagesUz.find((m) =>
-    /foyda maqsadi|zarar limiti|signal limiti|greed/i.test(m)
-  );
-  if (soft) {
-    return {
-      block: false,
-      reasonUz: "",
-      warningUz: `${soft} — prognoz mumkin, ehtiyot bilan`,
-    };
-  }
-
   if (!marketQuality.tradeable) {
-    return {
-      block: true,
-      reasonUz: `Bozor ${marketQuality.grade} (${marketQuality.score}) — avval shartlarni tuzating`,
-    };
+    hints.push(`Bozor ${marketQuality.grade} (${marketQuality.score})`);
   }
   if (discipline.score < 55) {
-    return {
-      block: true,
-      reasonUz: `Qoidalar ${discipline.score}% — bugun ehtiyotkor bo'ling`,
-    };
+    hints.push(`Qoidalar ${discipline.score}%`);
   }
-  return { block: false, reasonUz: "" };
+
+  if (hints.length === 0) return { block: false, reasonUz: "" };
+
+  return {
+    block: false,
+    reasonUz: "",
+    warningUz: `${hints.slice(0, 2).join(" · ")} — ehtiyot bilan`,
+  };
 }
 
 export function shouldBlockNewTrades(input: {
@@ -151,17 +136,5 @@ export function applyProfitProtectionToSnapshot(
     };
   }
 
-  let aiSignal: AiTradeSignal | null | undefined = snap.aiSignal;
-  if (block && aiSignal && aiSignal.action !== "HOLD") {
-    aiSignal = {
-      ...aiSignal,
-      action: "HOLD",
-      confidence: Math.min(aiSignal.confidence, 45),
-      summaryUz: reasonUz.slice(0, 200),
-      triggerUz: `Hozir kirmang — ${reasonUz.slice(0, 120)}`,
-      analysisUz: `${aiSignal.analysisUz.slice(0, 200)} · ${reasonUz}`,
-    };
-  }
-
-  return { ...snap, shortStrategy, strategy, aiSignal };
+  return { ...snap, shortStrategy, strategy };
 }

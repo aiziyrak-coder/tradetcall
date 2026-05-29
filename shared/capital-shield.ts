@@ -79,11 +79,9 @@ export function evaluateCapitalShield(input: {
 
   const pauseMin = pauseRemainingMinutes(stats.pauseUntil);
   if (pauseMin > 0) {
-    allowed = false;
     allowNewTrades = false;
-    allowAiForecast = false;
-    level = "red";
-    messages.push(`Tanaffus — ${pauseMin} daqiqa qoldi (ketma-ket zarar)`);
+    level = level === "red" ? "red" : "yellow";
+    messages.push(`Tanaffus — ${pauseMin} daqiqa (ketma-ket zarar) — prognoz mumkin`);
   }
 
   if (stats.estimatedProfitPct >= prefs.maxDailyProfitPct) {
@@ -109,32 +107,27 @@ export function evaluateCapitalShield(input: {
   }
 
   if (stats.consecutiveLosses >= prefs.pauseAfterLosses && pauseMin <= 0) {
-    allowed = false;
     allowNewTrades = false;
-    allowAiForecast = false;
-    level = "red";
+    level = level === "red" ? "red" : "yellow";
     messages.push(
-      `${stats.consecutiveLosses} ketma-ket zarar — ${prefs.pauseCooldownMinutes} daqiqa tanaffus tavsiya`
+      `${stats.consecutiveLosses} ketma-ket zarar — ehtiyot, prognoz mumkin`
     );
   }
 
   if (marketQuality.score < prefs.minMarketQuality) {
-    allowed = false;
     allowNewTrades = false;
-    allowAiForecast = false;
     level = level === "red" ? "red" : "yellow";
-    messages.push(`Bozor sifati past: ${marketQuality.score} (min ${prefs.minMarketQuality})`);
+    messages.push(`Bozor sifati past: ${marketQuality.score} — prognoz mumkin`);
   }
 
   if (calendar?.inHighImpactWindow) {
-    allowed = false;
     allowNewTrades = false;
-    allowAiForecast = false;
     level = "red";
-    messages.push(calendar.hintUz ?? "Makro oyna — savdo taqiq");
+    messages.push(calendar.hintUz ?? "Makro oyna — ehtiyot");
   }
 
-  allowed = allowNewTrades && allowAiForecast;
+  allowAiForecast = true;
+  allowed = allowNewTrades;
 
   if (allowed && stats.trades > 0) {
     messages.push(

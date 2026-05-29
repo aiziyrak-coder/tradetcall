@@ -28,6 +28,7 @@ import {
 } from "./monitor-service";
 import { emitMonitorEvent } from "./events";
 import { recordSignalIfNew } from "./signal-journal-store";
+import { clearPause } from "./shield-runtime";
 
 export async function runOneShotAiAnalysis(): Promise<void> {
   const key = getApiKey();
@@ -38,6 +39,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   }
 
   setClaudeKey(key);
+  clearPause();
 
   await refreshNewsDeepAnalysis();
   const ctx = getMonitorContextForAi();
@@ -55,11 +57,6 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       discipline: snap.platform.discipline,
       marketQuality: snap.platform.marketQuality,
     });
-    if (block.block) {
-      failAiSession(`HOLD — ${block.reasonUz}`);
-      broadcastUpdate();
-      return;
-    }
     capitalWarning = block.warningUz;
   }
 
