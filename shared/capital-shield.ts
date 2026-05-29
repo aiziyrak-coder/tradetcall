@@ -13,12 +13,12 @@ export interface CapitalShieldPrefs {
 
 export const DEFAULT_CAPITAL_SHIELD: CapitalShieldPrefs = {
   enabled: true,
-  maxDailyLossPct: 3,
-  maxDailyProfitPct: 1.2,
-  maxTradesPerDay: 5,
+  maxDailyLossPct: 2.5,
+  maxDailyProfitPct: 1.0,
+  maxTradesPerDay: 4,
   pauseAfterLosses: 2,
-  pauseCooldownMinutes: 60,
-  minMarketQuality: 55,
+  pauseCooldownMinutes: 90,
+  minMarketQuality: 58,
 };
 
 export interface CapitalShieldDayStats {

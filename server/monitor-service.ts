@@ -26,6 +26,9 @@ import type { Candle, LongTermStrategy, ShortTermStrategy } from "../shared/type
 import { startCalendarService, stopCalendarService } from "./calendar-service";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
 import { analyzeTechnicals } from "../shared/technical";
+import { analyzeTechnicalsFull } from "../shared/enhanced-technical";
+import { computeSetupQuality } from "../shared/setup-quality";
+import { computeMarketQuality } from "../shared/market-quality";
 import { computeLongTermStrategy } from "../shared/strategy";
 import {
   computeShortTermStrategy,
@@ -143,7 +146,9 @@ export function getMonitorContextForAi(): {
   candles15m: Candle[];
   m1Scalp: ReturnType<typeof analyzeM1ScalpLead> | null;
   impulse: PriceImpulse | null;
+  setupQuality: import("../shared/setup-quality").SetupQuality | null;
   disciplineScore?: number;
+  capitalShieldOk?: boolean;
 } {
   const gold = lastSnapshot?.gold ?? null;
   const c1 = multiTfCandles["1m"] ?? [];
@@ -159,7 +164,9 @@ export function getMonitorContextForAi(): {
     candles15m: multiTfCandles["15m"] ?? [],
     m1Scalp: gold && c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, lastImpulse) : null,
     impulse: lastImpulse,
+    setupQuality: computeSetupQualitySnapshot(),
     disciplineScore: lastSnapshot?.platform?.discipline?.score,
+    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowed ?? true,
   };
 }
 
@@ -208,7 +215,43 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
 function computeMarketTechnical(spot: number) {
   const candles = patchLastCandle(getPrimaryCandles(), spot);
   if (candles.length < 5) return null;
-  return analyzeTechnicals(candles);
+  return analyzeTechnicalsFull(candles);
+}
+
+function computeSetupQualitySnapshot(): import("../shared/setup-quality").SetupQuality | null {
+  const gold = lastSnapshot?.gold;
+  if (!gold) return null;
+  const c1 = multiTfCandles["1m"] ?? [];
+  const c5 = multiTfCandles["5m"] ?? [];
+  if (c1.length < 5) return null;
+  const tech1 = analyzeTechnicalsFull(patchLastCandle(c1, gold.price));
+  const tech5 =
+    c5.length >= 5
+      ? analyzeTechnicalsFull(patchLastCandle(c5, gold.price))
+      : tech1;
+  const mq = computeMarketQuality(gold, {
+    priceStale: !!lastSnapshot?.priceStale,
+    feedError: lastSnapshot?.feedError ?? null,
+    calendar: lastSnapshot?.calendar,
+  });
+  const c1p = patchLastCandle(c1, gold.price);
+  const live =
+    c1p.length >= 2 ? getLiveMomentum(c1p, gold.price) : null;
+  const m1 =
+    c1p.length >= 3
+      ? analyzeM1ScalpLead(c1p, patchLastCandle(c5, gold.price), gold.price, lastImpulse)
+      : null;
+  return computeSetupQuality({
+    tech1,
+    tech5,
+    news: lastNewsAnalysis,
+    m1Scalp: m1,
+    live,
+    calendar: lastSnapshot?.calendar,
+    marketQualityScore: mq.score,
+    disciplineScore: lastSnapshot?.platform?.discipline?.score,
+    capitalShieldOk: lastSnapshot?.platform?.capitalShield?.allowed ?? true,
+  });
 }
 
 function broadcast(channel: string, data: unknown) {
@@ -450,6 +493,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
     ...(marketTechnical ? { marketTechnical } : {}),
     m1Scalp,
     liveMomentum,
+    setupQuality: computeSetupQualitySnapshot(),
   });
   broadcast("monitor:update", lastSnapshot);
 }

@@ -47,7 +47,7 @@ export function enrichSnapshotWithPlatform(
   const tradingBlocked =
     !platform.capitalShield.allowed ||
     !platform.marketQuality.tradeable ||
-    platform.discipline.score < 55;
+    platform.discipline.score < 60;
 
   if (price != null && price > 0 && !tradingBlocked) {
     const ai = guarded.aiSignal;

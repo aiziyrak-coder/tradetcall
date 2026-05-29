@@ -1,7 +1,7 @@
 /** Oltin treyder platformasi — o'zbekcha */
 export const UZ = {
   appTitle: "Oltin Signal",
-  subtitle: "50–100 pip · aniq signal",
+  subtitle: "Kuchli tahlil · kapital himoya",
   live: "JONLI",
   offline: "OFFLAYN",
   translating: "TARJIMA...",

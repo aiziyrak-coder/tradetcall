@@ -47,7 +47,7 @@ export function shouldBlockNewTrades(input: {
       reasonUz: `Bozor ${marketQuality.grade} (${marketQuality.score}) — avval shartlarni tuzating`,
     };
   }
-  if (discipline.score < 55) {
+  if (discipline.score < 60) {
     return {
       block: true,
       reasonUz: `Qoidalar ${discipline.score}% — bugun lot ochmang (${discipline.passed}/${discipline.total})`,

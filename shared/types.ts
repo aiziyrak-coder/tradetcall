@@ -73,6 +73,7 @@ export interface TechnicalAnalysis {
   adx: number;
   priorDayHigh?: number;
   priorDayLow?: number;
+  enhanced?: import("./enhanced-technical").EnhancedIndicators;
 }
 
 /** Uzoq muddatli savdo qadami */
@@ -244,6 +245,7 @@ export interface MonitorSnapshot {
   /** M1 skalp trend oldindan */
   m1Scalp?: import("./m1-scalp").M1ScalpLead | null;
   liveMomentum?: import("./scalp-signal-guard").LiveMomentum | null;
+  setupQuality?: import("./setup-quality").SetupQuality | null;
   platform?: import("./platform-insight").PlatformInsight;
 }
 

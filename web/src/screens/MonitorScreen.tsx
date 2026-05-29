@@ -242,6 +242,7 @@ export function MonitorScreen({
               analysis={analysis}
               drivers={data?.drivers ?? []}
               aiSignal={data?.aiSignal ?? null}
+              setupQuality={data?.setupQuality}
               calendarSourceUz={
                 data?.calendar?.source === "forexfactory"
                   ? "Forex Factory"
@@ -255,6 +256,7 @@ export function MonitorScreen({
             technical={data?.marketTechnical}
             m1Scalp={data?.m1Scalp}
             liveMomentum={data?.liveMomentum}
+            setupQuality={data?.setupQuality}
             gold={data?.gold ?? null}
           />
         </div>

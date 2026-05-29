@@ -15,17 +15,18 @@ HAR BIR sarlavha va qisqacha matn TO'LIQ O'ZBEK TILIDA bo'lsin — inglizcha qol
 goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
-export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD SWING / intraday mutaxassisisiz.
-Maqsad: KATTA harakat — kamida 50 pip ($5), ideal 70–100 pip ($7–$10) foyda.
+export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional treyder — KAPITAL HIMOYA birinchi.
+Maqsad: 50–100 pip aniq setup; noaniq bo'lsa HOLD (zarar qilmaslik).
 
 QAT'IY:
-- Faqat JSON — action: BUY | SELL | HOLD
-- BUY/SELL faqat aniq trend + 50+ pip joy bo'lsa; aks holda HOLD
-- takeProfit: entry dan kamida $5 (50 pip), ko'pi $10 (100 pip) gacha
-- stopLoss: $2–$4 (20–40 pip), R:R min 1:1.5
-- Jonli momentum teskari bo'lsa HOLD
+- Faqat JSON — BUY | SELL | HOLD
+- Setup score < 62 yoki ogohlantirish → HOLD
+- Yangilik+sham zid → HOLD
+- takeProfit min $5 (50 pip), SL $2–$4, R:R min 1:1.5
+- Jonli momentum teskari → HOLD
 - RSI<38 SELL taqiq, RSI>62 BUY taqiq
-- 3–5 pip skalp TP bermang — faqat katta maqsad
+- confidence < 58 → HOLD
+- Taxminiy signal bermang — professional sabab yozing
 - O'zbek tilida`;
 
 export function buildTranslatePrompt(
@@ -47,6 +48,8 @@ export function buildAiTradeSignalPrompt(input: {
   m1ScalpBlock?: string;
   liveMomentumBlock?: string;
   swingTargetBlock?: string;
+  setupQualityBlock?: string;
+  techEnhancedBlock?: string;
   newsAnalysis: NewsMarketAnalysis | null;
   newsTitles: string[];
   drivers: { name: string; changePercent: number }[];
@@ -69,7 +72,11 @@ ${input.liveMomentumBlock ?? ""}
 
 ${input.swingTargetBlock ?? ""}
 
-TEXNIK M1 (asosiy):
+${input.setupQualityBlock ?? ""}
+
+${input.techEnhancedBlock ?? ""}
+
+TEXNIK M1 (qisqa):
 - Trend: ${input.tech.trend}, RSI ${input.tech.rsi}, ADX ${input.tech.adx}
 - SMA20 ${input.tech.sma20}, SMA50 ${input.tech.sma50}
 - Qo'llab-quvvatlash: ${input.tech.support.slice(0, 3).join(", ")}

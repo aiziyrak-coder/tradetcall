@@ -2,10 +2,13 @@ import type { AiTradeSignal } from "../../../../shared/ai-trade-signal";
 import type { MarketQuote, NewsMarketAnalysis } from "../../../../shared/types";
 import { TermCard } from "./TermCard";
 
+import type { SetupQuality } from "../../../../shared/setup-quality";
+
 interface Props {
   analysis: NewsMarketAnalysis | null;
   drivers: MarketQuote[];
   aiSignal?: AiTradeSignal | null;
+  setupQuality?: SetupQuality | null;
   calendarSourceUz?: string | null;
 }
 
@@ -15,7 +18,13 @@ const biasStyle = {
   neutral: "text-amber-300 border-amber-500/50 bg-amber-950/20",
 };
 
-export function MarketForecastHub({ analysis, drivers, aiSignal, calendarSourceUz }: Props) {
+export function MarketForecastHub({
+  analysis,
+  drivers,
+  aiSignal,
+  setupQuality,
+  calendarSourceUz,
+}: Props) {
   return (
     <TermCard
       title="Bozor bashorati"
@@ -31,6 +40,18 @@ export function MarketForecastHub({ analysis, drivers, aiSignal, calendarSourceU
               ${aiSignal.takeProfit.toFixed(2)}
             </p>
             <p className="text-[8px] text-slate-300">{aiSignal.triggerUz}</p>
+          </div>
+        )}
+
+        {setupQuality && (
+          <div
+            className={`rounded border px-2 py-1 text-[8px] ${
+              setupQuality.tradeAllowed
+                ? "border-emerald-600/40 bg-emerald-950/20 text-emerald-200"
+                : "border-amber-600/40 bg-amber-950/20 text-amber-200"
+            }`}
+          >
+            <span className="font-bold">Setup {setupQuality.score}/100</span> — {setupQuality.summaryUz}
           </div>
         )}
 

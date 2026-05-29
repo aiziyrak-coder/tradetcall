@@ -262,6 +262,10 @@ export function computeNewsIntelligence(
     contradictions.push(
       `Zid omillar: ${bullFactors} ijobiy va ${bearFactors} salbiy faktor bir vaqtda — bozor aralash.`
     );
+  if (items.length >= 8 && Math.abs(bullCount - bearCount) <= 2)
+    contradictions.push(
+      `Yangiliklar aralash: bull ${bullCount} / bear ${bearCount} — aniq ustunlik yo'q.`
+    );
 
   const risksUz: string[] = [];
   const opportunitiesUz: string[] = [];
@@ -304,36 +308,42 @@ export function computeNewsIntelligence(
   const recommendationUz =
     contradictions.length > 0
       ? `TAVSIYA: HOZIR KIRMANG. Zid signal: ${contradictions[0]} Professional trader bu paytda kutadi.`
-      : overallBias === "bullish" && biasStrength >= 45
-        ? candleAlign.aligned
-          ? "TAVSIYA: LONG moyil — yangiliklar + sham MOS, SL majburiy."
-          : "TAVSIYA: LONG ehtiyotkor — yangiliklar bullish, TF tasdiqini kuting."
-        : overallBias === "bearish" && biasStrength >= 45
-          ? candleAlign.aligned
-            ? "TAVSIYA: SHORT moyil — yangiliklar + sham MOS, SL qat'iy."
-            : "TAVSIYA: SHORT ehtiyotkor — yangiliklar bearish, TF tasdiqini kuting."
-          : items.length < 5
-            ? "TAVSIYA: Yangiliklar kam — faqat kuchli TF setupda kiring."
-            : "TAVSIYA: Neytral — uzoq HOLD, yaqin faqat TF mos bo'lsa.";
+        : overallBias === "bullish" && biasStrength >= 52 && candleAlign.aligned
+        ? "TAVSIYA: LONG moyil — yangiliklar + sham MOS, SL majburiy."
+        : overallBias === "bearish" && biasStrength >= 52 && candleAlign.aligned
+          ? "TAVSIYA: SHORT moyil — yangiliklar + sham MOS, SL qat'iy."
+          : overallBias === "bullish" && biasStrength >= 45
+            ? "TAVSIYA: LONG ehtiyotkor — to'liq TF tasdiqini kuting."
+            : overallBias === "bearish" && biasStrength >= 45
+              ? "TAVSIYA: SHORT ehtiyotkor — to'liq TF tasdiqini kuting."
+              : items.length < 8
+                ? "TAVSIYA: Yangiliklar kam — faqat A-setupda kiring."
+                : "TAVSIYA: KUTING — neytral/aralash fon, kapitalni himoya qiling.";
 
-  const confidence = Math.min(
+  let confidence = Math.min(
     98,
     Math.round(
-      biasStrength * 0.65 +
-        (candleAlign.aligned ? 22 : 0) +
-        (contradictions.length === 0 ? 8 : -15) +
-        Math.min(12, Math.abs(totalScore) * 2)
+      biasStrength * 0.55 +
+        (candleAlign.aligned ? 24 : 0) +
+        (contradictions.length === 0 ? 10 : -20) +
+        Math.min(10, Math.abs(totalScore) * 1.8)
     )
   );
+  if (!candleAlign.aligned) confidence = Math.min(confidence, 58);
+  if (contradictions.length > 0) confidence = Math.min(confidence, 48);
 
   const tradeVerdictUz =
     contradictions.length > 0
       ? `HUKM: KUTING — ${contradictions[0].slice(0, 90)}`
-      : overallBias === "bullish" && biasStrength >= 45
-        ? `HUKM: LONG moyil (${biasStrength}%) — swing yoki TF tasdiq`
-        : overallBias === "bearish" && biasStrength >= 45
-          ? `HUKM: SHORT moyil (${biasStrength}%) — swing yoki TF tasdiq`
-          : `HUKM: NEYTRAL — ${items.length} yangilik, ishonch ${confidence}%`;
+      : overallBias === "bullish" && biasStrength >= 52 && candleAlign.aligned
+        ? `HUKM: LONG moyil (${biasStrength}%) — yangilik+sham tasdiq`
+        : overallBias === "bearish" && biasStrength >= 52 && candleAlign.aligned
+          ? `HUKM: SHORT moyil (${biasStrength}%) — yangilik+sham tasdiq`
+          : overallBias === "bullish" && biasStrength >= 45
+            ? `HUKM: LONG ehtiyotkor — to'liq tasdiq kuting`
+            : overallBias === "bearish" && biasStrength >= 45
+              ? `HUKM: SHORT ehtiyotkor — to'liq tasdiq kuting`
+              : `HUKM: KUTING — ${items.length} yangilik, ishonch ${confidence}%`;
 
   const forecastUz =
     `${overallBias === "bullish" ? "▲" : overallBias === "bearish" ? "▼" : "◆"} 24–72s: ` +
