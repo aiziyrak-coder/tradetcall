@@ -11,6 +11,9 @@ export interface TradePlanInput {
   accountUsd: number;
   riskPercent: number;
   maxHoldMinutes?: number;
+  /** Kapital himoyasi + discipline — false bo'lsa trusted emas */
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
 }
 
 export interface TradePlan {
@@ -47,7 +50,10 @@ export function buildTradePlan(input: TradePlanInput): TradePlan {
   const cfg = horizon === "short" ? SHORT_THRESHOLDS : LONG_THRESHOLDS;
   const filterTotal = verdict.checklist.length || cfg.filterTotal;
   const filterPassed = verdict.checklist.filter((c) => c.ok).length;
+  const guardsOk =
+    input.tradingAllowed !== false && (input.disciplineScore ?? 100) >= 62;
   const trusted =
+    guardsOk &&
     verdict.action !== "HOLD" &&
     verdict.gateAllowed &&
     filterPassed >= cfg.minFilters &&
@@ -79,9 +85,13 @@ export function buildTradePlan(input: TradePlanInput): TradePlan {
       holdMinutes,
       holdExplainUz,
       lotsExplainUz:
-        filterPassed < 7
-          ? `Hozir kirmang: ${filterPassed}/${filterTotal} filter. 7/7 MOS bo'lganda lot chiqadi.`
-          : "Signal HOLD — lot 0. Kuting.",
+        input.tradingAllowed === false
+          ? "Kapital himoyasi yoki bozor sifati — bugun savdo yo'q."
+          : (input.disciplineScore ?? 100) < 62
+            ? `Qoidalar ${input.disciplineScore ?? 0}% — lot ochmang.`
+            : filterPassed < cfg.minFilters
+              ? `Hozir kirmang: ${filterPassed}/${filterTotal} filter. MOS bo'lganda lot chiqadi.`
+              : "Signal HOLD — lot 0. Kuting.",
       entryZoneUz,
       exitRuleUz,
       summaryUz: `${input.horizonLabelUz}: HOLD — savdo yo'q`,

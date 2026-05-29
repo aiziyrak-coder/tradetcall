@@ -4,16 +4,23 @@ import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
 import { getGoldDrivers } from "../shared/markets";
 import { detectPriceImpulse, type PriceImpulse } from "../shared/price-impulse";
-import { getXAUUSDPriceLive } from "../shared/price";
 import { getCalendarStatus } from "../shared/economic-calendar";
-import { pullLiveGoldPrice, peekCachedGoldPrice, resetPriceStreamSession } from "./price-stream";
+import {
+  disposePriceStreamHooks,
+  initPriceStreamHooks,
+  pullLiveGoldPrice,
+  peekCachedGoldPrice,
+} from "./price-stream";
+import {
+  startTradingViewPriceStream,
+  stopTradingViewPriceStream,
+} from "./tradingview-price";
 import {
   createSignalStabilityState,
   stabilizeTradeAction,
   type SignalStabilityState,
 } from "../shared/signal-stability";
-import type { LongTermStrategy, ShortTermStrategy } from "../shared/types";
-import { getMt5BridgeStatus, onMt5Tick } from "./mt5-bridge";
+import type { Candle, LongTermStrategy, ShortTermStrategy } from "../shared/types";
 import { startCalendarService, stopCalendarService } from "./calendar-service";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
 import { computeLongTermStrategy } from "../shared/strategy";
@@ -34,33 +41,28 @@ import type {
 } from "../shared/types";
 import { checkInternet } from "./network";
 import { enrichSnapshotWithPlatform } from "./platform-service";
+import { getJournalStats } from "./signal-journal-store";
 import { getTranslationCache, setTranslationCache } from "./store";
 import { getAiSessionStatus } from "./ai-session";
 
-const PRICE_FAST_MS_MT5 = 50;
-const PRICE_FAST_MS_YAHOO = 400;
-const PRICE_FETCH_MS_YAHOO = 1000;
-const STRATEGY_TICK_MS = 2500;
-const STRATEGY_TICK_IMPULSE_MS = 800;
-const CHART_TICK_MS_MT5 = 1000;
-const CHART_TICK_MS_YAHOO = 2000;
+const PRICE_FAST_MS = 600;
+const PRICE_FETCH_MS = 900;
+const STRATEGY_TICK_MS = 3000;
+const STRATEGY_TICK_IMPULSE_MS = 900;
 const HEARTBEAT_MS = 1500;
 const INTERNET_CHECK_MS = 25_000;
-
-const VALID_CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
-const DRIVERS_TICK_MS = 20000;
-const NEWS_TICK_MS = 120000;
+const DRIVERS_TICK_MS = 20_000;
+const NEWS_TICK_MS = 120_000;
 const NEWS_ANALYSIS_MS = 45_000;
 const TRANSLATE_TICK_MS = 30_000;
 const TRANSLATE_BATCH = 4;
-const PRICE_STALE_MS = 15_000;
+const PRICE_STALE_MS = 20_000;
 const MAX_PRICE_FAILS = 5;
+const MULTI_TF_REFRESH_MS = 12_000;
 
 let priceInterval: ReturnType<typeof setInterval> | null = null;
 let strategyInterval: ReturnType<typeof setInterval> | null = null;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-let fastInterval: ReturnType<typeof setInterval> | null = null;
-let chartIntervalTimer: ReturnType<typeof setInterval> | null = null;
 let driversInterval: ReturnType<typeof setInterval> | null = null;
 let newsInterval: ReturnType<typeof setInterval> | null = null;
 let newsAnalysisInterval: ReturnType<typeof setInterval> | null = null;
@@ -71,7 +73,6 @@ let strategyBusy = false;
 let lastInternetOk = true;
 let lastInternetCheckAt = 0;
 let tickSeq = 0;
-let chartBusy = false;
 let driversBusy = false;
 let translating = false;
 let priceFailCount = 0;
@@ -80,12 +81,8 @@ let lastSnapshot: MonitorSnapshot | null = null;
 let rawNews: GoldNewsBundle = { direct: [], macro: [], geopolitics: [] };
 let lastNewsAnalysis: NewsMarketAnalysis | null = null;
 let analyzingNews = false;
-let chartInterval: ChartInterval = "5m";
-let multiTfCandles: Partial<Record<ChartInterval, import("../shared/types").Candle[]>> =
-  {};
+let multiTfCandles: Partial<Record<ChartInterval, Candle[]>> = {};
 let multiTfFetchedAt = 0;
-const MULTI_TF_REFRESH_MS_MT5 = 4000;
-const MULTI_TF_REFRESH_MS_YAHOO = 8000;
 let lastStrategyRebuildAt = 0;
 let bootstrapPromise: Promise<void> | null = null;
 let shortStability = createSignalStabilityState();
@@ -95,25 +92,24 @@ let frozenLong: LongTermStrategy | null = null;
 let lastStrategyPrice = 0;
 let priceFetchInFlight = false;
 let lastPriceFetchAt = 0;
-let lastYahooRefRefreshAt = 0;
 let lastImpulse: PriceImpulse | null = null;
-let mt5TickUnsub: (() => void) | null = null;
 let strategyTickMs = STRATEGY_TICK_MS;
 
-function usingMt5Feed(): boolean {
-  return getMt5BridgeStatus().connected && !getMt5BridgeStatus().stale;
+function getPrimaryCandles(): Candle[] {
+  return (
+    multiTfCandles["5m"] ??
+    multiTfCandles["15m"] ??
+    multiTfCandles["1h"] ??
+    multiTfCandles["1m"] ??
+    []
+  );
 }
 
-function priceFastMs(): number {
-  return usingMt5Feed() ? PRICE_FAST_MS_MT5 : PRICE_FAST_MS_YAHOO;
-}
-
-function chartTickMs(): number {
-  return usingMt5Feed() ? CHART_TICK_MS_MT5 : CHART_TICK_MS_YAHOO;
-}
-
-function multiTfRefreshMs(): number {
-  return usingMt5Feed() ? MULTI_TF_REFRESH_MS_MT5 : MULTI_TF_REFRESH_MS_YAHOO;
+function patchMultiTf(price: number): void {
+  for (const tf of SHORT_STRATEGY_INTERVALS) {
+    const c = multiTfCandles[tf];
+    if (c?.length) multiTfCandles[tf] = patchLastCandle(c, price);
+  }
 }
 
 function attachSession(snap: MonitorSnapshot): MonitorSnapshot {
@@ -123,13 +119,10 @@ function attachSession(snap: MonitorSnapshot): MonitorSnapshot {
 
 async function refreshMultiTimeframes(spot: number): Promise<void> {
   if (
-    Date.now() - multiTfFetchedAt < multiTfRefreshMs() &&
+    Date.now() - multiTfFetchedAt < MULTI_TF_REFRESH_MS &&
     SHORT_STRATEGY_INTERVALS.every((tf) => (multiTfCandles[tf]?.length ?? 0) > 5)
   ) {
-    for (const tf of SHORT_STRATEGY_INTERVALS) {
-      const c = multiTfCandles[tf];
-      if (c?.length) multiTfCandles[tf] = patchLastCandle(c, spot);
-    }
+    patchMultiTf(spot);
     return;
   }
   const pairs = await Promise.all(
@@ -153,33 +146,14 @@ function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
     gold: null,
     drivers: [],
     news: newsWithCache(),
-    chart: { interval: chartInterval, candles: [] },
     newsAnalysis: null,
     strategy: null,
     shortStrategy: null,
     translating: false,
     analyzingNews: false,
-    mt5Bridge: getMt5BridgeStatus(),
     calendar: getCalendarStatus(),
     ...partial,
   };
-}
-
-export function setChartInterval(interval: ChartInterval) {
-  if (!VALID_CHART_INTERVALS.includes(interval)) {
-    throw new Error(`Noto'g'ri interval: ${interval}`);
-  }
-  chartInterval = interval;
-  void refreshChart();
-}
-
-export async function getChartData() {
-  const gold =
-    lastSnapshot?.gold ??
-    peekCachedGoldPrice() ??
-    (await pullLiveGoldPrice(null).catch(() => null));
-  const candles = await fetchXAUUSDCandles(chartInterval, gold?.price);
-  return { interval: chartInterval, candles };
 }
 
 function broadcast(channel: string, data: unknown) {
@@ -210,11 +184,13 @@ async function runNewsTranslation(): Promise<void> {
     setTranslationCache(updated);
     publishSnapshot({ news: newsWithCache(), translating: false });
     if (lastSnapshot?.gold) {
-      const allNews = getTranslatedNews();
-      const gold = lastSnapshot.gold;
-      const candles = lastSnapshot.chart?.candles ?? [];
-      const drivers = lastSnapshot.drivers ?? [];
-      const built = buildStrategies(gold, candles, drivers, allNews, lastImpulse);
+      const built = buildStrategies(
+        lastSnapshot.gold,
+        getPrimaryCandles(),
+        lastSnapshot.drivers ?? [],
+        getTranslatedNews(),
+        lastImpulse
+      );
       publishSnapshot({
         newsAnalysis: built.newsAnalysis,
         strategy: built.strategy,
@@ -230,8 +206,6 @@ async function runNewsTranslation(): Promise<void> {
 }
 
 function isPriceStale(): boolean {
-  const mt5 = getMt5BridgeStatus();
-  if (mt5.connected && !mt5.stale) return false;
   if (!lastPriceOkAt) return true;
   return Date.now() - lastPriceOkAt > PRICE_STALE_MS;
 }
@@ -245,7 +219,6 @@ function mergeSnapshot(partial: Partial<MonitorSnapshot>): MonitorSnapshot {
     priceStale: isPriceStale(),
     translating,
     analyzingNews,
-    mt5Bridge: partial.mt5Bridge ?? getMt5BridgeStatus(),
     calendar: partial.calendar ?? getCalendarStatus(),
   };
   lastSnapshot = attachSession(enrichSnapshotWithPlatform(merged));
@@ -265,12 +238,11 @@ function getTranslatedNews(): ReturnType<typeof allGoldNewsItems> {
 function refreshNewsAnalysisLocal(): NewsMarketAnalysis | null {
   const gold = lastSnapshot?.gold;
   if (!gold) return null;
-  const candles = lastSnapshot?.chart?.candles ?? [];
   const items = getTranslatedNews();
   lastNewsAnalysis = computeNewsIntelligence(
     items,
     gold.price,
-    candles,
+    getPrimaryCandles(),
     lastSnapshot?.drivers ?? [],
     multiTfCandles
   );
@@ -338,7 +310,7 @@ function mergeStableVerdict<T extends LongTermStrategy | ShortTermStrategy>(
 
 function buildStrategies(
   gold: { price: number },
-  candles: import("../shared/types").Candle[],
+  candles: Candle[],
   drivers: import("../shared/types").MarketQuote[],
   newsItems: ReturnType<typeof getTranslatedNews>,
   impulse?: PriceImpulse | null
@@ -351,7 +323,8 @@ function buildStrategies(
     drivers,
     newsItems,
     na,
-    impulse
+    impulse,
+    getJournalStats()
   );
 
   const longR = mergeStableVerdict(rawLong, "long", longStability, frozenLong);
@@ -376,12 +349,12 @@ function markPriceOk() {
 
 function markPriceFail(message: string) {
   priceFailCount += 1;
-    mergeSnapshot({
-      priceStale: true,
-      feedError: priceFailCount >= MAX_PRICE_FAILS ? message : lastSnapshot?.feedError ?? message,
-      online: priceFailCount < MAX_PRICE_FAILS ? (lastSnapshot?.online ?? false) : false,
-    });
-    broadcast("monitor:update", lastSnapshot);
+  mergeSnapshot({
+    priceStale: true,
+    feedError: priceFailCount >= MAX_PRICE_FAILS ? message : lastSnapshot?.feedError ?? message,
+    online: priceFailCount < MAX_PRICE_FAILS ? (lastSnapshot?.online ?? false) : false,
+  });
+  broadcast("monitor:update", lastSnapshot);
 }
 
 async function ensureOnline(): Promise<boolean> {
@@ -392,23 +365,10 @@ async function ensureOnline(): Promise<boolean> {
   return lastInternetOk;
 }
 
-function patchAllCandles(price: number): import("../shared/types").Candle[] {
-  const baseCandles = lastSnapshot?.chart?.candles ?? [];
-  let candles = baseCandles;
-  if (baseCandles.length > 0) {
-    candles = patchLastCandle(baseCandles, price);
-    for (const tf of SHORT_STRATEGY_INTERVALS) {
-      const c = multiTfCandles[tf];
-      if (c?.length) multiTfCandles[tf] = patchLastCandle(c, price);
-    }
-  }
-  return candles;
-}
-
 function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { forceStrategy?: boolean }) {
   const impulse = detectPriceImpulse(gold.price, {
-    minUsd: usingMt5Feed() ? 0.8 : 1.5,
-    windowMs: usingMt5Feed() ? 30_000 : 45_000,
+    minUsd: 1.2,
+    windowMs: 45_000,
   });
   const impulseChanged =
     impulse?.direction !== lastImpulse?.direction ||
@@ -417,39 +377,25 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
 
   markPriceOk();
   tickSeq += 1;
-  const candles = patchAllCandles(gold.price);
+  patchMultiTf(gold.price);
+
   const moveUsd = Math.abs(gold.price - lastStrategyPrice);
-  const priceMoved = moveUsd >= (usingMt5Feed() ? 0.03 : 0.15);
-  const bigMove = moveUsd >= (usingMt5Feed() ? 0.5 : 1.2);
+  const priceMoved = moveUsd >= 0.12;
+  const bigMove = moveUsd >= 1.0;
   lastStrategyPrice = gold.price;
 
   mergeSnapshot({
     online: true,
     priceStale: false,
-    feedError: usingMt5Feed() ? null : lastSnapshot?.feedError,
+    feedError: null,
     gold,
-    chart: { interval: chartInterval, candles: candles.length ? candles : lastSnapshot?.chart?.candles ?? [] },
     tickSeq,
     priceUpdatedAt: gold.timestamp,
-    mt5Bridge: getMt5BridgeStatus(),
   });
   broadcast("monitor:update", lastSnapshot);
 
   if (priceMoved || impulseChanged || opts?.forceStrategy || bigMove) {
     void refreshStrategyLive();
-  }
-}
-
-/** MT5 tick kelishi bilan darhol WS (interval kutmasdan) */
-export function publishFromMt5Tick(): void {
-  if (priceBusy) return;
-  const gold = peekCachedGoldPrice();
-  if (!gold || gold.feed !== "mt5") return;
-  priceBusy = true;
-  try {
-    publishGoldTick(gold);
-  } finally {
-    priceBusy = false;
   }
 }
 
@@ -462,13 +408,6 @@ async function fetchAndPublishPrice() {
       return;
     }
 
-    const mt5Live = peekCachedGoldPrice();
-    if (mt5Live?.feed === "mt5") {
-      lastPriceFetchAt = Date.now();
-      publishGoldTick(mt5Live);
-      return;
-    }
-
     const gold = await pullLiveGoldPrice(lastSnapshot?.gold ?? null).catch((e) => {
       markPriceFail(e instanceof Error ? e.message : "Narx xatosi");
       return null;
@@ -476,13 +415,10 @@ async function fetchAndPublishPrice() {
     if (!gold) return;
 
     lastPriceFetchAt = Date.now();
-    let candles = patchAllCandles(gold.price);
-    if (!candles.length) {
-      candles = await fetchXAUUSDCandles(chartInterval, gold.price);
+    if (getPrimaryCandles().length === 0) {
+      await refreshMultiTimeframes(gold.price);
     }
     publishGoldTick(gold, { forceStrategy: true });
-    mergeSnapshot({ chart: { interval: chartInterval, candles } });
-    broadcast("monitor:update", lastSnapshot);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Xato";
     broadcast("monitor:error", { message: msg });
@@ -492,53 +428,41 @@ async function fetchAndPublishPrice() {
   }
 }
 
-/** MT5: 50ms · Yahoo: 400ms */
 function refreshPriceFast() {
   if (priceBusy) return;
   priceBusy = true;
   try {
-    const mt5Gold = peekCachedGoldPrice();
-    if (mt5Gold?.feed === "mt5") {
-      publishGoldTick(mt5Gold);
-      return;
-    }
-
     const now = Date.now();
-    if (now - lastPriceFetchAt >= PRICE_FETCH_MS_YAHOO) {
+    if (now - lastPriceFetchAt >= PRICE_FETCH_MS) {
       void fetchAndPublishPrice();
       return;
     }
-
     const gold = peekCachedGoldPrice();
-    if (!gold || !lastSnapshot?.gold) {
+    if (!gold) {
       void fetchAndPublishPrice();
       return;
     }
-
     publishGoldTick(gold);
   } finally {
     priceBusy = false;
   }
 }
 
-/** Alohida — og'ir TF/strategiya (narx oqimini to'xtatmaydi) */
 async function refreshStrategyLive() {
   if (strategyBusy || !lastSnapshot?.gold) return;
   strategyBusy = true;
   try {
     const gold = lastSnapshot.gold;
-    const candles = lastSnapshot.chart?.candles ?? [];
-    if (!candles.length) return;
-
-    if (gold.feed === "mt5" && Date.now() - lastYahooRefRefreshAt > 12_000) {
-      lastYahooRefRefreshAt = Date.now();
-      void getXAUUSDPriceLive(null).catch(() => {});
+    if (getPrimaryCandles().length < 5) {
+      await refreshMultiTimeframes(gold.price);
     }
+    if (getPrimaryCandles().length < 5) return;
+
     refreshNewsAnalysisLocal();
     await refreshMultiTimeframes(gold.price);
     const built = buildStrategies(
       gold,
-      patchLastCandle(candles, gold.price),
+      patchLastCandle(getPrimaryCandles(), gold.price),
       lastSnapshot.drivers ?? [],
       getTranslatedNews(),
       lastImpulse
@@ -551,39 +475,9 @@ async function refreshStrategyLive() {
       signalUpdatedAt: new Date().toISOString(),
     });
   } catch {
-    /* strategiya keyingi tsiklda */
+    /* keyingi tsiklda */
   } finally {
     strategyBusy = false;
-  }
-}
-
-/** @deprecated alias */
-async function refreshFastLive() {
-  await fetchAndPublishPrice();
-}
-
-async function refreshChart() {
-  if (chartBusy) return;
-  chartBusy = true;
-  try {
-    if (!(await checkInternet())) return;
-    const gold =
-      lastSnapshot?.gold ??
-      peekCachedGoldPrice() ??
-      (await pullLiveGoldPrice(null).catch(() => null));
-    const candles = await fetchXAUUSDCandles(chartInterval, gold?.price);
-    if (candles.length === 0) return;
-    const patched =
-      gold && candles.length > 0
-        ? patchLastCandle(candles, gold.price)
-        : candles;
-    publishSnapshot({
-      chart: { interval: chartInterval, candles: patched },
-      online: true,
-      feedError: null,
-    });
-  } finally {
-    chartBusy = false;
   }
 }
 
@@ -608,12 +502,11 @@ async function refreshNews() {
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
-      const allNews = getTranslatedNews();
       const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
         gold,
-        lastSnapshot.chart?.candles ?? [],
+        getPrimaryCandles(),
         lastSnapshot.drivers ?? [],
-        allNews,
+        getTranslatedNews(),
         lastImpulse
       );
       publishSnapshot({
@@ -643,32 +536,25 @@ async function bootstrapSnapshot(): Promise<void> {
   }
 
   try {
-    const gold = await pullLiveGoldPrice(null).catch((e) => {
-      throw e;
-    });
+    const gold = await pullLiveGoldPrice(null);
     markPriceOk();
 
-    const [candles, news, drivers] = await Promise.all([
-      fetchXAUUSDCandles(chartInterval, gold.price),
-      fetchGoldNews(),
-      getGoldDrivers(gold),
-    ]);
+    const [news, drivers] = await Promise.all([fetchGoldNews(), getGoldDrivers(gold)]);
     rawNews = news;
     pruneTranslationCache();
-    const patched =
-      candles.length > 0 ? patchLastCandle(candles, gold.price) : candles;
+    await refreshMultiTimeframes(gold.price);
+    const candles = getPrimaryCandles();
     const allNews = getTranslatedNews();
     lastNewsAnalysis = computeNewsIntelligence(
       allNews,
       gold.price,
-      patched,
+      candles,
       drivers,
       multiTfCandles
     );
-    await refreshMultiTimeframes(gold.price);
     const { strategy, shortStrategy, newsAnalysis } = buildStrategies(
       gold,
-      patched,
+      candles,
       drivers,
       allNews,
       lastImpulse
@@ -682,7 +568,6 @@ async function bootstrapSnapshot(): Promise<void> {
       drivers,
       news: newsWithCache(),
       newsAnalysis,
-      chart: { interval: chartInterval, candles: patched },
       strategy,
       shortStrategy,
       translating: false,
@@ -692,7 +577,7 @@ async function bootstrapSnapshot(): Promise<void> {
     broadcast("monitor:update", lastSnapshot);
     void runNewsTranslation();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Boshlang‘ich yuklash xatosi";
+    const msg = e instanceof Error ? e.message : "Boshlang'ich yuklash xatosi";
     lastSnapshot = emptySnapshot({ feedError: msg });
     broadcast("monitor:update", lastSnapshot);
     broadcast("monitor:error", { message: msg });
@@ -700,15 +585,9 @@ async function bootstrapSnapshot(): Promise<void> {
 }
 
 function startIntervals() {
-  if (mt5TickUnsub) mt5TickUnsub();
-  mt5TickUnsub = onMt5Tick(() => publishFromMt5Tick());
-
-  const runFast = () => refreshPriceFast();
-  priceInterval = setInterval(runFast, priceFastMs());
+  priceInterval = setInterval(refreshPriceFast, PRICE_FAST_MS);
   strategyInterval = setInterval(() => void refreshStrategyLive(), strategyTickMs);
-  fastInterval = priceInterval;
   void fetchAndPublishPrice();
-  chartIntervalTimer = setInterval(() => void refreshChart(), chartTickMs());
   heartbeatInterval = setInterval(() => {
     broadcast("monitor:ping", { t: Date.now() });
   }, HEARTBEAT_MS);
@@ -721,9 +600,13 @@ function startIntervals() {
     publishSnapshot({ newsAnalysis, analyzingNews: false });
     if (Date.now() - lastStrategyRebuildAt < STRATEGY_TICK_MS - 1500) return;
     const gold = lastSnapshot.gold;
-    const candles = lastSnapshot.chart?.candles ?? [];
-    const drivers = lastSnapshot.drivers ?? [];
-    const built = buildStrategies(gold, candles, drivers, getTranslatedNews(), lastImpulse);
+    const built = buildStrategies(
+      gold,
+      getPrimaryCandles(),
+      lastSnapshot.drivers ?? [],
+      getTranslatedNews(),
+      lastImpulse
+    );
     lastStrategyRebuildAt = Date.now();
     publishSnapshot({
       newsAnalysis: built.newsAnalysis,
@@ -737,22 +620,30 @@ function startIntervals() {
 }
 
 export function startMonitorService(): void {
-  if (fastInterval) return;
+  if (priceInterval) return;
   startCalendarService();
+  initPriceStreamHooks(() => {
+    if (priceBusy) return;
+    const gold = peekCachedGoldPrice();
+    if (gold?.feed === "tradingview") publishGoldTick(gold);
+  });
   if (!lastSnapshot) lastSnapshot = emptySnapshot();
-  const boot = bootstrapPromise ?? bootstrapSnapshot();
-  bootstrapPromise = boot;
-  void boot
-    .then(() => {
+
+  const run = async () => {
+    await startTradingViewPriceStream();
+    const boot = bootstrapPromise ?? bootstrapSnapshot();
+    bootstrapPromise = boot;
+    try {
+      await boot;
       startIntervals();
       void refreshStrategyLive();
-    })
-    .finally(() => {
+    } finally {
       bootstrapPromise = null;
-    });
+    }
+  };
+  void run();
 }
 
-/** Yangiliklar tahlili — lokal hisob */
 export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
   return refreshNewsAnalysisLocal();
 }
@@ -763,15 +654,11 @@ export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
 
 export function stopMonitorService(): void {
   stopCalendarService();
-  if (mt5TickUnsub) {
-    mt5TickUnsub();
-    mt5TickUnsub = null;
-  }
+  disposePriceStreamHooks();
+  void stopTradingViewPriceStream();
   if (priceInterval) clearInterval(priceInterval);
   if (strategyInterval) clearInterval(strategyInterval);
   if (heartbeatInterval) clearInterval(heartbeatInterval);
-  if (fastInterval) clearInterval(fastInterval);
-  if (chartIntervalTimer) clearInterval(chartIntervalTimer);
   if (driversInterval) clearInterval(driversInterval);
   if (newsInterval) clearInterval(newsInterval);
   if (newsAnalysisInterval) clearInterval(newsAnalysisInterval);
@@ -779,15 +666,12 @@ export function stopMonitorService(): void {
   priceInterval = null;
   strategyInterval = null;
   heartbeatInterval = null;
-  fastInterval = null;
-  chartIntervalTimer = null;
-  priceBusy = false;
-  strategyBusy = false;
   driversInterval = null;
   newsInterval = null;
   newsAnalysisInterval = null;
   translateInterval = null;
-  chartBusy = false;
+  priceBusy = false;
+  strategyBusy = false;
   driversBusy = false;
   translating = false;
 }
@@ -814,10 +698,12 @@ export async function buildSnapshot(): Promise<MonitorSnapshot> {
   return lastSnapshot ?? emptySnapshot();
 }
 
-/** Strategiya — verdict bashorat beradi */
 export async function runForecast(): Promise<LongTermForecast> {
   const gold = await pullLiveGoldPrice(lastSnapshot?.gold ?? null);
-  const candles = await fetchXAUUSDCandles(chartInterval, gold.price);
+  if (getPrimaryCandles().length < 10) {
+    await refreshMultiTimeframes(gold.price);
+  }
+  const candles = getPrimaryCandles();
   const items = allGoldNewsItems(rawNews).slice(0, 12);
   if (!lastNewsAnalysis) refreshNewsAnalysisLocal();
   const base = computeLongTermStrategy(

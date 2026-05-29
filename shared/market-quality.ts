@@ -1,7 +1,5 @@
 import type { CalendarStatus } from "./calendar-types";
-import type { Mt5BridgeStatus } from "./mt5-types";
 import { getMarketSession } from "./market-session";
-import type { PriceDivergence } from "./price-divergence";
 import type { MonitorSnapshot, PriceData } from "./types";
 
 export interface MarketQuality {
@@ -31,19 +29,13 @@ function gradeLabel(g: MarketQuality["grade"]): string {
   return "D — savdo tavsiya etilmaydi";
 }
 
-/** Bozor sifati — feed, spread, sessiya, kalendar */
 export function computeMarketQuality(
   gold: PriceData | null,
-  snapshot: Pick<
-    MonitorSnapshot,
-    "priceStale" | "feedError" | "mt5Bridge" | "calendar"
-  >,
-  priceDivergence?: PriceDivergence | null
+  snapshot: Pick<MonitorSnapshot, "priceStale" | "feedError" | "calendar">
 ): MarketQuality {
   const warnings: string[] = [];
   let score = 100;
 
-  const mt5 = snapshot.mt5Bridge;
   const session = getMarketSession();
   const cal = snapshot.calendar;
 
@@ -57,40 +49,24 @@ export function computeMarketQuality(
   }
 
   let feedUz = "Noma'lum manba";
-  if (gold?.feed === "mt5" && mt5?.connected) {
-    feedUz = `MT5 jonli (${mt5.broker ?? "broker"})`;
-    score += 5;
-  } else if (gold?.feed === "yahoo") {
-    feedUz = "Yahoo — ~1s kechikish";
-    score -= 8;
-    warnings.push("MT5 ulang — aniqroq kirish/chiqish");
+  if (gold?.feed === "tradingview") {
+    feedUz = gold.source?.slice(0, 42) ?? "TradingView XAUUSD";
+    score += 6;
   } else if (gold?.feed === "spot") {
-    feedUz = "Spot API";
-    score -= 5;
-  }
-
-  if (mt5 && !mt5.connected) {
-    score -= 12;
-    warnings.push("MT5 ko'prik ulanmagan");
-  } else if (mt5?.stale) {
-    score -= 18;
-    warnings.push("MT5 tick eskirgan");
-  }
-
-  if (priceDivergence?.severe) {
-    score -= 15;
-    warnings.push(priceDivergence.trustUz);
+    feedUz = "Spot API — jonli XAU";
+  } else if (gold?.feed === "yahoo") {
+    feedUz = "Yahoo — spot zaxira";
+    score -= 6;
+  } else if (gold?.source) {
+    feedUz = gold.source.slice(0, 40);
   }
 
   let spreadPts: number | null = null;
   if (gold?.spread != null && gold.spread > 0) {
     spreadPts = Math.round(gold.spread * 100) / 100;
     if (spreadPts > 0.45) {
-      score -= 22;
-      warnings.push(`Spread keng: $${spreadPts} — scalp qiyin`);
-    } else if (spreadPts > 0.28) {
-      score -= 10;
-      warnings.push(`Spread o'rtacha: $${spreadPts}`);
+      score -= 18;
+      warnings.push(`Spread keng: $${spreadPts}`);
     }
   }
 

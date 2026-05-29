@@ -21,8 +21,8 @@
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
-    "lightweight-charts": "^4.2.1",
     "rss-parser": "^3.13.0",
+    "tradingview-api-adapter": "^2.0.0",
     "uuid": "^11.0.3",
     "ws": "^8.18.0",
     "zod": "^3.24.1"

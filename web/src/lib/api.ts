@@ -1,6 +1,4 @@
-import type { ChartInterval } from "../../../shared/chart";
 import type {
-  ChartData,
   LongTermForecast,
   MonitorSessionInfo,
   MonitorSnapshot,
@@ -107,11 +105,6 @@ export const api = {
     start: () => request<MonitorSessionInfo>("/api/monitor/start", { method: "POST" }),
     stop: () => request<MonitorSessionInfo>("/api/monitor/stop", { method: "POST" }),
     getSnapshot: () => request<MonitorSnapshot>("/api/monitor/snapshot"),
-    setChartInterval: (interval: ChartInterval) =>
-      request<ChartData>("/api/monitor/chart-interval", {
-        method: "POST",
-        body: JSON.stringify({ interval }),
-      }),
     forecast: () =>
       request<LongTermForecast>("/api/monitor/forecast", { method: "POST" }),
     deepNewsAnalysis: () =>

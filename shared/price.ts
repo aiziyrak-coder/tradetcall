@@ -6,17 +6,7 @@ interface GoldApiResponse {
   price?: number;
 }
 
-const YAHOO_SYMBOLS = ["XAUUSD=X", "GC=F", "MGC=F"];
-
-let yahooReferencePrice: number | null = null;
-
-export function setYahooReferencePrice(price: number): void {
-  yahooReferencePrice = price;
-}
-
-export function peekYahooReferencePrice(): number | null {
-  return yahooReferencePrice;
-}
+const YAHOO_SYMBOLS = ["XAUUSD=X", "GC=F"];
 
 async function fetchYahooMeta(symbol: string): Promise<{
   price: number;
@@ -27,7 +17,7 @@ async function fetchYahooMeta(symbol: string): Promise<{
 } | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`;
   const data = await fetchJson<YahooChartResponse>(url, {
-    timeoutMs: 5000,
+    timeoutMs: 6000,
     retries: 1,
   });
   const meta = data?.chart?.result?.[0]?.meta;
@@ -43,7 +33,6 @@ async function fetchYahooMeta(symbol: string): Promise<{
   };
 }
 
-/** Eng yangi Yahoo spot (real vaqt, har tick) */
 async function fetchYahooLive(): Promise<{
   price: number;
   prevClose: number;
@@ -61,12 +50,11 @@ async function fetchYahooLive(): Promise<{
   return null;
 }
 
-/** Spot API — qo'shimcha manba */
 async function fetchSpotGoldApi(): Promise<number | null> {
   const data = await fetchJson<GoldApiResponse>("https://api.gold-api.com/price/XAU", {
     headers: { Accept: "application/json" },
-    timeoutMs: 4000,
-    retries: 1,
+    timeoutMs: 5000,
+    retries: 2,
   });
   if (typeof data?.price === "number" && data.price > 1000) {
     return Math.round(data.price * 100) / 100;
@@ -80,7 +68,8 @@ function buildPriceData(
   dayHigh: number,
   dayLow: number,
   marketTime: number,
-  source: string
+  source: string,
+  feed: PriceData["feed"]
 ): PriceData {
   const change = Math.round((livePrice - prevClose) * 100) / 100;
   const changePercent =
@@ -94,57 +83,42 @@ function buildPriceData(
     low24h: Math.round(dayLow * 100) / 100,
     timestamp: new Date(marketTime * 1000).toISOString(),
     source,
+    feed,
   };
 }
 
-/** Har tick — Yahoo real-time + spot (hech qachon eski narxni qaytarmaydi) */
-export async function getXAUUSDPriceLive(_prev: PriceData | null): Promise<PriceData> {
-  const [yahoo, spot] = await Promise.all([fetchYahooLive(), fetchSpotGoldApi()]);
+/** Spot API birinchi, Yahoo zaxira — aralashmasdan bitta aniq narx */
+export async function getXAUUSDPriceLive(): Promise<PriceData> {
+  const [spot, yahoo] = await Promise.all([fetchSpotGoldApi(), fetchYahooLive()]);
 
-  if (yahoo && spot) {
-    const scale = spot / yahoo.price;
-    const live = Math.round(spot * 100) / 100;
-    return buildPriceData(
-      live,
-      Math.round(yahoo.prevClose * scale * 100) / 100,
-      yahoo.dayHigh * scale,
-      yahoo.dayLow * scale,
-      yahoo.time,
-      `Spot + Yahoo (${yahoo.symbol})`
-    );
+  if (spot) {
+    const prev = yahoo?.prevClose ?? spot;
+    const high = yahoo?.dayHigh ?? spot;
+    const low = yahoo?.dayLow ?? spot;
+    const time = yahoo?.time ?? Date.now() / 1000;
+    return buildPriceData(spot, prev, high, low, time, "Spot API (XAU)", "spot");
   }
 
   if (yahoo) {
-    setYahooReferencePrice(yahoo.price);
     return buildPriceData(
-      yahoo.price,
+      Math.round(yahoo.price * 100) / 100,
       yahoo.prevClose,
       yahoo.dayHigh,
       yahoo.dayLow,
       yahoo.time,
-      `Yahoo ${yahoo.symbol}`
+      `Yahoo ${yahoo.symbol}`,
+      "yahoo"
     );
   }
 
-  if (spot) {
-    return {
-      symbol: "XAUUSD",
-      price: spot,
-      change: 0,
-      changePercent: 0,
-      timestamp: new Date().toISOString(),
-      source: "Spot API",
-    };
-  }
-
-  throw new Error("XAUUSD narxi olinmadi — Yahoo va Spot javob bermadi");
+  throw new Error("XAUUSD narxi olinmadi — internet yoki API tekshiring");
 }
 
 export async function getXAUUSDPrice(): Promise<PriceData> {
-  return getXAUUSDPriceLive(null);
+  return getXAUUSDPriceLive();
 }
 
-/** Grafik shamini spot narxga moslashtirish (futures → spot) */
+/** Ichki signal uchun shamni spot narxga siljitish */
 export function alignCandlesToSpot(
   candles: import("./types").Candle[],
   spotPrice: number

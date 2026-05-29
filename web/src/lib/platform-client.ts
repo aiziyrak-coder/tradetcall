@@ -28,7 +28,6 @@ export function resolvePlatformInsight(snap: MonitorSnapshot | null): PlatformIn
     marketQuality: snap.platform.marketQuality,
     capitalShield,
     newsFreshness: snap.platform.newsFreshness,
-    priceDivergence: snap.platform.priceDivergence,
     signalsToday: day.trades,
     maxSignalsPerDay: shieldPrefs.maxTradesPerDay,
   });

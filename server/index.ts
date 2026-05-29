@@ -5,7 +5,6 @@ import { fileURLToPath } from "url";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { WebSocketServer } from "ws";
-import type { ChartInterval } from "../shared/chart";
 import type { Session } from "../shared/types";
 import {
   getDjangoAdminUrl,
@@ -30,22 +29,18 @@ import {
 } from "./ai-session";
 import {
   buildSnapshot,
-  getChartData,
   getLastSnapshot,
   runForecast,
   runNewsDeepAnalysis,
-  setChartInterval,
   startMonitorService,
   stopMonitorService,
 } from "./monitor-service";
-import { getMt5BridgeStatus, ingestMt5Tick, isMt5BridgeEnabled } from "./mt5-bridge";
 import {
   getJournalSnapshot,
   getWeeklyReportExport,
   markJournalOutcome,
   setJournalNote,
 } from "./signal-journal-store";
-import type { Mt5TickPayload } from "../shared/mt5-types";
 import {
   clearEnvApiKeys,
   setApiKey as setClaudeKey,
@@ -57,8 +52,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const COOKIE = "xauusd_session";
 const isProd = process.env.NODE_ENV === "production";
-const CHART_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
-
 const DEFAULT_SECRETS = new Set([
   "change-me-in-production",
   "change-django-secret-in-production",
@@ -206,26 +199,7 @@ app.use((_req, res, next) => {
 });
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, mt5: isMt5BridgeEnabled() });
-});
-
-/** MT5 EA / Python bridge — session cookie kerak emas, faqat X-MT5-Secret */
-app.post("/api/mt5/tick", (req, res) => {
-  const secret =
-    (req.headers["x-mt5-secret"] as string) ||
-    (req.body as { secret?: string })?.secret ||
-    "";
-  const body = req.body as Mt5TickPayload;
-  const result = ingestMt5Tick(body, secret);
-  if (!result.ok) {
-    res.status(result.error?.includes("secret") ? 401 : 400).json(result);
-    return;
-  }
   res.json({ ok: true });
-});
-
-app.get("/api/mt5/status", requireAuth, (_req, res) => {
-  res.json(getMt5BridgeStatus());
 });
 
 app.get("/api/status", requireAuth, (_req, res) => {
@@ -439,21 +413,6 @@ app.get("/api/monitor/snapshot", async (_req, res) => {
   try {
     const snap = await buildSnapshot();
     res.json(snap);
-  } catch (e) {
-    res.status(500).json({ error: clientErrorMessage(e) });
-  }
-});
-
-app.post("/api/monitor/chart-interval", async (req, res) => {
-  const { interval } = req.body as { interval?: string };
-  if (!interval || !CHART_INTERVALS.includes(interval as ChartInterval)) {
-    res.status(400).json({ error: "interval: 1m, 5m, 15m yoki 1h" });
-    return;
-  }
-  try {
-    setChartInterval(interval as ChartInterval);
-    const chart = await getChartData();
-    res.json(chart);
   } catch (e) {
     res.status(500).json({ error: clientErrorMessage(e) });
   }

@@ -49,8 +49,6 @@ const mustExist = [
   "shared/technical.ts",
   "shared/market-regime.ts",
   "shared/economic-calendar.ts",
-  "shared/mt5-price.ts",
-  "server/mt5-bridge.ts",
   "server/calendar-service.ts",
   "server/price-feed.ts",
   "django_auth/manage.py",
@@ -77,12 +75,6 @@ if (/\.split\("="\)\[1\]/.test(indexTs) && !indexTs.includes("indexOf(\"=\")")) 
   fail("security: ws cookie parse", "JWT may truncate on = in value");
 } else {
   ok("security: ws cookie parse");
-}
-
-if (indexTs.includes("CHART_INTERVALS")) {
-  ok("api: chart interval whitelist");
-} else {
-  fail("api: chart interval whitelist", "missing validation");
 }
 
 const monitorTs = readFileSync(resolve(root, "server/monitor-service.ts"), "utf8");
@@ -141,20 +133,17 @@ if (gateTs.includes("inHighImpactWindow") && gateTs.includes("goldLongAdjust")) 
   fail("gate: calendar + regime", "missing macro filters");
 }
 
-const indexTs2 = indexTs;
-if (indexTs2.includes("/api/mt5/tick") && indexTs2.includes("ingestMt5Tick")) {
-  ok("api: mt5 tick bridge");
+const priceTs = readFileSync(resolve(root, "shared/price.ts"), "utf8");
+if (priceTs.includes("fetchSpotGoldApi") && priceTs.includes("fetchYahooLive")) {
+  ok("price: spot + yahoo feed");
 } else {
-  fail("api: mt5 tick bridge", "missing POST /api/mt5/tick");
+  fail("price: spot + yahoo feed", "missing live price sources");
 }
 
-const priceFeed =
-  readFileSync(resolve(root, "server/price-stream.ts"), "utf8") +
-  readFileSync(resolve(root, "server/price-feed.ts"), "utf8");
-if (priceFeed.includes("getMt5PriceData")) {
-  ok("price: mt5 priority feed");
+if (!existsSync(resolve(root, "server/mt5-bridge.ts"))) {
+  ok("cleanup: no mt5 bridge");
 } else {
-  fail("price: mt5 priority feed", "missing MT5 first price");
+  fail("cleanup: no mt5 bridge", "mt5-bridge still present");
 }
 
 run("tsc server+web", "npx tsc --noEmit -p tsconfig.audit.json");

@@ -16,6 +16,8 @@ interface Props {
   accent: "amber" | "cyan";
   horizon: "long" | "short";
   maxHoldMinutes?: number;
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
   children?: ReactNode;
 }
 
@@ -25,6 +27,8 @@ export function HorizonVerdictPanel({
   accent,
   horizon,
   maxHoldMinutes,
+  tradingAllowed = true,
+  disciplineScore = 100,
   children,
 }: Props) {
   const border = accent === "amber" ? "border-amber-500/40" : "border-cyan-500/40";
@@ -106,6 +110,8 @@ export function HorizonVerdictPanel({
         verdict={verdict}
         signal={signal}
         maxHoldMinutes={maxHoldMinutes}
+        tradingAllowed={tradingAllowed}
+        disciplineScore={disciplineScore}
       />
       <SignalChecklist items={verdict.checklist} />
       {children}

@@ -3,9 +3,11 @@ import { HorizonVerdictPanel } from "./HorizonVerdictPanel";
 
 interface LongProps {
   strategy: LongTermStrategy | null;
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
 }
 
-export function LongStrategyBlock({ strategy }: LongProps) {
+export function LongStrategyBlock({ strategy, tradingAllowed, disciplineScore }: LongProps) {
   if (!strategy?.verdict) {
     return <p className="text-[9px] text-[var(--term-muted)]">Uzoq muddat yuklanmoqda…</p>;
   }
@@ -16,6 +18,8 @@ export function LongStrategyBlock({ strategy }: LongProps) {
       signal={strategy.signal}
       accent="amber"
       horizon="long"
+      tradingAllowed={tradingAllowed}
+      disciplineScore={disciplineScore}
     >
       <div className="flex flex-wrap gap-0.5 font-mono-ui text-[7px]">
         {strategy.keyLevels.map((k) => (
@@ -30,9 +34,11 @@ export function LongStrategyBlock({ strategy }: LongProps) {
 
 interface ShortProps {
   strategy: ShortTermStrategy | null;
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
 }
 
-export function ShortStrategyBlock({ strategy }: ShortProps) {
+export function ShortStrategyBlock({ strategy, tradingAllowed, disciplineScore }: ShortProps) {
   if (!strategy?.verdict) {
     return <p className="text-[9px] text-[var(--term-muted)]">Yaqin muddat yuklanmoqda…</p>;
   }
@@ -44,6 +50,8 @@ export function ShortStrategyBlock({ strategy }: ShortProps) {
       accent="cyan"
       horizon="short"
       maxHoldMinutes={strategy.maxHoldMinutes}
+      tradingAllowed={tradingAllowed}
+      disciplineScore={disciplineScore}
     >
       <div className="flex flex-wrap gap-0.5">
         {strategy.timeframes.map((tf) => (

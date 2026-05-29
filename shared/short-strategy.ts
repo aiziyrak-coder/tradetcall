@@ -15,7 +15,8 @@ import { evaluateMarketRegime } from "./market-regime";
 import { getMarketSession } from "./market-session";
 import { analyzeTechnicals } from "./technical";
 import { getDynamicLevelMultipliers } from "./dynamic-levels";
-import { SHORT_THRESHOLDS } from "./signal-thresholds";
+import { getShortThresholds } from "./signal-thresholds";
+import type { JournalStats } from "./platform-insight";
 import type { PriceImpulse } from "./price-impulse";
 import { computeShortMasterSignal } from "./short-master-signal";
 import { applyTradeGate, ensureTakeProfitRR } from "./trade-gate";
@@ -69,8 +70,10 @@ export function computeShortTermStrategy(
   drivers: MarketQuote[],
   _news: NewsItem[],
   newsAnalysis?: NewsMarketAnalysis | null,
-  impulse?: PriceImpulse | null
+  impulse?: PriceImpulse | null,
+  journalStats?: JournalStats | null
 ): ShortTermStrategy {
+  const shortCfg = getShortThresholds(journalStats);
   const primary = multiCandles["5m"]?.length
     ? multiCandles["5m"]!
     : multiCandles["1m"] ?? [];
@@ -153,7 +156,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.min(sup - atr5 * 0.4 * dyn.slAtr, price - atr5 * 1.05 * dyn.slAtr));
     takeProfit = round2(price + Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", SHORT_THRESHOLDS.minRiskReward);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "long", shortCfg.minRiskReward);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy} · 30 daqiqa`,
@@ -175,7 +178,7 @@ export function computeShortTermStrategy(
     };
     stopLoss = round2(Math.max(res + atr5 * 0.4 * dyn.slAtr, price + atr5 * 1.05 * dyn.slAtr));
     takeProfit = round2(price - Math.max(atr5 * 1.25 * dyn.tpAtr, atr1 * 2 * dyn.tpAtr));
-    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", SHORT_THRESHOLDS.minRiskReward);
+    takeProfit = ensureTakeProfitRR(entryMid, stopLoss, takeProfit, "short", shortCfg.minRiskReward);
     exit = {
       title: "CHIQISH",
       whenUz: `TP yoki ${exitBy}`,
@@ -212,7 +215,7 @@ export function computeShortTermStrategy(
 
   const tfTotal = Math.max(activeTf, SHORT_TFS.length);
   const tfAligned = bias === "long" ? longVotes : bias === "short" ? shortVotes : 0;
-  const minVotes = Math.max(1, Math.ceil(activeTf * SHORT_THRESHOLDS.minTfVoteRatio));
+  const minVotes = Math.max(1, Math.ceil(activeTf * shortCfg.minTfVoteRatio));
   const confluencePct = master.confluencePct;
   const confidence = master.confidence;
 

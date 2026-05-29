@@ -10,6 +10,8 @@ interface Props {
   verdict: HorizonVerdict;
   signal: SignalDetail;
   maxHoldMinutes?: number;
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
 }
 
 export function TradePlanPanel({
@@ -18,6 +20,8 @@ export function TradePlanPanel({
   verdict,
   signal,
   maxHoldMinutes,
+  tradingAllowed = true,
+  disciplineScore = 100,
 }: Props) {
   const [prefs, setPrefs] = useState(loadTradePrefs);
 
@@ -31,8 +35,10 @@ export function TradePlanPanel({
         accountUsd: prefs.accountUsd,
         riskPercent: prefs.riskPercent,
         maxHoldMinutes,
+        tradingAllowed,
+        disciplineScore,
       }),
-    [horizon, horizonLabelUz, verdict, signal, prefs, maxHoldMinutes]
+    [horizon, horizonLabelUz, verdict, signal, prefs, maxHoldMinutes, tradingAllowed, disciplineScore]
   );
 
   const updatePref = (patch: Partial<typeof prefs>) => {

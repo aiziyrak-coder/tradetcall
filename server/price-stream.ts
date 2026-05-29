@@ -1,49 +1,67 @@
 import { getXAUUSDPriceLive } from "../shared/price";
 import type { PriceData } from "../shared/types";
-import { getMt5PriceData } from "./mt5-bridge";
+import {
+  getTradingViewPrice,
+  isTradingViewPriceFresh,
+  onTradingViewTick,
+} from "./tradingview-price";
 
-const FETCH_MS = 1000;
+const FETCH_MS = 900;
 
 let cached: PriceData | null = null;
 let lastFetchAt = 0;
 let sessionOpen = 0;
+let tvUnsub: (() => void) | null = null;
 
-function withSessionChange(mt5: PriceData): PriceData {
-  if (sessionOpen <= 0) sessionOpen = mt5.price;
-  const change = Math.round((mt5.price - sessionOpen) * 1000) / 1000;
+function withSessionChange(pd: PriceData): PriceData {
+  if (pd.feed === "tradingview") return pd;
+  if (sessionOpen <= 0) sessionOpen = pd.price;
+  const change = Math.round((pd.price - sessionOpen) * 1000) / 1000;
   const changePercent =
     sessionOpen !== 0 ? Math.round((change / sessionOpen) * 10000) / 100 : 0;
-  return { ...mt5, change, changePercent };
+  return { ...pd, change, changePercent };
 }
 
-/** Tez tick — MT5 broker narxi birinchi; Yahoo faqat MT5 yo'q bo'lsa */
-export async function pullLiveGoldPrice(prev: PriceData | null): Promise<PriceData> {
-  const mt5 = getMt5PriceData();
-  if (mt5) {
-    cached = withSessionChange(mt5);
+export function initPriceStreamHooks(onTvTick: () => void): void {
+  if (tvUnsub) tvUnsub();
+  tvUnsub = onTradingViewTick(onTvTick);
+}
+
+export function disposePriceStreamHooks(): void {
+  if (tvUnsub) {
+    tvUnsub();
+    tvUnsub = null;
+  }
+}
+
+/** TradingView OANDA:XAUUSD birinchi — grafikdagi narx bilan 1:1 */
+export async function pullLiveGoldPrice(_prev: PriceData | null): Promise<PriceData> {
+  const tv = getTradingViewPrice();
+  if (tv) {
+    cached = withSessionChange(tv);
     return cached;
   }
 
   const now = Date.now();
-  if (cached && cached.feed === "mt5") {
+  if (cached?.feed === "tradingview" && !isTradingViewPriceFresh()) {
     cached = null;
     sessionOpen = 0;
   }
-  if (cached && now - lastFetchAt < FETCH_MS) {
+  if (cached && cached.feed !== "tradingview" && now - lastFetchAt < FETCH_MS) {
     return cached;
   }
 
-  const fresh = await getXAUUSDPriceLive(prev ?? cached);
-  cached = fresh;
+  const fresh = await getXAUUSDPriceLive();
+  cached = withSessionChange(fresh);
   lastFetchAt = now;
   if (sessionOpen <= 0) sessionOpen = fresh.price;
-  return fresh;
+  return cached;
 }
 
 export function peekCachedGoldPrice(): PriceData | null {
-  const mt5 = getMt5PriceData();
-  if (mt5) {
-    cached = withSessionChange(mt5);
+  const tv = getTradingViewPrice();
+  if (tv) {
+    cached = withSessionChange(tv);
     return cached;
   }
   return cached;

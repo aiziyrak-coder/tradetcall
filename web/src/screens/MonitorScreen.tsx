@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MonitorSessionInfo, MonitorSnapshot } from "../../../shared/types";
-import { GoldChart } from "../components/gold/GoldChart";
 import { IntelligenceHub } from "../components/monitor/IntelligenceHub";
 import { PlatformCommandCenter } from "../components/monitor/PlatformCommandCenter";
 import { MonitorTopBar } from "../components/monitor/MonitorTopBar";
@@ -9,10 +8,12 @@ import { CalendarEventsStrip } from "../components/monitor/CalendarEventsStrip";
 import { PriceLevelsVisual } from "../components/monitor/PriceLevelsVisual";
 import { NewsColumn } from "../components/monitor/NewsColumn";
 import { StrategiesStackPanel } from "../components/monitor/StrategiesStackPanel";
+import { LivePriceHero } from "../components/monitor/LivePriceHero";
 import { api, connectMonitor } from "../lib/api";
 import { useSignalNotifications } from "../hooks/useSignalNotifications";
 import { requestNotificationPermission } from "../lib/notifications";
 import { UZ } from "../lib/uz";
+import { resolvePlatformInsight } from "../lib/platform-client";
 
 function formatLiveTime(s: MonitorSnapshot): string {
   const t = s.priceUpdatedAt ?? s.timestamp;
@@ -44,7 +45,6 @@ export function MonitorScreen({
   const [ready, setReady] = useState(false);
   const [lastUpdate, setLastUpdate] = useState("—");
   const [tickFlash, setTickFlash] = useState(0);
-  const [chartInterval, setChartInterval] = useState("5m");
   const [translating, setTranslating] = useState(false);
   const [analyzingNews, setAnalyzingNews] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +83,6 @@ export function MonitorScreen({
         setData(s);
         const sess = s.aiSession ?? s.monitorSession;
         if (sess) setMonitorSession(sess);
-        setChartInterval(s.chart?.interval ?? "5m");
         setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
         setReady(true);
@@ -98,7 +97,6 @@ export function MonitorScreen({
         setData(s);
         const sess = s.aiSession ?? s.monitorSession;
         if (sess) setMonitorSession(sess);
-        setChartInterval(s.chart?.interval ?? "5m");
         setLastUpdate(formatLiveTime(s));
         setOnline(s.online);
         setWsLive(true);
@@ -127,7 +125,7 @@ export function MonitorScreen({
         .then((s) => {
           setData(s);
           const sess = s.aiSession ?? s.monitorSession;
-        if (sess) setMonitorSession(sess);
+          if (sess) setMonitorSession(sess);
           setLastStreamAt(Date.now());
           setLastUpdate(formatLiveTime(s));
           setOnline(s.online);
@@ -170,19 +168,11 @@ export function MonitorScreen({
     }
   };
 
-  const handleIntervalChange = async (iv: "1m" | "5m" | "15m" | "1h") => {
-    setChartInterval(iv);
-    setError(null);
-    try {
-      const chart = await api.monitor.setChartInterval(iv);
-      setData((prev) => (prev ? { ...prev, chart } : prev));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Grafik xatosi");
-    }
-  };
-
   const price = data?.gold?.price ?? 0;
   const news = data?.news ?? { direct: [], macro: [], geopolitics: [] };
+  const platform = useMemo(() => resolvePlatformInsight(data), [data]);
+  const activeSignal = data?.shortStrategy?.signal ?? data?.strategy?.signal ?? null;
+  const liveOk = online && wsLive && !data?.priceStale && !data?.feedError;
 
   if (!ready) {
     return (
@@ -211,8 +201,6 @@ export function MonitorScreen({
         sessionBusy={sessionBusy}
         onStartMonitor={() => void handleStartMonitor()}
         onStopMonitor={() => void handleStopMonitor()}
-        mt5Bridge={data?.mt5Bridge ?? null}
-        goldFeed={data?.gold?.feed}
         isAdmin={isAdmin}
         onOpenAdmin={onOpenAdmin}
         onOpenSettings={onOpenSettings}
@@ -224,7 +212,6 @@ export function MonitorScreen({
         longStrategy={data?.strategy ?? null}
         newsAnalysis={data?.newsAnalysis ?? null}
         calendar={data?.calendar ?? null}
-        mt5Bridge={data?.mt5Bridge ?? null}
       />
       <CalendarEventsStrip calendar={data?.calendar ?? null} />
 
@@ -232,16 +219,6 @@ export function MonitorScreen({
         <div className="shrink-0 bg-violet-950/50 px-2 py-0.5 text-center text-[9px] text-violet-200">
           Narx, signallar, yangiliklar <b>doim ishlaydi</b>. <b>AI START</b> — faqat Claude token (
           {monitorSession?.autoStopMinutes ?? 30} daq, keyin avto-o&apos;chadi).
-        </div>
-      )}
-
-      {data?.gold?.feed !== "mt5" && (
-        <div className="shrink-0 bg-red-950/80 px-2 py-1 text-center text-[9px] text-red-200">
-          <b>MT5 ulanmagan</b> — narx Yahoo dan kechikadi. Windows MT5 da{" "}
-          <code className="text-amber-300">TradeBridgeEA</code> yoki{" "}
-          <code className="text-amber-300">python_bridge.py</code> ishga tushiring; server{" "}
-          <code className="text-amber-300">MT5_BRIDGE_SECRET</code> bir xil bo&apos;lsin.
-          {data?.mt5Bridge?.setupHintUz ? ` ${data.mt5Bridge.setupHintUz}` : ""}
         </div>
       )}
 
@@ -263,38 +240,39 @@ export function MonitorScreen({
       <div
         className="monitor-layout grid min-h-0 flex-1 gap-1.5 p-1.5 max-md:flex max-md:flex-col"
         style={{
-          gridTemplateColumns: "minmax(220px, 26%) minmax(280px, 36%) minmax(260px, 1fr)",
+          gridTemplateColumns: "minmax(220px, 28%) minmax(200px, 1fr) minmax(260px, 32%)",
           gridTemplateRows: "minmax(0, 1fr) minmax(130px, 28%)",
           gridTemplateAreas: `
-            "strategies chart intel"
+            "strategies price intel"
             "news news news"
           `,
         }}
       >
         <div
           style={{ gridArea: "strategies" }}
-          className="monitor-panel-strategies min-h-0 overflow-hidden"
+          className="monitor-panel-strategies grid min-h-0 grid-rows-[1fr_auto] gap-1 overflow-hidden"
         >
           <StrategiesStackPanel
             longStrategy={data?.strategy ?? null}
             shortStrategy={data?.shortStrategy ?? null}
+            tradingAllowed={platform?.capitalShield.allowed ?? true}
+            disciplineScore={platform?.discipline.score ?? 100}
           />
-        </div>
-
-        <div
-          style={{ gridArea: "chart" }}
-          className="monitor-panel-chart grid min-h-0 grid-rows-[1fr_auto] gap-1 overflow-hidden rounded-md border border-[var(--term-border)]"
-        >
-          <GoldChart
-            candles={data?.chart?.candles ?? []}
-            interval={chartInterval}
-            onIntervalChange={handleIntervalChange}
-          />
-          {data?.shortStrategy?.signal && price > 0 && (
-            <div className="shrink-0 px-1 pb-1">
-              <PriceLevelsVisual currentPrice={price} signal={data.shortStrategy.signal} />
+          {activeSignal && price > 0 && (
+            <div className="shrink-0 rounded-md border border-[var(--term-border)] px-1 py-1">
+              <PriceLevelsVisual currentPrice={price} signal={activeSignal} />
             </div>
           )}
+        </div>
+
+        <div style={{ gridArea: "price" }} className="monitor-panel-price min-h-0 overflow-hidden">
+          <LivePriceHero
+            gold={data?.gold ?? null}
+            tickFlash={tickFlash}
+            liveOk={liveOk}
+            priceStale={data?.priceStale}
+            lastUpdate={lastUpdate}
+          />
         </div>
 
         <div

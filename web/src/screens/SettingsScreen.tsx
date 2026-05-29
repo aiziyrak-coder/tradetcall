@@ -274,12 +274,6 @@ export function SettingsScreen({ username, onBack }: Props) {
               </ul>
             </div>
 
-            <div className="rounded-lg border border-cyan-600/30 bg-cyan-950/20 p-3">
-              <p className="font-bold text-cyan-300">MT5 broker narx</p>
-              <p className="mt-1 text-[11px]">
-                <code className="text-amber-200">mt5-bridge/TradeBridgeEA.mq5</code>
-              </p>
-            </div>
           </div>
         </div>
       </div>

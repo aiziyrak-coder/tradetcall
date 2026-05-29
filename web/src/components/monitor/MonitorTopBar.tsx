@@ -2,7 +2,6 @@ import type {
   LongTermStrategy,
   MarketQuote,
   MonitorSessionInfo,
-  Mt5BridgeStatus,
   PriceData,
   ShortTermStrategy,
 } from "../../../../shared/types";
@@ -27,8 +26,6 @@ interface Props {
   sessionBusy?: boolean;
   onStartMonitor?: () => void;
   onStopMonitor?: () => void;
-  mt5Bridge?: Mt5BridgeStatus | null;
-  goldFeed?: string;
   isAdmin?: boolean;
   onOpenAdmin?: () => void;
   onOpenSettings?: () => void;
@@ -36,7 +33,7 @@ interface Props {
 }
 
 export function MonitorTopBar({
-  gold,
+  gold: _gold,
   strategy,
   shortStrategy,
   drivers = [],
@@ -52,22 +49,12 @@ export function MonitorTopBar({
   sessionBusy,
   onStartMonitor,
   onStopMonitor,
-  mt5Bridge,
-  goldFeed,
   isAdmin,
   onOpenAdmin,
   onOpenSettings,
   onLogout,
 }: Props) {
   const session = getMarketSession();
-  const up = (gold?.change ?? 0) >= 0;
-  const changeLabel =
-    gold &&
-    (Math.abs(gold.changePercent) >= 0.01
-      ? `${up ? "+" : ""}${gold.changePercent.toFixed(2)}%`
-      : `${up ? "+" : ""}${gold.change.toFixed(2)}`);
-
-  const mt5Ok = mt5Bridge?.connected && !mt5Bridge?.stale;
   const aiOn = monitorSession?.active ?? false;
   const liveOk = online && streamLive && !priceStale && !feedError;
   const remainMin = monitorSession?.active
@@ -118,7 +105,7 @@ export function MonitorTopBar({
           <span
             className={`h-2 w-2 rounded-full ${liveOk ? "animate-pulse-dot bg-emerald-400" : "bg-amber-500"}`}
           />
-          {liveOk ? (mt5Ok ? "MT5 LIVE" : "STREAM LIVE") : streamLive ? "NARX KECHIKDI" : "UZILDI"}
+          {liveOk ? "JONLI NARX" : streamLive ? "NARX KECHIKDI" : "UZILDI"}
           <span className="font-normal text-[var(--term-muted)]">{lastUpdate}</span>
           {tickFlash > 0 && (
             <span key={tickFlash} className="text-[8px] text-emerald-300/80">
@@ -128,22 +115,6 @@ export function MonitorTopBar({
         </span>
         {translating && <span className="text-[8px] text-cyan-400">{UZ.translating}</span>}
 
-        {gold && (
-          <div className="font-mono-ui flex items-baseline gap-1.5" key={`${gold.timestamp}-${tickFlash}`}>
-            <span className="text-base font-bold text-[var(--term-gold)]">
-              ${gold.feed === "mt5" ? gold.price.toFixed(3) : gold.price.toFixed(2)}
-            </span>
-            <span className={`text-[10px] font-bold ${up ? "text-emerald-400" : "text-red-400"}`}>
-              {up ? "▲" : "▼"} {changeLabel}
-            </span>
-            <span
-              className={`text-[7px] ${goldFeed === "mt5" ? "font-bold text-emerald-400" : "text-[var(--term-muted)]"}`}
-              title={gold.source}
-            >
-              {goldFeed === "mt5" ? "MT5" : gold.source?.split("+")[0]?.trim() ?? "spot"}
-            </span>
-          </div>
-        )}
         <span className="text-[8px] text-[var(--term-muted)]">{session.nameUz}</span>
 
         {shortStrategy?.verdict && (
@@ -159,50 +130,51 @@ export function MonitorTopBar({
             YAQIN {shortStrategy.verdict.action}
           </span>
         )}
+
         {strategy?.verdict && (
           <span
             className={`rounded px-1.5 py-0 text-[8px] font-black ${
               strategy.verdict.action === "BUY"
-                ? "bg-emerald-800 text-white"
+                ? "bg-emerald-900/80 text-white"
                 : strategy.verdict.action === "SELL"
-                  ? "bg-red-800 text-white"
-                  : "bg-amber-800 text-amber-100"
+                  ? "bg-red-900/80 text-white"
+                  : "bg-amber-900/80 text-amber-100"
             }`}
           >
             UZOQ {strategy.verdict.action}
           </span>
         )}
 
-        <div className="flex-1" />
-
-        <span className="text-[9px] text-cyan-400/90">{username}</span>
-        {onOpenSettings && (
+        <div className="ml-auto flex items-center gap-1">
+          <DriversStrip drivers={drivers} />
+          <span className="text-[8px] text-[var(--term-muted)]">{username}</span>
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="rounded border border-[var(--term-border)] px-1.5 py-0 text-[8px] text-slate-300"
+            >
+              ⚙
+            </button>
+          )}
+          {isAdmin && onOpenAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="rounded border border-amber-600/40 px-1.5 py-0 text-[8px] text-amber-300"
+            >
+              Admin
+            </button>
+          )}
           <button
             type="button"
-            onClick={onOpenSettings}
-            className="rounded border border-[var(--term-border)] px-1.5 py-0 text-[8px]"
+            onClick={onLogout}
+            className="rounded border border-red-800/50 px-1.5 py-0 text-[8px] text-red-300"
           >
-            {UZ.settings}
+            {UZ.logout}
           </button>
-        )}
-        {isAdmin && onOpenAdmin && (
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className="rounded border border-violet-500/40 px-1.5 py-0 text-[8px] text-violet-300"
-          >
-            Admin
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onLogout}
-          className="rounded border border-red-500/40 px-1.5 py-0 text-[8px] text-red-400"
-        >
-          {UZ.logout}
-        </button>
+        </div>
       </div>
-      <DriversStrip drivers={drivers} />
     </header>
   );
 }

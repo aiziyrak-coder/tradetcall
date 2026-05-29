@@ -39,8 +39,10 @@ export function PreTradeChecklist({ data, horizon, onClose }: Props) {
       accountUsd: prefs.accountUsd,
       riskPercent: prefs.riskPercent,
       maxHoldMinutes: horizon === "short" ? 30 : undefined,
+      tradingAllowed: platform?.capitalShield.allowed ?? true,
+      disciplineScore: platform?.discipline.score ?? 100,
     });
-  }, [verdict, signal, horizon, prefs]);
+  }, [verdict, signal, horizon, prefs, platform]);
 
   const allChecked = checked.every(Boolean);
   const mqOk = (platform?.marketQuality.score ?? 0) >= 55;

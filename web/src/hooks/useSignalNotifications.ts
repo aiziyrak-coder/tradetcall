@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { MonitorSnapshot } from "../../../shared/types";
 import { buildTradePlan } from "../../../shared/trade-plan";
 import { loadTradePrefs } from "../lib/trade-prefs";
+import { resolvePlatformInsight } from "../lib/platform-client";
 import { playTripleSignalAlert, showSignalNotification } from "../lib/notifications";
 
 const LAST_KEY = "xauusd-last-signal-notify";
@@ -37,6 +38,9 @@ export function useSignalNotifications(data: MonitorSnapshot | null): void {
     if (!data) return;
     const prefs = loadTradePrefs();
     if (!prefs.notifyEnabled) return;
+    const platform = resolvePlatformInsight(data);
+    const tradingAllowed = platform?.capitalShield.allowed ?? true;
+    const disciplineScore = platform?.discipline.score ?? 100;
 
     const shortV = data.shortStrategy?.verdict;
     const longV = data.strategy?.verdict;
@@ -51,16 +55,19 @@ export function useSignalNotifications(data: MonitorSnapshot | null): void {
         accountUsd: prefs.accountUsd,
         riskPercent: prefs.riskPercent,
         maxHoldMinutes: data.shortStrategy.maxHoldMinutes ?? 30,
+        tradingAllowed,
+        disciplineScore,
       });
 
+      const trusted = plan.trusted && (shortV.action === "BUY" || shortV.action === "SELL");
       const action = shortV.action;
       const prev = prevAction(lastRef.current.short);
-      const sig = `${action}:${shortV.strength}`;
+      const sig = `${action}:${trusted}`;
 
-      if (action === "HOLD") {
+      if (!trusted || action === "HOLD") {
         lastRef.current.short = sig;
         saveLast(lastRef.current);
-      } else if ((action === "BUY" || action === "SELL") && prev !== action) {
+      } else if (prev !== action) {
         lastRef.current.short = sig;
         saveLast(lastRef.current);
         void playTripleSignalAlert(action);
@@ -80,6 +87,8 @@ export function useSignalNotifications(data: MonitorSnapshot | null): void {
         signal: data.strategy.signal,
         accountUsd: prefs.accountUsd,
         riskPercent: prefs.riskPercent,
+        tradingAllowed,
+        disciplineScore,
       });
       const trusted = plan.trusted && (longV.action === "BUY" || longV.action === "SELL");
       const action = longV.action;

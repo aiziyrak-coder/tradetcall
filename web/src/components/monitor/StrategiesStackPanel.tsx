@@ -7,6 +7,8 @@ type StrategyTab = "long" | "short";
 interface Props {
   longStrategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
+  tradingAllowed?: boolean;
+  disciplineScore?: number;
 }
 
 const actionChip: Record<string, string> = {
@@ -15,7 +17,12 @@ const actionChip: Record<string, string> = {
   HOLD: "bg-amber-700/90 text-amber-100",
 };
 
-export function StrategiesStackPanel({ longStrategy, shortStrategy }: Props) {
+export function StrategiesStackPanel({
+  longStrategy,
+  shortStrategy,
+  tradingAllowed = true,
+  disciplineScore = 100,
+}: Props) {
   const [tab, setTab] = useState<StrategyTab>("short");
 
   const longAction = longStrategy?.verdict?.action ?? "HOLD";
@@ -59,9 +66,17 @@ export function StrategiesStackPanel({ longStrategy, shortStrategy }: Props) {
       </div>
       <div className="term-scroll min-h-0 flex-1 px-2 py-1.5">
         {tab === "long" ? (
-          <LongStrategyBlock strategy={longStrategy} />
+          <LongStrategyBlock
+            strategy={longStrategy}
+            tradingAllowed={tradingAllowed}
+            disciplineScore={disciplineScore}
+          />
         ) : (
-          <ShortStrategyBlock strategy={shortStrategy} />
+          <ShortStrategyBlock
+            strategy={shortStrategy}
+            tradingAllowed={tradingAllowed}
+            disciplineScore={disciplineScore}
+          />
         )}
       </div>
     </div>

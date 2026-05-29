@@ -10,7 +10,6 @@ import { analyzeMacroCorrelation, type MacroCorrelation } from "./macro-correlat
 import { computeMarketQuality, type MarketQuality } from "./market-quality";
 import { analyzeNewsFreshness, type NewsFreshness } from "./news-freshness";
 import { auditPlatformSnapshot, type PlatformAuditReport } from "./platform-audit";
-import { computePriceDivergence, type PriceDivergence } from "./price-divergence";
 import { buildSignalExplainer, type SignalExplainer } from "./signal-explainer";
 import { evaluateTradingDiscipline, type TradingDiscipline } from "./trading-discipline";
 import type { MonitorSnapshot } from "./types";
@@ -36,7 +35,6 @@ export interface PlatformInsight {
   backtestLong: ReturnType<typeof runQuickBacktest>;
   macroCorrelation: MacroCorrelation;
   newsFreshness: NewsFreshness;
-  priceDivergence: PriceDivergence | null;
   discipline: TradingDiscipline;
   weeklyReport: WeeklyReport;
   playbookUz: string;
@@ -47,13 +45,9 @@ export function buildPlatformInsight(
   snap: MonitorSnapshot,
   journalStats: JournalStats,
   shieldPrefs: CapitalShieldPrefs = DEFAULT_CAPITAL_SHIELD,
-  shieldDayStats?: CapitalShieldDayStats,
-  yahooRefPrice?: number | null
+  shieldDayStats?: CapitalShieldDayStats
 ): PlatformInsight {
-  const mt5Price = snap.gold?.feed === "mt5" ? snap.gold.price : null;
-  const priceDivergence = computePriceDivergence(mt5Price, yahooRefPrice ?? null);
-
-  const marketQuality = computeMarketQuality(snap.gold, snap, priceDivergence);
+  const marketQuality = computeMarketQuality(snap.gold, snap);
   const audit = auditPlatformSnapshot(snap);
   const macroCorrelation = analyzeMacroCorrelation(snap.drivers ?? [], snap.newsAnalysis);
   const newsFreshness = analyzeNewsFreshness(snap.news);
@@ -86,7 +80,6 @@ export function buildPlatformInsight(
     marketQuality,
     capitalShield,
     newsFreshness,
-    priceDivergence,
     signalsToday: stats.trades,
     maxSignalsPerDay: shieldPrefs.maxTradesPerDay,
   });
@@ -125,9 +118,8 @@ export function buildPlatformInsight(
       })
     : null;
 
-  const candles5 = snap.chart?.interval === "5m" ? snap.chart.candles : [];
-  const backtestShort = runQuickBacktest(candles5, "short");
-  const backtestLong = runQuickBacktest(candles5, "long");
+  const backtestShort = runQuickBacktest([], "short");
+  const backtestLong = runQuickBacktest([], "long");
   const weeklyReport = buildWeeklyReport([]);
 
   const shortAct = snap.shortStrategy?.verdict?.action ?? "HOLD";
@@ -141,7 +133,7 @@ export function buildPlatformInsight(
   } else if (discipline.score < 60) {
     playbookUz += discipline.summaryUz + " ";
   } else if (shortAct === "BUY" || shortAct === "SELL") {
-    playbookUz += `YAQIN ${shortAct} — ATR dinamik SL/TP, max 30 daqiqa. `;
+    playbookUz += `YAQIN ${shortAct} — SL/TP aniq, max 30 daqiqa. `;
   } else if (longAct === "BUY" || longAct === "SELL") {
     playbookUz += `UZOQ ${longAct} — swing. `;
   } else {
@@ -161,7 +153,6 @@ export function buildPlatformInsight(
     backtestLong,
     macroCorrelation,
     newsFreshness,
-    priceDivergence,
     discipline,
     weeklyReport,
     playbookUz: playbookUz.trim(),

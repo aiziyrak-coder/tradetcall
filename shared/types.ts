@@ -1,8 +1,6 @@
 import type { SignalDetail } from "./signal-detail";
-import type { Mt5BridgeStatus } from "./mt5-types";
 import type { CalendarStatus } from "./calendar-types";
 
-export type { Mt5BridgeStatus, Mt5TickPayload } from "./mt5-types";
 export type { CalendarStatus, EconomicEvent, CalendarImpact } from "./calendar-types";
 export type { HorizonVerdict, TradeAction } from "./horizon-verdict";
 
@@ -38,7 +36,7 @@ export interface PriceData {
   bid?: number;
   ask?: number;
   spread?: number;
-  feed?: "mt5" | "yahoo" | "spot";
+  feed?: "tradingview" | "yahoo" | "spot";
 }
 
 export interface MarketQuote {
@@ -104,11 +102,6 @@ export interface LongTermStrategy {
   playbookUz: string;
   tacticsUz: string[];
   verdict: import("./horizon-verdict").HorizonVerdict;
-}
-
-export interface ChartData {
-  interval: string;
-  candles: Candle[];
 }
 
 export interface LongTermForecast {
@@ -232,7 +225,6 @@ export interface MonitorSnapshot {
   drivers: MarketQuote[];
   news: GoldNewsBundle;
   newsAnalysis: NewsMarketAnalysis | null;
-  chart: ChartData;
   strategy: LongTermStrategy | null;
   shortStrategy: ShortTermStrategy | null;
   tickSeq?: number;
@@ -240,7 +232,6 @@ export interface MonitorSnapshot {
   signalUpdatedAt?: string;
   translating?: boolean;
   analyzingNews?: boolean;
-  mt5Bridge?: Mt5BridgeStatus;
   calendar?: CalendarStatus;
   platform?: import("./platform-insight").PlatformInsight;
 }

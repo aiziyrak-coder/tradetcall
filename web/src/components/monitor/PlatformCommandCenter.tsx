@@ -76,12 +76,30 @@ export function PlatformCommandCenter({ data }: Props) {
           <div className="mb-1.5 rounded border border-cyan-700/40 bg-cyan-950/25 p-1.5 text-[7px] leading-snug text-slate-300">
             <b>4 Makro:</b> FF taqvim, DXY/oltin, yangiliklar yangiligi.{" "}
             <b>6 Himoya:</b> kunlik foyda/zarar stop, tanaffus, haftalik hisobot.{" "}
-            <b>7 Texnik:</b> MT5/Yahoo farq, ATR dinamik SL/TP.{" "}
+            <b>7 Texnik:</b> Spot narx, ATR dinamik SL/TP.{" "}
             <b>8 Qoidalar:</b> professional discipline ball.
           </div>
         )}
 
         <p className="line-clamp-2 text-[8px] leading-snug text-slate-400">{platform.playbookUz}</p>
+
+        {!shield.allowed && (
+          <div className="mt-1 rounded border border-red-500/50 bg-red-950/40 px-2 py-1 text-[8px] font-bold text-red-200">
+            Bugun savdo YO&apos;Q — kapital himoyasi. Ertaga yoki shartlar yashil bo&apos;lganda kiring.
+          </div>
+        )}
+        {shield.allowed && platform.discipline.score < 62 && (
+          <div className="mt-1 rounded border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-[8px] text-amber-200">
+            Qoidalar {platform.discipline.score}% — faqat kuzatuv, lot ochmang.
+          </div>
+        )}
+        {platform.journalStats.last7WinRatePct > 0 &&
+          platform.journalStats.last7WinRatePct < 42 &&
+          platform.journalStats.wins + platform.journalStats.losses >= 8 && (
+            <div className="mt-1 rounded border border-violet-500/40 bg-violet-950/25 px-2 py-1 text-[8px] text-violet-200">
+              Oxirgi 7 kun WR {platform.journalStats.last7WinRatePct}% — scalp signallar qattiqlashtirildi.
+            </div>
+          )}
 
         <div className="mt-1 grid grid-cols-2 gap-1">
           <div className="rounded border border-[var(--term-border)] bg-[var(--term-panel-2)] p-1.5">

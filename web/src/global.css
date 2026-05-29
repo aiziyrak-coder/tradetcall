@@ -177,6 +177,29 @@ body {
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
+@keyframes price-tick-flash {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.live-price-tick {
+  animation: price-tick-flash 0.35s ease-out;
+}
+
+.live-price-hero {
+  box-shadow: inset 0 0 40px rgba(212, 175, 55, 0.04);
+}
+
 /* Auth / settings — minimal futuristic */
 .fx-grid {
   background-image:
@@ -279,17 +302,16 @@ body {
     width: 100% !important;
   }
 
-  .monitor-panel-strategies {
+  .monitor-panel-price {
     order: 1;
-    min-height: 280px;
-    max-height: none;
+    min-height: 160px;
+    max-height: 220px;
   }
 
-  .monitor-panel-chart {
+  .monitor-panel-strategies {
     order: 2;
-    min-height: 220px;
-    height: 42vh;
-    max-height: 360px;
+    min-height: 280px;
+    max-height: none;
   }
 
   .monitor-panel-intel {

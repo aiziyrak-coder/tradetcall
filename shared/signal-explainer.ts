@@ -37,7 +37,7 @@ function unlockHints(
     if (b.id === "news") hints.push(`Yangiliklar ishonchi ≥${cfg.minNewsConfidence}% yoki TF kuchli mos`);
     if (b.id === "confluence") hints.push(`Moslik ≥${cfg.minConfluence}%`);
     if (b.id === "strength") hints.push(`Signal kuchi ≥${cfg.minStrength}%`);
-    if (b.id === "market") hints.push("Bozor sifati C dan yuqori bo'lsin — MT5, spread");
+    if (b.id === "market") hints.push("Bozor sifati C dan yuqori bo'lsin — narx yangi, spread");
     if (b.id === "calendar") hints.push("Makro oynadan chiqing");
     if (b.id === "stability") hints.push("Barqarorlik qulfi — bir necha soniya kuting");
   }

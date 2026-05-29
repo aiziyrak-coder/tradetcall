@@ -1,3 +1,6 @@
+import type { JournalStats } from "./platform-insight";
+import { STRICT_SHORT_THRESHOLDS, useStrictShortMode } from "./profit-protection";
+
 /** Signal qattiqligi — uzoq yumsharoq, yaqin TF + impuls uchun yumshoq */
 
 export const LONG_THRESHOLDS = {
@@ -23,3 +26,9 @@ export const SHORT_THRESHOLDS = {
   minBiasScore: 0.85,
   minTfVoteRatio: 0.2,
 };
+
+export type ShortThresholdSet = typeof SHORT_THRESHOLDS;
+
+export function getShortThresholds(journal?: JournalStats | null): ShortThresholdSet {
+  return useStrictShortMode(journal) ? STRICT_SHORT_THRESHOLDS : SHORT_THRESHOLDS;
+}

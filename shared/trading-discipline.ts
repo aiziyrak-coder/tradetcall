@@ -1,8 +1,6 @@
 import type { CapitalShieldState } from "./capital-shield";
 import type { MarketQuality } from "./market-quality";
 import type { NewsFreshness } from "./news-freshness";
-import type { PriceDivergence } from "./price-divergence";
-
 export interface DisciplineRule {
   id: string;
   labelUz: string;
@@ -23,7 +21,6 @@ export function evaluateTradingDiscipline(input: {
   marketQuality: MarketQuality;
   capitalShield: CapitalShieldState;
   newsFreshness: NewsFreshness;
-  priceDivergence: PriceDivergence | null;
   signalsToday: number;
   maxSignalsPerDay: number;
 }): TradingDiscipline {
@@ -53,10 +50,10 @@ export function evaluateTradingDiscipline(input: {
       detailUz: input.newsFreshness.freshnessUz.slice(0, 50),
     },
     {
-      id: "price_sync",
-      labelUz: "MT5/Yahoo mos",
-      ok: !input.priceDivergence?.severe,
-      detailUz: input.priceDivergence?.trustUz ?? "Yahoo rejimi",
+      id: "price_fresh",
+      labelUz: "Narx yangi",
+      ok: !input.marketQuality.warningsUz.some((w) => w.includes("eskirgan")),
+      detailUz: input.marketQuality.feedUz,
     },
     {
       id: "no_revenge",

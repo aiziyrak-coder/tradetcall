@@ -38,17 +38,6 @@ export function auditPlatformSnapshot(snap: MonitorSnapshot): PlatformAuditRepor
   });
 
   checks.push({
-    id: "mt5",
-    labelUz: "MT5 ko'prik",
-    ok: !!snap.mt5Bridge?.connected && !snap.mt5Bridge?.stale,
-    detailUz: snap.mt5Bridge?.connected
-      ? snap.mt5Bridge.stale
-        ? "Ulangan, tick eskirgan"
-        : "Ulangan"
-      : "Ulanmagan — Yahoo fallback",
-  });
-
-  checks.push({
     id: "short",
     labelUz: "YAQIN strategiya",
     ok: !!snap.shortStrategy?.verdict,
@@ -80,13 +69,6 @@ export function auditPlatformSnapshot(snap: MonitorSnapshot): PlatformAuditRepor
     labelUz: "Yangiliklar oqimi",
     ok: newsCount >= 3,
     detailUz: `${newsCount} sarlavha`,
-  });
-
-  checks.push({
-    id: "chart",
-    labelUz: "Grafik shamlar",
-    ok: (snap.chart?.candles?.length ?? 0) >= 20,
-    detailUz: `${snap.chart?.candles?.length ?? 0} ta`,
   });
 
   checks.push({
