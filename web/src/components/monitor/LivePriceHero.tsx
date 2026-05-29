@@ -16,10 +16,14 @@ export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate 
       ? `${up ? "+" : ""}${gold.changePercent.toFixed(2)}%`
       : `${up ? "+" : ""}${gold.change.toFixed(2)}`);
 
-  const decimals = gold?.feed === "tradingview" ? 3 : 2;
+  const decimals = 2;
   const feedLabel =
     gold?.feed === "tradingview"
-      ? "TradingView · OANDA XAUUSD"
+      ? gold.source?.includes("FOREXCOM")
+        ? "TradingView · FOREX.com XAUUSD"
+        : gold.source?.includes("OANDA")
+          ? "TradingView · OANDA XAUUSD"
+          : "TradingView XAUUSD"
       : gold?.feed === "spot"
         ? "Spot API"
         : gold?.feed === "yahoo"
@@ -61,9 +65,21 @@ export function LivePriceHero({ gold, tickFlash, liveOk, priceStale, lastUpdate 
           key={`${gold.price}-${tickFlash}`}
           className={`live-price-tick mt-1 text-center font-mono-ui ${up ? "live-price-up" : "live-price-down"}`}
         >
+          {gold.bid != null && gold.ask != null && (
+            <p className="mb-1 font-mono-ui text-[10px] text-[var(--term-muted)]">
+              Sotish <span className="text-red-400">${gold.bid.toFixed(2)}</span>
+              {" · "}
+              Sotib olish <span className="text-emerald-400">${gold.ask.toFixed(2)}</span>
+            </p>
+          )}
           <span className="block text-4xl font-black leading-none text-[var(--term-gold)] sm:text-5xl md:text-6xl">
             ${gold.price.toFixed(decimals)}
           </span>
+          {gold.bid != null && gold.ask != null && (
+            <p className="mt-1 text-[9px] text-[var(--term-muted)]">
+              O&apos;rta narx (chart sell/buy o&apos;rtasi)
+            </p>
+          )}
           <span
             className={`mt-2 inline-flex items-center gap-1 text-lg font-bold sm:text-xl ${
               up ? "text-emerald-400" : "text-red-400"

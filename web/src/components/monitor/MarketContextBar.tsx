@@ -31,14 +31,16 @@ export function MarketContextBar({
     <div className="monitor-context-bar flex shrink-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-[var(--term-border)] bg-[var(--term-panel-2)] px-2 py-1 text-[9px]">
       {gold?.feed === "tradingview" && gold.bid != null && gold.ask != null && (
         <span className="font-mono-ui text-[8px]">
-          BID <span className="text-emerald-400">${gold.bid.toFixed(3)}</span> ASK{" "}
-          <span className="text-red-400">${gold.ask.toFixed(3)}</span>
+          Sotish <span className="text-red-400">${gold.bid.toFixed(2)}</span> · Sotib olish{" "}
+          <span className="text-emerald-400">${gold.ask.toFixed(2)}</span>
         </span>
       )}
       {gold?.source && (
         <span className="font-bold text-cyan-400/90">
           {gold.feed === "tradingview"
-            ? "TradingView XAUUSD"
+            ? gold.source?.includes("FOREXCOM")
+              ? "TradingView · FOREX.com"
+              : "TradingView XAUUSD"
             : gold.feed === "spot"
               ? "Spot API"
               : gold.source.slice(0, 36)}

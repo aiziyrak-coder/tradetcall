@@ -1,7 +1,7 @@
 import type { PriceData } from "../shared/types";
 
-/** TradingView default XAUUSD = OANDA (https://www.tradingview.com/symbols/XAUUSD/) */
-const TV_SYMBOL = (process.env.TRADINGVIEW_SYMBOL || "OANDA:XAUUSD").trim();
+/** Chartingizda FOREX.com bo'lsa — shu symbol (TV sell/buy o'rtasi bilan mos) */
+const TV_SYMBOL = (process.env.TRADINGVIEW_SYMBOL || "FOREXCOM:XAUUSD").trim();
 const STALE_MS = Number(process.env.TRADINGVIEW_STALE_MS || 12_000);
 
 let latest: PriceData | null = null;
@@ -12,23 +12,33 @@ let streamClose: (() => void) | null = null;
 let bootPromise: Promise<void> | null = null;
 const tickListeners = new Set<() => void>();
 
-function round3(n: number): number {
-  return Math.round(n * 1000) / 1000;
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function applyQuote(raw: Record<string, number | null | undefined>): void {
   const lp = raw.lp;
-  if (lp == null || !Number.isFinite(lp) || lp < 100) return;
+  const bidRaw = raw.bid;
+  const askRaw = raw.ask;
+  const hasBid = bidRaw != null && Number.isFinite(bidRaw);
+  const hasAsk = askRaw != null && Number.isFinite(askRaw);
 
-  const bid = raw.bid != null && Number.isFinite(raw.bid) ? round3(raw.bid) : undefined;
-  const ask = raw.ask != null && Number.isFinite(raw.ask) ? round3(raw.ask) : undefined;
-  const price = round3(lp);
-  const ch = raw.ch != null && Number.isFinite(raw.ch) ? round3(raw.ch) : 0;
+  let price: number | null = null;
+  if (hasBid && hasAsk) {
+    price = round2((bidRaw + askRaw) / 2);
+  } else if (lp != null && Number.isFinite(lp) && lp > 100) {
+    price = round2(lp);
+  }
+  if (price == null) return;
+
+  const bid = hasBid ? round2(bidRaw) : undefined;
+  const ask = hasAsk ? round2(askRaw) : undefined;
+  const ch = raw.ch != null && Number.isFinite(raw.ch) ? round2(raw.ch) : 0;
   const chp =
     raw.chp != null && Number.isFinite(raw.chp) ? Math.round(raw.chp * 100) / 100 : 0;
 
   const spread =
-    bid != null && ask != null ? Math.round((ask - bid) * 1000) / 1000 : undefined;
+    bid != null && ask != null ? round2(ask - bid) : undefined;
 
   latest = {
     symbol: "XAUUSD",
@@ -37,11 +47,11 @@ function applyQuote(raw: Record<string, number | null | undefined>): void {
     changePercent: chp,
     high24h:
       raw.high_price != null && Number.isFinite(raw.high_price)
-        ? round3(raw.high_price)
+        ? round2(raw.high_price)
         : latest?.high24h,
     low24h:
       raw.low_price != null && Number.isFinite(raw.low_price)
-        ? round3(raw.low_price)
+        ? round2(raw.low_price)
         : latest?.low24h,
     timestamp: new Date().toISOString(),
     source: `TradingView ${TV_SYMBOL}`,

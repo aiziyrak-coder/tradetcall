@@ -34,7 +34,7 @@ export function disposePriceStreamHooks(): void {
   }
 }
 
-/** TradingView OANDA:XAUUSD birinchi — grafikdagi narx bilan 1:1 */
+/** TradingView (FOREX.com default) — chart sell/buy o'rtasi */
 export async function pullLiveGoldPrice(_prev: PriceData | null): Promise<PriceData> {
   const tv = getTradingViewPrice();
   if (tv) {
