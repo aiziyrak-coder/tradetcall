@@ -1,6 +1,6 @@
 import type { NewsMarketAnalysis, TechnicalAnalysis } from "./types";
 import type { AiTradeSignal } from "./ai-trade-signal";
-import { SWING_MIN_RR } from "./pip-targets";
+import { MIN_TP_USD, SWING_MIN_RR } from "./pip-targets";
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -41,13 +41,18 @@ export function fixSignalLevelsForMinRr(
   let reward = Math.abs(takeProfit - entry);
   let rr = reward / risk;
   let tp = takeProfit;
-  if (rr < minRr) {
+  if (reward < MIN_TP_USD) {
+    reward = MIN_TP_USD;
+    tp = action === "BUY" ? round2(entry + reward) : round2(entry - reward);
+    rr = risk > 0 ? reward / risk : minRr;
+  } else if (rr < minRr) {
     reward = risk * minRr;
+    if (reward < MIN_TP_USD) reward = MIN_TP_USD;
     tp =
       action === "BUY"
         ? round2(entry + reward)
         : round2(entry - reward);
-    rr = minRr;
+    rr = risk > 0 ? reward / risk : minRr;
   }
   return {
     entry: round2(entry),
@@ -79,7 +84,7 @@ QAT'IY:
 - HOLD faqat: yo'nalish 50/50, yoki yangilik+sham qattiq zid, yoki jonli momentum to'liq teskari
 - Setup 45+ va M1+jonli momentum bir tomonda → BUY yoki SELL (confidence 58–75)
 - ADX past (range) — kichik lot bilan yo'nalish bo'yicha signal mumkin
-- takeProfit $0.5–$2.5 (5–25 pip, MAKS 25 pip), SL $0.5–$1 (5–10 pip), R:R min 1:1.1
+- entry = hozirgi narx. takeProfit min $5 uzoqlik. SL $2.5–$4. R:R min 1:1.2
 - RSI<38 SELL taqiq, RSI>62 BUY taqiq
 - confidence: aniq setup 62+, o'rtacha 55–61
 - O'zbek tilida, summaryUz da bir qatorda BUY/SELL va sabab`;

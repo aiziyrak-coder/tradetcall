@@ -6,11 +6,11 @@ import type { Candle, TechnicalAnalysis } from "./types";
 import { analyzeTechnicals } from "./technical";
 import type { PriceImpulse } from "./price-impulse";
 import {
-  pipsToUsd,
-  SWING_MIN_SL_PIPS,
-  SWING_MAX_SL_PIPS,
-  SWING_DEFAULT_TP_PIPS,
-  SWING_MAX_TP_PIPS,
+  DEFAULT_TP_USD,
+  MAX_TP_USD,
+  MIN_SL_USD,
+  MAX_SL_USD,
+  MIN_TP_USD,
   usdToPips,
 } from "./pip-targets";
 
@@ -194,14 +194,8 @@ export function analyzeM1ScalpLead(
 
   const strength = Math.min(98, Math.round(Math.abs(lead) * 1.1 + tech1.adx * 0.5));
 
-  const slDist = Math.min(
-    Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 0.8),
-    pipsToUsd(SWING_MAX_SL_PIPS)
-  );
-  const tpDist = Math.min(
-    Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.15),
-    pipsToUsd(SWING_MAX_TP_PIPS)
-  );
+  const slDist = Math.min(Math.max(MIN_SL_USD, atr * 0.8), MAX_SL_USD);
+  const tpDist = Math.min(Math.max(MIN_TP_USD, DEFAULT_TP_USD, slDist * 1.2), MAX_TP_USD);
 
   let entryHint = price;
   let stopHint = price;
@@ -274,5 +268,5 @@ export function formatM1ScalpForAi(
 - Tavsiya zona: kirish ~$${lead.entryHint}, SL ~$${lead.stopHint}, TP ~$${lead.tpHint}, max ${lead.maxHoldMin} daq
 - 1m: RSI ${tech1.rsi}, ADX ${tech1.adx}, ATR $${tech1.atr}, trend ${tech1.trend}
 - 5m filter: trend ${tech5.trend}, RSI ${tech5.rsi}
-QOIDA: Qisqa skalp — TP maks ${SWING_MAX_TP_PIPS} pip. JONLI sham ustun. RSI<38 SELL taqiq.`;
+QOIDA: TP min $${MIN_TP_USD}. JONLI sham ustun. RSI<38 SELL taqiq.`;
 }

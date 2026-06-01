@@ -8,9 +8,9 @@ import type { M1ScalpLead } from "./m1-scalp";
 import type { LiveMomentum } from "./scalp-signal-guard";
 import type { SetupQuality } from "./setup-quality";
 import {
-  pipsToUsd,
-  SWING_DEFAULT_TP_PIPS,
-  SWING_MIN_SL_PIPS,
+  DEFAULT_TP_USD,
+  MIN_SL_USD,
+  MIN_TP_USD,
 } from "./pip-targets";
 
 function round2(n: number) {
@@ -22,12 +22,12 @@ function buildLevels(
   price: number,
   tech: TechnicalAnalysis
 ): { entry: number; stopLoss: number; takeProfit: number; riskReward: number } {
-  const slUsd = pipsToUsd(SWING_MIN_SL_PIPS);
-  const tpUsd = pipsToUsd(SWING_DEFAULT_TP_PIPS);
+  const slUsd = MIN_SL_USD;
+  const tpUsd = DEFAULT_TP_USD;
   const entry = round2(price);
   if (action === "BUY") {
-    const stopLoss = round2(Math.min(entry - slUsd, tech.support[0] ?? entry - slUsd));
-    const takeProfit = round2(entry + tpUsd);
+    const stopLoss = round2(entry - slUsd);
+    const takeProfit = round2(entry + Math.max(tpUsd, MIN_TP_USD));
     const risk = entry - stopLoss;
     const reward = takeProfit - entry;
     return {
@@ -37,8 +37,8 @@ function buildLevels(
       riskReward: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 1.5,
     };
   }
-  const stopLoss = round2(Math.max(entry + slUsd, tech.resistance[0] ?? entry + slUsd));
-  const takeProfit = round2(entry - tpUsd);
+  const stopLoss = round2(entry + slUsd);
+  const takeProfit = round2(entry - Math.max(tpUsd, MIN_TP_USD));
   const risk = stopLoss - entry;
   const reward = entry - takeProfit;
   return {
@@ -114,7 +114,7 @@ export function deriveClearSignal(input: {
       summaryUz: `BUY — aniq yo'nalish (ball ${buy}): ${buyWhy.slice(0, 3).join("; ")}`,
       triggerUz: `Hozir yoki ${levels.entry} atrofida — SL ${levels.stopLoss}`,
       invalidationUz: `${levels.stopLoss} past — long bekor`,
-      analysisUz: `Qoida asosidagi signal: M1/jonli momentum va setup LONG ustun. ADX past bo'lsa ham yo'nalish aniq. Maqsad ~${SWING_DEFAULT_TP_PIPS} pip.`,
+      analysisUz: `Qoida signali LONG. Kirish hozirgi narx. Maqsad +$${MIN_TP_USD}.`,
       createdAt: new Date().toISOString(),
     };
   }
@@ -130,7 +130,7 @@ export function deriveClearSignal(input: {
       summaryUz: `SELL — aniq yo'nalish (ball ${sell}): ${sellWhy.slice(0, 3).join("; ")}`,
       triggerUz: `Hozir yoki ${levels.entry} atrofida — SL ${levels.stopLoss}`,
       invalidationUz: `${levels.stopLoss} yuqori — short bekor`,
-      analysisUz: `Qoida asosidagi signal: M1/jonli momentum va setup SHORT ustun. Maqsad ~${SWING_DEFAULT_TP_PIPS} pip.`,
+      analysisUz: `Qoida signali SHORT. Kirish hozirgi narx. Maqsad -$${MIN_TP_USD}.`,
       createdAt: new Date().toISOString(),
     };
   }

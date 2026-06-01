@@ -2,7 +2,7 @@ import type { AiTradeSignal } from "./ai-trade-signal";
 import type { SetupQuality } from "./setup-quality";
 import type { M1ScalpLead } from "./m1-scalp";
 import type { LiveMomentum } from "./scalp-signal-guard";
-import { SWING_DEFAULT_TP_PIPS } from "./pip-targets";
+import { MIN_TP_USD } from "./pip-targets";
 
 /** Claude siz — mahalliy tahlil matni (token 0) */
 export function enrichRuleSignal(
@@ -20,7 +20,7 @@ export function enrichRuleSignal(
     `Setup ${input.setupQ.score}/100, long ${input.setupQ.longScore} / short ${input.setupQ.shortScore}.`,
     m1 ? `M1 ${m1.direction} ${m1.strength}% · ${m1.structureUz}` : "",
     input.live.summaryUz,
-    `Maqsad ~${SWING_DEFAULT_TP_PIPS} pip, SL/TP panelda.`,
+    `Maqsad +$${MIN_TP_USD} (narx farqi), kirish hozirgi narx.`,
   ].filter(Boolean);
 
   return {

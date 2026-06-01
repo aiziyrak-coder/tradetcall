@@ -1,6 +1,6 @@
 /**
- * XAUUSD skalp pip — 1 pip = $0.10
- * Qisqa skalp: min 5 pip, maks 25 pip
+ * XAUUSD — narx farqi $ (1 pip = $0.10)
+ * Savdo uchun kamida $5 TP masofasi (spread/slippage uchun)
  */
 
 import type { AiTradeSignal } from "./ai-trade-signal";
@@ -8,13 +8,19 @@ import type { TechnicalAnalysis } from "./types";
 
 export const GOLD_PIP_USD = 0.1;
 
-/** @deprecated nomi — skalp konstantalari */
-export const SWING_MIN_TP_PIPS = 5;
-export const SWING_MAX_TP_PIPS = 25;
-export const SWING_DEFAULT_TP_PIPS = 10;
-export const SWING_MIN_SL_PIPS = 5;
-export const SWING_MAX_SL_PIPS = 10;
-export const SWING_MIN_RR = 1.1;
+/** Minimal TP masofasi — oltin narxi bo'yicha $ */
+export const MIN_TP_USD = 5.0;
+export const DEFAULT_TP_USD = 5.0;
+export const MAX_TP_USD = 8.0;
+export const MIN_SL_USD = 2.5;
+export const MAX_SL_USD = 4.0;
+
+export const SWING_MIN_TP_PIPS = MIN_TP_USD / GOLD_PIP_USD;
+export const SWING_DEFAULT_TP_PIPS = DEFAULT_TP_USD / GOLD_PIP_USD;
+export const SWING_MAX_TP_PIPS = MAX_TP_USD / GOLD_PIP_USD;
+export const SWING_MIN_SL_PIPS = MIN_SL_USD / GOLD_PIP_USD;
+export const SWING_MAX_SL_PIPS = MAX_SL_USD / GOLD_PIP_USD;
+export const SWING_MIN_RR = 1.2;
 
 export function pipsToUsd(pips: number): number {
   return Math.round(pips * GOLD_PIP_USD * 100) / 100;
@@ -52,7 +58,7 @@ export interface SwingEnforceResult {
   targetPips?: number;
 }
 
-/** AI signal — qisqa skalp 5–25 pip (maks 25) */
+/** AI signal — kirish hozirgi narx, TP min $5 */
 export function enforceSwingTargets(
   signal: AiTradeSignal,
   price: number,
@@ -60,24 +66,23 @@ export function enforceSwingTargets(
 ): SwingEnforceResult {
   if (signal.action === "HOLD") return { signal, adjusted: false, rejected: false };
 
-  const minReward = pipsToUsd(SWING_MIN_TP_PIPS);
-  const maxReward = pipsToUsd(SWING_MAX_TP_PIPS);
-  const defaultReward = pipsToUsd(SWING_DEFAULT_TP_PIPS);
-  const minSl = pipsToUsd(SWING_MIN_SL_PIPS);
-  const maxSl = pipsToUsd(SWING_MAX_SL_PIPS);
+  const minReward = MIN_TP_USD;
+  const maxReward = MAX_TP_USD;
+  const defaultReward = DEFAULT_TP_USD;
+  const minSl = MIN_SL_USD;
+  const maxSl = MAX_SL_USD;
 
   const room = roomToMoveUsd(price, tech, signal.action);
-  const minRoom = pipsToUsd(SWING_MIN_TP_PIPS);
-  if (room < minRoom) {
+  if (room < minReward * 0.98) {
     return {
       signal: holdSignal(signal, price, `Bo'sh joy yetarli emas — maqsadga ~${usdToPips(room)} pip`),
       adjusted: true,
       rejected: true,
-      reasonUz: `Kamida ${SWING_MIN_TP_PIPS} pip uchun joy yo'q`,
+      reasonUz: `Kamida $${MIN_TP_USD} uchun joy yo'q`,
     };
   }
 
-  let entry = signal.entry;
+  let entry = round2(price);
   let sl = signal.stopLoss;
   let tp = signal.takeProfit;
 
@@ -85,10 +90,7 @@ export function enforceSwingTargets(
   let risk = Math.abs(entry - sl);
 
   if (reward < minReward) {
-    const targetReward = Math.min(
-      maxReward,
-      Math.max(minReward, defaultReward, room * 0.95, minRoom)
-    );
+    const targetReward = Math.min(maxReward, Math.max(minReward, defaultReward, room * 0.98));
     tp =
       signal.action === "BUY"
         ? round2(entry + targetReward)
@@ -130,20 +132,21 @@ export function enforceSwingTargets(
   }
 
   reward = Math.abs(tp - entry);
-  if (reward < minRoom * 0.95) {
+  if (reward < minReward * 0.98) {
     return {
       signal: holdSignal(
         signal,
         price,
-        `TP juda kichik — hozir ~${usdToPips(reward)} pip`
+        `TP juda kichik ($${reward.toFixed(2)}) — min $${MIN_TP_USD}`
       ),
       adjusted: true,
       rejected: true,
-      reasonUz: `${SWING_MIN_TP_PIPS} pip dan kichik maqsad`,
+      reasonUz: `$${MIN_TP_USD} dan kichik maqsad`,
     };
   }
 
   const targetPips = usdToPips(reward);
+  const rewardUsd = reward.toFixed(2);
   const adjusted =
     Math.abs(tp - signal.takeProfit) > 0.05 ||
     Math.abs(sl - signal.stopLoss) > 0.05;
@@ -156,10 +159,8 @@ export function enforceSwingTargets(
       takeProfit: round2(tp),
       riskReward: Math.round(rr * 100) / 100,
       currentPrice: round2(price),
-      summaryUz: `${signal.action} · maqsad ~${targetPips} pip ($${reward.toFixed(2)}) · SL ~${usdToPips(risk)} pip`,
-      triggerUz: signal.triggerUz.includes("pip")
-        ? signal.triggerUz
-        : `${signal.triggerUz} · TP ${targetPips} pip`,
+      summaryUz: `${signal.action} · kirish $${entry} · TP +$${rewardUsd} · SL -$${risk.toFixed(2)}`,
+      triggerUz: `Hozir $${entry} — maqsad $${tp} (+$${rewardUsd})`,
     },
     adjusted,
     rejected: false,
@@ -174,7 +175,7 @@ function holdSignal(base: AiTradeSignal, price: number, reason: string): AiTrade
     confidence: Math.min(base.confidence, 45),
     currentPrice: round2(price),
     summaryUz: `HOLD — ${reason}`,
-    triggerUz: `Maqsad (${SWING_MIN_TP_PIPS}+ pip) hali aniq emas — kuting`,
+    triggerUz: `Maqsad kamida $${MIN_TP_USD} kerak — kuting`,
     analysisUz: `${base.analysisUz}\n\n[Maqsad] ${reason}`,
   };
 }
@@ -182,9 +183,9 @@ function holdSignal(base: AiTradeSignal, price: number, reason: string): AiTrade
 export function formatSwingTargetsForAi(price: number, tech: TechnicalAnalysis): string {
   const minUsd = pipsToUsd(SWING_MIN_TP_PIPS);
   const maxUsd = pipsToUsd(SWING_MAX_TP_PIPS);
-  return `MAQSAD (QISQA SKALP — maks ${SWING_MAX_TP_PIPS} pip):
-- Take profit: ${SWING_MIN_TP_PIPS}–${SWING_MAX_TP_PIPS} pip ($${minUsd}–$${maxUsd}), ideal ~${SWING_DEFAULT_TP_PIPS} pip
-- Stop loss: ${SWING_MIN_SL_PIPS}–${SWING_MAX_SL_PIPS} pip — qisqa
-- R:R min 1:${SWING_MIN_RR}
-- ${SWING_MAX_TP_PIPS} pipdan katta maqsad bermang — tez chiqish`;
+  return `MAQSAD:
+- Kirish = HOZIRGI narx
+- TP min $${MIN_TP_USD} (odatda $${DEFAULT_TP_USD}), max $${MAX_TP_USD}
+- SL $${MIN_SL_USD}–$${MAX_SL_USD}
+- $1 dan kichik TP bermang`;
 }

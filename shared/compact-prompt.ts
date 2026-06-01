@@ -2,9 +2,9 @@ import type { NewsMarketAnalysis } from "./types";
 import type { TechnicalAnalysis } from "./types";
 import type { M1ScalpLead } from "./m1-scalp";
 import type { LiveMomentum } from "./scalp-signal-guard";
-import { SWING_MAX_TP_PIPS, SWING_MIN_TP_PIPS } from "./pip-targets";
+import { MAX_TP_USD, MIN_TP_USD } from "./pip-targets";
 
-export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD qisqa skalp treyderi. FAQAT bitta JSON. TP ${SWING_MIN_TP_PIPS}-${SWING_MAX_TP_PIPS} pip. analysisUz max 2 qisqa jumla. summaryUz 1 jumla.`;
+export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD skalp. FAQAT JSON. entry=hozirgi narx. TP min $${MIN_TP_USD} uzoqlik (max $${MAX_TP_USD}).`;
 
 export function buildCompactAiTradeSignalPrompt(input: {
   price: number;
