@@ -2,9 +2,11 @@ import type { NewsMarketAnalysis } from "./types";
 import type { TechnicalAnalysis } from "./types";
 import type { M1ScalpLead } from "./m1-scalp";
 import type { LiveMomentum } from "./scalp-signal-guard";
-import { MAX_TP_USD, MIN_TP_USD } from "./pip-targets";
+import { MIN_TP_USD } from "./pip-targets";
 
-export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD skalp. FAQAT JSON. entry=hozirgi narx. TP min $${MIN_TP_USD} uzoqlik (max $${MAX_TP_USD}).`;
+export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD bashoratchi. FAQAT JSON.
+entry=hozirgi narx. TP/SL — qarshilik va qo'llab-quvvatlashdan; min $${MIN_TP_USD} masofa, lekin har doim $5 emas.
+HOLD bo'lsa diapazon va breakout ssenariylari analysisUz da.`;
 
 export function buildCompactAiTradeSignalPrompt(input: {
   price: number;
@@ -18,11 +20,23 @@ export function buildCompactAiTradeSignalPrompt(input: {
   live: LiveMomentum;
   news: NewsMarketAnalysis | null;
   suggestedAction?: "BUY" | "SELL" | null;
+  forecastHigh?: number;
+  forecastLow?: number;
+  suggestedTp?: number;
+  suggestedSl?: number;
 }): string {
   const e1 = input.tech.enhanced;
   const m1 = input.m1Scalp;
   const na = input.news;
   const hint = input.suggestedAction ? `Tavsiya: ${input.suggestedAction}` : "";
+  const band =
+    input.forecastHigh != null && input.forecastLow != null
+      ? `Diapazon $${input.forecastLow}–$${input.forecastHigh}`
+      : "";
+  const levels =
+    input.suggestedTp != null
+      ? `TP $${input.suggestedTp} SL $${input.suggestedSl}`
+      : "";
 
   return [
     `$${input.price} (${input.changePercent}%)`,
@@ -32,6 +46,8 @@ export function buildCompactAiTradeSignalPrompt(input: {
     m1 ? `M1 ${m1.direction} ${m1.strength}% ${m1.phase}` : "",
     `Jonli ${input.live.direction} ${input.live.changeUsd}$`,
     na ? `News ${na.overallBias} ${na.biasStrength}%` : "",
+    band,
+    levels,
     hint,
     `JSON: action,entry,stopLoss,takeProfit,confidence,riskReward,analysisUz,triggerUz,invalidationUz,summaryUz`,
   ]

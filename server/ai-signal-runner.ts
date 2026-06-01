@@ -10,8 +10,11 @@ import { setApiKey as setClaudeKey } from "../shared/anthropic";
 import { getLiveMomentum, guardScalpAiSignal } from "../shared/scalp-signal-guard";
 import { enforceSwingTargets } from "../shared/pip-targets";
 import { computeSetupQuality } from "../shared/setup-quality";
-import { deriveClearSignal, minConfidenceForSetup } from "../shared/clear-signal";
-import { enrichRuleSignal } from "../shared/rule-signal-enrich";
+import { minConfidenceForSetup } from "../shared/clear-signal";
+import {
+  computeMarketForecast,
+  tradeLevelsToAiSignal,
+} from "../shared/forecast-levels";
 import { shouldBlockAiForecast } from "../shared/profit-protection";
 import type { AiTradeSignal } from "../shared/ai-trade-signal";
 import type { Candle } from "../shared/types";
@@ -92,30 +95,26 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     setupHint = `${setupHint ?? ""} · Yangiliklar zid`.trim();
   }
 
-  const ruleCandidate = deriveClearSignal({
+  const forecastInput = {
     price: ctx.gold.price,
-    tech,
+    tech1: tech,
     tech5,
     setupQ,
     m1Scalp: ctx.m1Scalp,
     live,
-  });
+    news: ctx.newsAnalysis,
+  };
+
+  const forecast = computeMarketForecast(forecastInput);
+  let signal = tradeLevelsToAiSignal(forecast, ctx.gold.price);
 
   try {
-    let signal: AiTradeSignal;
+    const skipClaude =
+      forecast.action === "HOLD" ||
+      (forecast.action !== "HOLD" &&
+        forecast.confidence >= AI_SKIP_CLAUDE_MIN_CONFIDENCE);
 
-    if (
-      ruleCandidate &&
-      ruleCandidate.action !== "HOLD" &&
-      ruleCandidate.confidence >= AI_SKIP_CLAUDE_MIN_CONFIDENCE
-    ) {
-      signal = enrichRuleSignal(ruleCandidate, {
-        setupQ,
-        m1Scalp: ctx.m1Scalp,
-        live,
-      });
-      console.log("[ai-signal] rule-only (0 Claude token):", signal.action);
-    } else {
+    if (!skipClaude) {
       const prompt = buildCompactAiTradeSignalPrompt({
         price: ctx.gold.price,
         changePercent: ctx.gold.changePercent,
@@ -128,137 +127,159 @@ export async function runOneShotAiAnalysis(): Promise<void> {
         live,
         news: ctx.newsAnalysis,
         suggestedAction:
-          ruleCandidate?.action === "BUY" || ruleCandidate?.action === "SELL"
-            ? ruleCandidate.action
+          forecast.action === "BUY" || forecast.action === "SELL"
+            ? forecast.action
             : null,
+        forecastHigh: forecast.forecastHigh,
+        forecastLow: forecast.forecastLow,
+        suggestedTp: forecast.takeProfit,
+        suggestedSl: forecast.stopLoss,
       });
       const raw = await askClaude(
         SYSTEM_AI_TRADE_SIGNAL_COMPACT,
         prompt,
         AI_MAX_OUTPUT_TOKENS
       );
-      signal = parseAiTradeSignalJson(raw, ctx.gold.price);
+      const parsed = parseAiTradeSignalJson(raw, ctx.gold.price);
+      signal = mergeAiWithForecast(parsed, forecast, ctx.gold.price);
+      console.log("[ai-signal] Claude + forecast merge:", signal.action);
+    } else {
+      console.log(
+        "[ai-signal]",
+        forecast.action === "HOLD" ? "hold-forecast (0 token)" : "rule-forecast (0 token):",
+        signal.action
+      );
     }
 
-    signal = applySignalPipeline(signal, {
+    signal = applySignalPipeline(signal, forecastInput, {
       c1,
       price: ctx.gold.price,
       changePercent: ctx.gold.changePercent,
-      tech,
-      tech5,
-      setupQ,
-      m1Scalp: ctx.m1Scalp,
-      live,
       impulse: ctx.impulse,
     });
 
     const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
-    if (extra && signal.action !== "HOLD") {
-      signal = { ...signal, summaryUz: `${signal.summaryUz} · ${extra}` };
+    if (extra) {
+      signal = {
+        ...signal,
+        analysisUz: `${signal.analysisUz} ${extra}`.trim(),
+      };
     }
 
     completeAiSession(signal);
     recordIfTrade(signal, ctx.gold.price);
   } catch (e) {
-    console.warn("[ai-signal] error:", e);
-    const rule = deriveClearSignal({
+    console.warn("[ai-signal] error, forecast fallback:", e);
+    let signal = tradeLevelsToAiSignal(forecast, ctx.gold.price);
+    signal = applySignalPipeline(signal, forecastInput, {
+      c1,
       price: ctx.gold.price,
-      tech,
-      tech5,
-      setupQ,
-      m1Scalp: ctx.m1Scalp,
-      live,
+      changePercent: ctx.gold.changePercent,
+      impulse: ctx.impulse,
     });
-    if (rule) {
-      let signal = enrichRuleSignal(rule, { setupQ, m1Scalp: ctx.m1Scalp, live });
-      signal = applySignalPipeline(signal, {
-        c1,
-        price: ctx.gold.price,
-        changePercent: ctx.gold.changePercent,
-        tech,
-        tech5,
-        setupQ,
-        m1Scalp: ctx.m1Scalp,
-        live,
-        impulse: ctx.impulse,
-      });
-      const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
-      if (extra && signal.action !== "HOLD") {
-        signal = { ...signal, summaryUz: `${signal.summaryUz} · ${extra}` };
-      }
-      completeAiSession(signal);
-      recordIfTrade(signal, ctx.gold.price);
-    } else {
-      failAiSession(e instanceof Error ? e.message : "AI tahlil xatosi");
+    const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
+    if (extra) {
+      signal = { ...signal, analysisUz: `${signal.analysisUz} ${extra}`.trim() };
     }
+    completeAiSession(signal);
+    recordIfTrade(signal, ctx.gold.price);
   }
 
   broadcastUpdate();
 }
 
+/** Claude JSON ni bozor bashorati darajalari bilan birlashtiradi */
+function mergeAiWithForecast(
+  ai: AiTradeSignal,
+  forecast: ReturnType<typeof computeMarketForecast>,
+  price: number
+): AiTradeSignal {
+  const base = tradeLevelsToAiSignal(forecast, price);
+
+  if (ai.action === "HOLD" || forecast.action === "HOLD") {
+    return {
+      ...base,
+      analysisUz: ai.analysisUz?.length > 40 ? ai.analysisUz : base.analysisUz,
+      summaryUz: base.summaryUz,
+    };
+  }
+
+  if (ai.action !== forecast.action) {
+    return base;
+  }
+
+  const rewardAi = Math.abs(ai.takeProfit - ai.entry);
+  const rewardFc = forecast.targetUsd;
+  const useForecastLevels = rewardAi < 4 || Math.abs(rewardAi - 5) < 0.35;
+
+  return {
+    ...base,
+    confidence: Math.round((ai.confidence + forecast.confidence) / 2),
+    entry: useForecastLevels ? forecast.entry : ai.entry,
+    stopLoss: useForecastLevels ? forecast.stopLoss : ai.stopLoss,
+    takeProfit: useForecastLevels ? forecast.takeProfit : ai.takeProfit,
+    riskReward: useForecastLevels ? forecast.riskReward : ai.riskReward,
+    targetMoveUsd: useForecastLevels ? forecast.targetUsd : rewardAi,
+    triggerUz: ai.triggerUz?.length > 20 ? ai.triggerUz : base.triggerUz,
+    invalidationUz: ai.invalidationUz?.length > 15 ? ai.invalidationUz : base.invalidationUz,
+    analysisUz: [base.analysisUz, ai.analysisUz].filter(Boolean).join(" ").slice(0, 900),
+    summaryUz: base.summaryUz,
+  };
+}
+
 function applySignalPipeline(
   signal: AiTradeSignal,
+  forecastInput: Parameters<typeof computeMarketForecast>[0],
   ctx: {
     c1: Candle[];
     price: number;
     changePercent: number;
-    tech: ReturnType<typeof analyzeTechnicalsFull>;
-    tech5: ReturnType<typeof analyzeTechnicalsFull>;
-    setupQ: ReturnType<typeof computeSetupQuality>;
-    m1Scalp: ReturnType<typeof getMonitorContextForAi>["m1Scalp"];
-    live: ReturnType<typeof getLiveMomentum>;
     impulse: ReturnType<typeof getMonitorContextForAi>["impulse"];
   }
 ): AiTradeSignal {
   let s = signal;
-  const minConf = minConfidenceForSetup(ctx.setupQ.score);
+  const setupQ = forecastInput.setupQ;
+  const minConf = minConfidenceForSetup(setupQ.score);
+
   if (s.action !== "HOLD" && s.confidence < minConf) {
+    const hold = computeMarketForecast(forecastInput);
+    s = tradeLevelsToAiSignal(hold, ctx.price);
     s = {
       ...s,
-      action: "HOLD",
-      summaryUz: `HOLD — ishonch ${s.confidence}% (min ${minConf})`,
-      triggerUz: "Aniqroq setup kuting",
+      summaryUz: `HOLD — ishonch ${signal.confidence}% (min ${minConf}%). ${hold.summaryUz}`,
+      analysisUz: `${hold.analysisUz} Avvalgi yo'nalish: ${signal.action}, lekin ishonch yetarli emas.`,
     };
-  }
-
-  if (s.action === "HOLD") {
-    const rule = deriveClearSignal({
-      price: ctx.price,
-      tech: ctx.tech,
-      tech5: ctx.tech5,
-      setupQ: ctx.setupQ,
-      m1Scalp: ctx.m1Scalp,
-      live: ctx.live,
-    });
-    if (rule) s = rule;
   }
 
   const guarded = guardScalpAiSignal(s, {
     candles1m: ctx.c1,
     price: ctx.price,
     changePercent: ctx.changePercent,
-    tech1: ctx.tech,
-    m1Scalp: ctx.m1Scalp,
+    tech1: forecastInput.tech1,
+    m1Scalp: forecastInput.m1Scalp,
     impulse: ctx.impulse,
   });
   s = guarded.signal;
 
-  const swing = enforceSwingTargets(s, ctx.price, ctx.tech5);
-  s = swing.signal;
-  if ((swing.rejected || s.action === "HOLD") && s.action === "HOLD") {
-    const rule = deriveClearSignal({
-      price: ctx.price,
-      tech: ctx.tech,
-      tech5: ctx.tech5,
-      setupQ: ctx.setupQ,
-      m1Scalp: ctx.m1Scalp,
-      live: ctx.live,
-    });
-    if (rule) {
-      const swing2 = enforceSwingTargets(rule, ctx.price, ctx.tech5);
-      s = swing2.rejected ? rule : swing2.signal;
-    }
+  if (s.action === "HOLD") {
+    const hold = computeMarketForecast(forecastInput);
+    s = {
+      ...tradeLevelsToAiSignal(hold, ctx.price),
+      analysisUz: guarded.reasonUz
+        ? `${hold.analysisUz} ${guarded.reasonUz}`
+        : hold.analysisUz,
+    };
+    return s;
   }
+
+  const swing = enforceSwingTargets(s, ctx.price, forecastInput.tech5);
+  s = swing.signal;
+
+  if (swing.rejected && s.action === "HOLD") {
+    const hold = computeMarketForecast(forecastInput);
+    return tradeLevelsToAiSignal(hold, ctx.price);
+  }
+
   return s;
 }
 

@@ -17,6 +17,11 @@ export interface AiTradeSignal {
   invalidationUz: string;
   summaryUz: string;
   createdAt: string;
+  /** Bashorat diapazoni */
+  forecastHigh?: number;
+  forecastLow?: number;
+  forecastBiasUz?: string;
+  targetMoveUsd?: number;
 }
 
 export function isAiTradeAction(v: string): v is AiTradeAction {
