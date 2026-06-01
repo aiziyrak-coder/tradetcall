@@ -175,12 +175,7 @@ export function computeSetupQuality(input: {
 }
 
 export function formatSetupQualityForAi(q: SetupQuality): string {
-  return `SETUP SIFATI: ${q.score}/100 — ${q.gradeUz}
-${q.tradeAllowed ? "SAVDO RUXSAT" : "SAVDO TAQLANGAN — faqat HOLD"}
-Long ball: ${q.longScore} | Short ball: ${q.shortScore}
-Sabablari: ${q.reasonsUz.join("; ") || "—"}
-Ogohlantirish: ${q.warningsUz.join("; ") || "yo'q"}
-QOIDA: Score >= ${MIN_TRADE_SCORE} va long/short aniq bo'lsa BUY/SELL bering (confidence mos). Faqat makro zid yoki kapital limit → HOLD.`;
+  return `Setup ${q.score}/100 L${q.longScore}/S${q.shortScore}${q.tradeAllowed ? " OK" : " ehtiyot"}`;
 }
 
 export function minScoreForTrade(strict = false): number {

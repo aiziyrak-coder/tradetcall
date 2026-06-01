@@ -1,24 +1,20 @@
-import { analyzeTechnicalsFull, formatEnhancedForAi } from "../shared/enhanced-technical";
+import { analyzeTechnicalsFull } from "../shared/enhanced-technical";
+import { AI_MAX_OUTPUT_TOKENS, AI_SKIP_CLAUDE_MIN_CONFIDENCE } from "../shared/ai-config";
 import {
-  buildAiTradeSignalPrompt,
-  parseAiTradeSignalJson,
-  SYSTEM_AI_TRADE_SIGNAL,
-} from "../shared/prompts";
+  buildCompactAiTradeSignalPrompt,
+  SYSTEM_AI_TRADE_SIGNAL_COMPACT,
+} from "../shared/compact-prompt";
+import { parseAiTradeSignalJson } from "../shared/prompts";
 import { askClaude } from "../shared/anthropic";
 import { setApiKey as setClaudeKey } from "../shared/anthropic";
-import { formatM1ScalpForAi } from "../shared/m1-scalp";
-import {
-  formatLiveMomentumForAi,
-  getLiveMomentum,
-  guardScalpAiSignal,
-} from "../shared/scalp-signal-guard";
-import { enforceSwingTargets, formatSwingTargetsForAi } from "../shared/pip-targets";
-import {
-  computeSetupQuality,
-  formatSetupQualityForAi,
-} from "../shared/setup-quality";
+import { getLiveMomentum, guardScalpAiSignal } from "../shared/scalp-signal-guard";
+import { enforceSwingTargets } from "../shared/pip-targets";
+import { computeSetupQuality } from "../shared/setup-quality";
 import { deriveClearSignal, minConfidenceForSetup } from "../shared/clear-signal";
+import { enrichRuleSignal } from "../shared/rule-signal-enrich";
 import { shouldBlockAiForecast } from "../shared/profit-protection";
+import type { AiTradeSignal } from "../shared/ai-trade-signal";
+import type { Candle } from "../shared/types";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
 import {
@@ -71,10 +67,9 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       close: ctx.gold.price,
     },
   ];
-  const c1 = candles1m.length ? candles1m : fallback;
+  const c1: Candle[] = candles1m.length ? candles1m : fallback;
   const tech = analyzeTechnicalsFull(c1);
   const tech5 = analyzeTechnicalsFull(candles5m.length ? candles5m : fallback);
-
   const live = getLiveMomentum(c1, ctx.gold.price);
   const setupQ =
     ctx.setupQuality ??
@@ -93,126 +88,79 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   if (!setupQ.tradeAllowed) {
     setupHint = `Setup ${setupQ.score}/100 — ${setupQ.warningsUz[0] ?? "ehtiyot"}`;
   }
-
-  const na = ctx.newsAnalysis;
-  if (na?.contradictionsUz) {
+  if (ctx.newsAnalysis?.contradictionsUz) {
     setupHint = `${setupHint ?? ""} · Yangiliklar zid`.trim();
   }
 
-  const m1ScalpBlock =
-    ctx.m1Scalp != null ? formatM1ScalpForAi(ctx.m1Scalp, tech, tech5) : undefined;
-  const liveMomentumBlock = formatLiveMomentumForAi(live, ctx.gold.changePercent);
-  const swingTargetBlock = formatSwingTargetsForAi(ctx.gold.price, tech5);
-  const setupBlock = formatSetupQualityForAi(setupQ);
-  const techBlock = `${formatEnhancedForAi(tech, "M1")}\n${formatEnhancedForAi(tech5, "5m")}`;
-
-  const newsTitles = ctx.newsItems.map((n) => n.titleUz || n.title).slice(0, 10);
-
-  const prompt = buildAiTradeSignalPrompt({
+  const ruleCandidate = deriveClearSignal({
     price: ctx.gold.price,
-    changePercent: ctx.gold.changePercent,
-    high24h: ctx.gold.high24h,
-    low24h: ctx.gold.low24h,
     tech,
-    tech5m: tech5,
-    m1ScalpBlock,
-    liveMomentumBlock,
-    swingTargetBlock,
-    setupQualityBlock: setupBlock,
-    techEnhancedBlock: techBlock,
-    newsAnalysis: ctx.newsAnalysis,
-    newsTitles,
-    drivers: ctx.drivers.map((d) => ({ name: d.name, changePercent: d.changePercent })),
-    calendarHint: ctx.calendar?.hintUz ?? ctx.calendar?.eventNameUz ?? undefined,
-    disciplineScore: ctx.disciplineScore,
+    tech5,
+    setupQ,
+    m1Scalp: ctx.m1Scalp,
+    live,
   });
 
   try {
-    const raw = await askClaude(SYSTEM_AI_TRADE_SIGNAL, prompt, 2048);
-    let signal = parseAiTradeSignalJson(raw, ctx.gold.price);
+    let signal: AiTradeSignal;
 
-    const minConf = minConfidenceForSetup(setupQ.score);
-    if (signal.action !== "HOLD" && signal.confidence < minConf) {
-      signal = {
-        ...signal,
-        action: "HOLD",
-        confidence: signal.confidence,
-        summaryUz: `HOLD — ishonch ${signal.confidence}% (min ${minConf})`,
-        triggerUz: "Aniqroq setup kuting",
-      };
-    }
-
-    if (signal.action === "HOLD") {
-      const rule = deriveClearSignal({
-        price: ctx.gold.price,
-        tech,
-        tech5,
+    if (
+      ruleCandidate &&
+      ruleCandidate.action !== "HOLD" &&
+      ruleCandidate.confidence >= AI_SKIP_CLAUDE_MIN_CONFIDENCE
+    ) {
+      signal = enrichRuleSignal(ruleCandidate, {
         setupQ,
         m1Scalp: ctx.m1Scalp,
         live,
       });
-      if (rule) {
-        signal = rule;
-        console.log("[ai-signal] rule-based clear signal:", rule.action);
-      }
+      console.log("[ai-signal] rule-only (0 Claude token):", signal.action);
+    } else {
+      const prompt = buildCompactAiTradeSignalPrompt({
+        price: ctx.gold.price,
+        changePercent: ctx.gold.changePercent,
+        tech,
+        tech5,
+        setupScore: setupQ.score,
+        longScore: setupQ.longScore,
+        shortScore: setupQ.shortScore,
+        m1Scalp: ctx.m1Scalp,
+        live,
+        news: ctx.newsAnalysis,
+        suggestedAction:
+          ruleCandidate?.action === "BUY" || ruleCandidate?.action === "SELL"
+            ? ruleCandidate.action
+            : null,
+      });
+      const raw = await askClaude(
+        SYSTEM_AI_TRADE_SIGNAL_COMPACT,
+        prompt,
+        AI_MAX_OUTPUT_TOKENS
+      );
+      signal = parseAiTradeSignalJson(raw, ctx.gold.price);
     }
 
-    const guarded = guardScalpAiSignal(signal, {
-      candles1m: c1,
+    signal = applySignalPipeline(signal, {
+      c1,
       price: ctx.gold.price,
       changePercent: ctx.gold.changePercent,
-      tech1: tech,
+      tech,
+      tech5,
+      setupQ,
       m1Scalp: ctx.m1Scalp,
+      live,
       impulse: ctx.impulse,
     });
-    signal = guarded.signal;
-
-    const swing = enforceSwingTargets(signal, ctx.gold.price, tech5);
-    signal = swing.signal;
-    if (swing.rejected || signal.action === "HOLD") {
-      const rule = deriveClearSignal({
-        price: ctx.gold.price,
-        tech,
-        tech5,
-        setupQ,
-        m1Scalp: ctx.m1Scalp,
-        live,
-      });
-      if (rule) {
-        const swing2 = enforceSwingTargets(rule, ctx.gold.price, tech5);
-        signal = swing2.rejected ? rule : swing2.signal;
-        console.log("[ai-signal] fallback after enforce:", signal.action);
-      } else if (swing.rejected) {
-        console.log("[ai-signal] swing reject:", swing.reasonUz);
-      }
-    }
 
     const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
     if (extra && signal.action !== "HOLD") {
-      signal = {
-        ...signal,
-        summaryUz: `${signal.summaryUz} · ${extra}`,
-      };
+      signal = { ...signal, summaryUz: `${signal.summaryUz} · ${extra}` };
     }
-    completeAiSession(signal);
 
-    if (
-      signal.action === "BUY" ||
-      signal.action === "SELL"
-    ) {
-      recordSignalIfNew({
-        horizon: "short",
-        action: signal.action,
-        strength: signal.confidence,
-        entry: signal.entry,
-        stopLoss: signal.stopLoss,
-        takeProfit: signal.takeProfit,
-        price: ctx.gold.price,
-        dedupeMs: 45 * 60 * 1000,
-      });
-    }
+    completeAiSession(signal);
+    recordIfTrade(signal, ctx.gold.price);
   } catch (e) {
-    console.warn("[ai-signal] parse/run error:", e);
+    console.warn("[ai-signal] error:", e);
     const rule = deriveClearSignal({
       price: ctx.gold.price,
       tech,
@@ -222,32 +170,110 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       live,
     });
     if (rule) {
-      const swing = enforceSwingTargets(rule, ctx.gold.price, tech5);
-      let signal = swing.rejected ? rule : swing.signal;
+      let signal = enrichRuleSignal(rule, { setupQ, m1Scalp: ctx.m1Scalp, live });
+      signal = applySignalPipeline(signal, {
+        c1,
+        price: ctx.gold.price,
+        changePercent: ctx.gold.changePercent,
+        tech,
+        tech5,
+        setupQ,
+        m1Scalp: ctx.m1Scalp,
+        live,
+        impulse: ctx.impulse,
+      });
       const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
       if (extra && signal.action !== "HOLD") {
         signal = { ...signal, summaryUz: `${signal.summaryUz} · ${extra}` };
       }
       completeAiSession(signal);
-      if (signal.action === "BUY" || signal.action === "SELL") {
-        recordSignalIfNew({
-          horizon: "short",
-          action: signal.action,
-          strength: signal.confidence,
-          entry: signal.entry,
-          stopLoss: signal.stopLoss,
-          takeProfit: signal.takeProfit,
-          price: ctx.gold.price,
-          dedupeMs: 45 * 60 * 1000,
-        });
-      }
+      recordIfTrade(signal, ctx.gold.price);
     } else {
-      const msg = e instanceof Error ? e.message : "AI tahlil xatosi";
-      failAiSession(msg);
+      failAiSession(e instanceof Error ? e.message : "AI tahlil xatosi");
     }
   }
 
   broadcastUpdate();
+}
+
+function applySignalPipeline(
+  signal: AiTradeSignal,
+  ctx: {
+    c1: Candle[];
+    price: number;
+    changePercent: number;
+    tech: ReturnType<typeof analyzeTechnicalsFull>;
+    tech5: ReturnType<typeof analyzeTechnicalsFull>;
+    setupQ: ReturnType<typeof computeSetupQuality>;
+    m1Scalp: ReturnType<typeof getMonitorContextForAi>["m1Scalp"];
+    live: ReturnType<typeof getLiveMomentum>;
+    impulse: ReturnType<typeof getMonitorContextForAi>["impulse"];
+  }
+): AiTradeSignal {
+  let s = signal;
+  const minConf = minConfidenceForSetup(ctx.setupQ.score);
+  if (s.action !== "HOLD" && s.confidence < minConf) {
+    s = {
+      ...s,
+      action: "HOLD",
+      summaryUz: `HOLD — ishonch ${s.confidence}% (min ${minConf})`,
+      triggerUz: "Aniqroq setup kuting",
+    };
+  }
+
+  if (s.action === "HOLD") {
+    const rule = deriveClearSignal({
+      price: ctx.price,
+      tech: ctx.tech,
+      tech5: ctx.tech5,
+      setupQ: ctx.setupQ,
+      m1Scalp: ctx.m1Scalp,
+      live: ctx.live,
+    });
+    if (rule) s = rule;
+  }
+
+  const guarded = guardScalpAiSignal(s, {
+    candles1m: ctx.c1,
+    price: ctx.price,
+    changePercent: ctx.changePercent,
+    tech1: ctx.tech,
+    m1Scalp: ctx.m1Scalp,
+    impulse: ctx.impulse,
+  });
+  s = guarded.signal;
+
+  const swing = enforceSwingTargets(s, ctx.price, ctx.tech5);
+  s = swing.signal;
+  if ((swing.rejected || s.action === "HOLD") && s.action === "HOLD") {
+    const rule = deriveClearSignal({
+      price: ctx.price,
+      tech: ctx.tech,
+      tech5: ctx.tech5,
+      setupQ: ctx.setupQ,
+      m1Scalp: ctx.m1Scalp,
+      live: ctx.live,
+    });
+    if (rule) {
+      const swing2 = enforceSwingTargets(rule, ctx.price, ctx.tech5);
+      s = swing2.rejected ? rule : swing2.signal;
+    }
+  }
+  return s;
+}
+
+function recordIfTrade(signal: AiTradeSignal, price: number): void {
+  if (signal.action !== "BUY" && signal.action !== "SELL") return;
+  recordSignalIfNew({
+    horizon: "short",
+    action: signal.action,
+    strength: signal.confidence,
+    entry: signal.entry,
+    stopLoss: signal.stopLoss,
+    takeProfit: signal.takeProfit,
+    price,
+    dedupeMs: 45 * 60 * 1000,
+  });
 }
 
 function broadcastUpdate(): void {

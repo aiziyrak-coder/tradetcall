@@ -215,10 +215,10 @@ export function parseAiTradeSignalJson(text: string, currentPrice: number): AiTr
     confidence: Math.min(100, Math.max(0, Math.round(Number(raw.confidence) || 50))),
     riskReward,
     currentPrice: Math.round(currentPrice * 100) / 100,
-    analysisUz: String(raw.analysisUz ?? "").slice(0, 1200),
-    triggerUz: String(raw.triggerUz ?? "").slice(0, 300),
-    invalidationUz: String(raw.invalidationUz ?? "").slice(0, 300),
-    summaryUz: String(raw.summaryUz ?? "").slice(0, 400),
+    analysisUz: String(raw.analysisUz ?? "").slice(0, 450),
+    triggerUz: String(raw.triggerUz ?? "").slice(0, 180),
+    invalidationUz: String(raw.invalidationUz ?? "").slice(0, 120),
+    summaryUz: String(raw.summaryUz ?? "").slice(0, 220),
     createdAt: new Date().toISOString(),
   };
 }

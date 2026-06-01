@@ -90,7 +90,13 @@ async function createMessage(
   return client.messages.create({
     model,
     max_tokens: maxTokens,
-    system,
+    system: [
+      {
+        type: "text",
+        text: system,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [{ role: "user", content: userMessage }],
   });
 }
@@ -98,7 +104,7 @@ async function createMessage(
 export async function askClaude(
   system: string,
   userMessage: string,
-  maxTokens = 4096
+  maxTokens = 512
 ): Promise<string> {
   clearEnvApiKeys();
   const formatErr = validateApiKeyFormat(currentKey);

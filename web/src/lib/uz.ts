@@ -15,7 +15,7 @@ export const UZ = {
 
   apiKey: {
     title: "Claude API kalit",
-    hint: "YANGI PROGNOZ uchun Anthropic kalit kerak (console.anthropic.com)",
+    hint: "YANGI PROGNOZ — Claude Haiku 4.5 (tejamkor, aniq signallar)",
     placeholder: "sk-ant-api03-…",
     saved: "Kalit saqlangan",
     notSaved: "Kalit kiritilmagan — AI ishlamaydi",
