@@ -72,14 +72,14 @@ goldImpactUz: oltin narxiga ta'sir 1 jumlada (bullish/bearish/neutral).
 JSON massiv qaytaring.`;
 
 export const SYSTEM_AI_TRADE_SIGNAL = `Siz XAUUSD professional treyder.
-Maqsad: skalp — min 10 pip TP, odatda 10–25 pip. Foydalanuvchi YANGI PROGNOZ bosdi — yo'nalishni aniq yozing.
+Maqsad: JUDAY QISQA SKALP — TP 5–25 pip (MAKS 25), odatda ~10 pip. Tez kirish/chiqish.
 
 QAT'IY:
 - Faqat JSON — BUY | SELL | HOLD
 - HOLD faqat: yo'nalish 50/50, yoki yangilik+sham qattiq zid, yoki jonli momentum to'liq teskari
 - Setup 45+ va M1+jonli momentum bir tomonda → BUY yoki SELL (confidence 58–75)
 - ADX past (range) — kichik lot bilan yo'nalish bo'yicha signal mumkin
-- takeProfit min $1 (10 pip), SL ~$0.8–$1.5 (8–15 pip), R:R min 1:1.2
+- takeProfit $0.5–$2.5 (5–25 pip, MAKS 25 pip), SL $0.5–$1 (5–10 pip), R:R min 1:1.1
 - RSI<38 SELL taqiq, RSI>62 BUY taqiq
 - confidence: aniq setup 62+, o'rtacha 55–61
 - O'zbek tilida, summaryUz da bir qatorda BUY/SELL va sabab`;
@@ -116,7 +116,7 @@ export function buildAiTradeSignalPrompt(input: {
 
   const t5 = input.tech5m ?? input.tech;
 
-  return `XAUUSD — SKALP SIGNAL (min 10 pip TP, aniq bo'lsa)
+  return `XAUUSD — QISQA SKALP (5–25 pip, MAKS 25 pip TP)
 
 NARX HOZIR: $${input.price} (${input.changePercent}%)
 24s: ${input.low24h ?? "?"} — ${input.high24h ?? "?"}

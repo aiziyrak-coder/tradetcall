@@ -195,11 +195,11 @@ export function analyzeM1ScalpLead(
   const strength = Math.min(98, Math.round(Math.abs(lead) * 1.1 + tech1.adx * 0.5));
 
   const slDist = Math.min(
-    Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 1.2),
+    Math.max(pipsToUsd(SWING_MIN_SL_PIPS), atr * 0.8),
     pipsToUsd(SWING_MAX_SL_PIPS)
   );
   const tpDist = Math.min(
-    Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.3),
+    Math.max(pipsToUsd(SWING_DEFAULT_TP_PIPS), slDist * 1.15),
     pipsToUsd(SWING_MAX_TP_PIPS)
   );
 
@@ -274,5 +274,5 @@ export function formatM1ScalpForAi(
 - Tavsiya zona: kirish ~$${lead.entryHint}, SL ~$${lead.stopHint}, TP ~$${lead.tpHint}, max ${lead.maxHoldMin} daq
 - 1m: RSI ${tech1.rsi}, ADX ${tech1.adx}, ATR $${tech1.atr}, trend ${tech1.trend}
 - 5m filter: trend ${tech5.trend}, RSI ${tech5.rsi}
-QOIDA: Maqsad min 10 pip TP. JONLI sham ustun. RSI<38 SELL taqiq.`;
+QOIDA: Qisqa skalp — TP maks ${SWING_MAX_TP_PIPS} pip. JONLI sham ustun. RSI<38 SELL taqiq.`;
 }

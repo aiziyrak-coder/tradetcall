@@ -15,7 +15,7 @@ export function MonitorStatusStrip({ phase, busy }: Props) {
         <span className="font-bold text-violet-300">{UZ.monitorForecast}</span>
         {" — "}
         Aniq setupda{" "}
-        <span className="text-[var(--term-gold)]">min 10 pip</span> skalp BUY / SELL
+        <span className="text-[var(--term-gold)]">5–25 pip</span> qisqa skalp
       </p>
     </div>
   );

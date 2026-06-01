@@ -1,6 +1,6 @@
 /**
- * XAUUSD pip maqsadlari — 1 pip = $0.10 (standart broker)
- * 10 pip = $1.00
+ * XAUUSD skalp pip — 1 pip = $0.10
+ * Qisqa skalp: min 5 pip, maks 25 pip
  */
 
 import type { AiTradeSignal } from "./ai-trade-signal";
@@ -8,12 +8,13 @@ import type { TechnicalAnalysis } from "./types";
 
 export const GOLD_PIP_USD = 0.1;
 
-export const SWING_MIN_TP_PIPS = 10;
+/** @deprecated nomi — skalp konstantalari */
+export const SWING_MIN_TP_PIPS = 5;
 export const SWING_MAX_TP_PIPS = 25;
-export const SWING_DEFAULT_TP_PIPS = 15;
-export const SWING_MIN_SL_PIPS = 8;
-export const SWING_MAX_SL_PIPS = 15;
-export const SWING_MIN_RR = 1.2;
+export const SWING_DEFAULT_TP_PIPS = 10;
+export const SWING_MIN_SL_PIPS = 5;
+export const SWING_MAX_SL_PIPS = 10;
+export const SWING_MIN_RR = 1.1;
 
 export function pipsToUsd(pips: number): number {
   return Math.round(pips * GOLD_PIP_USD * 100) / 100;
@@ -51,7 +52,7 @@ export interface SwingEnforceResult {
   targetPips?: number;
 }
 
-/** AI signal — kamida 10 pip TP, skalp diapazon */
+/** AI signal — qisqa skalp 5–25 pip (maks 25) */
 export function enforceSwingTargets(
   signal: AiTradeSignal,
   price: number,
@@ -66,7 +67,7 @@ export function enforceSwingTargets(
   const maxSl = pipsToUsd(SWING_MAX_SL_PIPS);
 
   const room = roomToMoveUsd(price, tech, signal.action);
-  const minRoom = pipsToUsd(Math.max(8, SWING_MIN_TP_PIPS - 2));
+  const minRoom = pipsToUsd(SWING_MIN_TP_PIPS);
   if (room < minRoom) {
     return {
       signal: holdSignal(signal, price, `Bo'sh joy yetarli emas — maqsadga ~${usdToPips(room)} pip`),
@@ -93,7 +94,7 @@ export function enforceSwingTargets(
         ? round2(entry + targetReward)
         : round2(entry - targetReward);
     reward = targetReward;
-  } else if (reward > maxReward * 1.15) {
+  } else if (reward > maxReward * 1.02) {
     tp =
       signal.action === "BUY"
         ? round2(entry + maxReward)
@@ -181,11 +182,9 @@ function holdSignal(base: AiTradeSignal, price: number, reason: string): AiTrade
 export function formatSwingTargetsForAi(price: number, tech: TechnicalAnalysis): string {
   const minUsd = pipsToUsd(SWING_MIN_TP_PIPS);
   const maxUsd = pipsToUsd(SWING_MAX_TP_PIPS);
-  return `MAQSAD (skalp):
-- Take profit: min ${SWING_MIN_TP_PIPS} pip ($${minUsd}), odatda ${SWING_DEFAULT_TP_PIPS}–${SWING_MAX_TP_PIPS} pip
-- Stop loss: ${SWING_MIN_SL_PIPS}–${SWING_MAX_SL_PIPS} pip
+  return `MAQSAD (QISQA SKALP — maks ${SWING_MAX_TP_PIPS} pip):
+- Take profit: ${SWING_MIN_TP_PIPS}–${SWING_MAX_TP_PIPS} pip ($${minUsd}–$${maxUsd}), ideal ~${SWING_DEFAULT_TP_PIPS} pip
+- Stop loss: ${SWING_MIN_SL_PIPS}–${SWING_MAX_SL_PIPS} pip — qisqa
 - R:R min 1:${SWING_MIN_RR}
-- Qo'llab-quvvatlash: ${tech.support.slice(0, 2).join(", ") || "—"}
-- Qarshilik: ${tech.resistance.slice(0, 2).join(", ") || "—"}
-- ${SWING_MIN_TP_PIPS} pip dan kam TP bermang`;
+- ${SWING_MAX_TP_PIPS} pipdan katta maqsad bermang — tez chiqish`;
 }
