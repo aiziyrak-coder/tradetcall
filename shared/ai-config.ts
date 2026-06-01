@@ -1,9 +1,9 @@
-/** Claude token tejash — YANGI PROGNOZ */
+/** DeepSeek — YANGI PROGNOZ */
 
-export const AI_MAX_OUTPUT_TOKENS = 420;
+export const AI_MAX_OUTPUT_TOKENS = 600;
 
-/** Aniq qoida signali bo'lsa Claude chaqirilmaydi (0 token) */
-export const AI_SKIP_CLAUDE_MIN_CONFIDENCE = 54;
+/** Har prognozda DeepSeek chaqiriladi (to'liq tahlil) */
+export const AI_ALWAYS_CALL_LLM = true;
 
-/** Qoida signal uchun minimal ovozlar (deriveClearSignal ichida 5) */
-export const AI_RULE_MIN_VOTES = 5;
+/** @deprecated qoida-only yo'l o'chirilgan */
+export const AI_SKIP_CLAUDE_MIN_CONFIDENCE = 999;

@@ -43,10 +43,13 @@ import {
 } from "./signal-journal-store";
 import {
   clearEnvApiKeys,
-  setApiKey as setClaudeKey,
+  setApiKey as setLlmKey,
   testApiKey,
-} from "../shared/anthropic";
+} from "../shared/deepseek";
 import { getApiKey, setApiKey as persistApiKey } from "./store";
+
+const bootKey = getApiKey();
+if (bootKey) setLlmKey(bootKey);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -260,7 +263,7 @@ app.post("/api/settings/api-key", (req, res) => {
     return;
   }
   persistApiKey(key.trim());
-  setClaudeKey(key.trim());
+  setLlmKey(key.trim());
   res.json({ ok: true });
 });
 
@@ -273,7 +276,7 @@ app.post("/api/settings/api-key/test", async (req, res) => {
   }
   try {
     clearEnvApiKeys();
-    setClaudeKey(toTest);
+    setLlmKey(toTest);
     const { hint, model } = await testApiKey(toTest);
     res.json({ ok: true, hint, model });
   } catch (e) {
@@ -282,14 +285,15 @@ app.post("/api/settings/api-key/test", async (req, res) => {
       error: e instanceof Error ? e.message : "Test xatosi",
     });
   } finally {
-    setClaudeKey("");
+    const restored = getApiKey();
+    setLlmKey(restored);
   }
 });
 
 app.delete("/api/settings/api-key", (req, res) => {
   persistApiKey("");
   clearEnvApiKeys();
-  setClaudeKey("");
+  setLlmKey("");
   res.json({ ok: true });
 });
 

@@ -4,9 +4,9 @@ import type { M1ScalpLead } from "./m1-scalp";
 import type { LiveMomentum } from "./scalp-signal-guard";
 import { MIN_TP_USD } from "./pip-targets";
 
-export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD bashoratchi. FAQAT JSON.
-entry=hozirgi narx. TP/SL — qarshilik va qo'llab-quvvatlashdan; min $${MIN_TP_USD} masofa, lekin har doim $5 emas.
-HOLD bo'lsa diapazon va breakout ssenariylari analysisUz da.`;
+export const SYSTEM_AI_TRADE_SIGNAL_COMPACT = `XAUUSD professional bashoratchi (DeepSeek). FAQAT JSON, boshqa matn yo'q.
+entry=hozirgi narx. TP/SL — qarshilik va qo'llab-quvvatlashdan; min $${MIN_TP_USD} masofa, dinamik.
+HOLD: diapazon, sabab, bull/bear breakout — analysisUz da batafsil o'zbekcha.`;
 
 export function buildCompactAiTradeSignalPrompt(input: {
   price: number;

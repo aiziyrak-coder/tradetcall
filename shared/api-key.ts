@@ -1,4 +1,4 @@
-/** Anthropic API kalitini tozalash */
+/** DeepSeek API kalitini tozalash */
 export function normalizeApiKey(raw: string): string {
   return raw
     .replace(/^\uFEFF/, "")
@@ -11,10 +11,13 @@ export function normalizeApiKey(raw: string): string {
 export function validateApiKeyFormat(key: string): string | null {
   const k = normalizeApiKey(key);
   if (!k) return "API kalit bo'sh";
-  if (!k.startsWith("sk-ant-")) {
-    return "Kalit sk-ant- bilan boshlanishi kerak (console.anthropic.com → API Keys)";
+  if (k.startsWith("sk-ant-")) {
+    return "Bu Claude kaliti. DeepSeek kalit kerak — platform.deepseek.com → API Keys";
   }
-  if (k.length < 50) {
+  if (!k.startsWith("sk-")) {
+    return "Kalit sk- bilan boshlanishi kerak (platform.deepseek.com → API Keys)";
+  }
+  if (k.length < 32) {
     return `Kalit juda qisqa (${k.length} belgi). To'liq nusxalang.`;
   }
   return null;
@@ -23,7 +26,7 @@ export function validateApiKeyFormat(key: string): string | null {
 export function apiKeyHint(key: string): string {
   const k = normalizeApiKey(key);
   if (!k) return "";
-  return `${k.slice(0, 16)}… (${k.length} belgi)`;
+  return `${k.slice(0, 12)}… (${k.length} belgi)`;
 }
 
 export function formatApiError(e: unknown): string {
@@ -32,14 +35,14 @@ export function formatApiError(e: unknown): string {
 
   if (
     status === 401 ||
-    apiMsg.includes("invalid x-api-key") ||
-    apiMsg.includes("authentication_error")
+    apiMsg.includes("invalid") ||
+    apiMsg.includes("authentication") ||
+    apiMsg.includes("Incorrect API key")
   ) {
     return [
-      "Anthropic API kalit qabul qilinmadi (401).",
-      "• console.anthropic.com → API Keys (Claude.ai emas)",
-      "• «Eski kalitni o'chirish» → yangi kalit → Tekshirish",
-      "• Kalit to'liq: sk-ant-api03-... yoki sk-ant-api04-...",
+      "DeepSeek API kalit qabul qilinmadi (401).",
+      "• platform.deepseek.com → API Keys",
+      "• Balans va kalit faolligini tekshiring",
       apiMsg && apiMsg.length < 120 ? `• ${apiMsg}` : "",
     ]
       .filter(Boolean)
@@ -56,7 +59,7 @@ export function formatApiError(e: unknown): string {
   }
   if (apiMsg && apiMsg.length < 280) return apiMsg;
   if (e instanceof Error && e.message.length < 280) return e.message;
-  return "API ulanish xatosi";
+  return "DeepSeek ulanish xatosi";
 }
 
 function getErrorStatus(e: unknown): number | undefined {

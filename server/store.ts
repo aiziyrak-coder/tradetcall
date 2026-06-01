@@ -52,7 +52,8 @@ export function getStoreData(): AppStore {
 }
 
 export function getApiKey(): string {
-  const env = process.env.ANTHROPIC_API_KEY?.trim();
+  const env =
+    process.env.DEEPSEEK_API_KEY?.trim() || process.env.ANTHROPIC_API_KEY?.trim();
   if (env) return env;
   return getStoreData().apiKey;
 }

@@ -1,12 +1,12 @@
 import { analyzeTechnicalsFull } from "../shared/enhanced-technical";
-import { AI_MAX_OUTPUT_TOKENS, AI_SKIP_CLAUDE_MIN_CONFIDENCE } from "../shared/ai-config";
+import { AI_MAX_OUTPUT_TOKENS } from "../shared/ai-config";
 import {
   buildCompactAiTradeSignalPrompt,
   SYSTEM_AI_TRADE_SIGNAL_COMPACT,
 } from "../shared/compact-prompt";
 import { parseAiTradeSignalJson } from "../shared/prompts";
-import { askClaude } from "../shared/anthropic";
-import { setApiKey as setClaudeKey } from "../shared/anthropic";
+import { askDeepSeek } from "../shared/deepseek";
+import { setApiKey as setLlmKey } from "../shared/deepseek";
 import { getLiveMomentum, guardScalpAiSignal } from "../shared/scalp-signal-guard";
 import { enforceSwingTargets } from "../shared/pip-targets";
 import { computeSetupQuality } from "../shared/setup-quality";
@@ -32,12 +32,12 @@ import { clearPause } from "./shield-runtime";
 export async function runOneShotAiAnalysis(): Promise<void> {
   const key = getApiKey();
   if (!key?.trim()) {
-    failAiSession("API kalit yo'q — Sozlamalarda Claude kalitini kiriting");
+    failAiSession("API kalit yo'q — Sozlamalarda DeepSeek kalitini kiriting");
     broadcastUpdate();
     return;
   }
 
-  setClaudeKey(key);
+  setLlmKey(key);
   clearPause();
 
   await refreshNewsDeepAnalysis();
@@ -109,47 +109,34 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   let signal = tradeLevelsToAiSignal(forecast, ctx.gold.price);
 
   try {
-    const skipClaude =
-      forecast.action === "HOLD" ||
-      (forecast.action !== "HOLD" &&
-        forecast.confidence >= AI_SKIP_CLAUDE_MIN_CONFIDENCE);
-
-    if (!skipClaude) {
-      const prompt = buildCompactAiTradeSignalPrompt({
-        price: ctx.gold.price,
-        changePercent: ctx.gold.changePercent,
-        tech,
-        tech5,
-        setupScore: setupQ.score,
-        longScore: setupQ.longScore,
-        shortScore: setupQ.shortScore,
-        m1Scalp: ctx.m1Scalp,
-        live,
-        news: ctx.newsAnalysis,
-        suggestedAction:
-          forecast.action === "BUY" || forecast.action === "SELL"
-            ? forecast.action
-            : null,
-        forecastHigh: forecast.forecastHigh,
-        forecastLow: forecast.forecastLow,
-        suggestedTp: forecast.takeProfit,
-        suggestedSl: forecast.stopLoss,
-      });
-      const raw = await askClaude(
-        SYSTEM_AI_TRADE_SIGNAL_COMPACT,
-        prompt,
-        AI_MAX_OUTPUT_TOKENS
-      );
-      const parsed = parseAiTradeSignalJson(raw, ctx.gold.price);
-      signal = mergeAiWithForecast(parsed, forecast, ctx.gold.price);
-      console.log("[ai-signal] Claude + forecast merge:", signal.action);
-    } else {
-      console.log(
-        "[ai-signal]",
-        forecast.action === "HOLD" ? "hold-forecast (0 token)" : "rule-forecast (0 token):",
-        signal.action
-      );
-    }
+    const prompt = buildCompactAiTradeSignalPrompt({
+      price: ctx.gold.price,
+      changePercent: ctx.gold.changePercent,
+      tech,
+      tech5,
+      setupScore: setupQ.score,
+      longScore: setupQ.longScore,
+      shortScore: setupQ.shortScore,
+      m1Scalp: ctx.m1Scalp,
+      live,
+      news: ctx.newsAnalysis,
+      suggestedAction:
+        forecast.action === "BUY" || forecast.action === "SELL"
+          ? forecast.action
+          : null,
+      forecastHigh: forecast.forecastHigh,
+      forecastLow: forecast.forecastLow,
+      suggestedTp: forecast.takeProfit,
+      suggestedSl: forecast.stopLoss,
+    });
+    const raw = await askDeepSeek(
+      SYSTEM_AI_TRADE_SIGNAL_COMPACT,
+      prompt,
+      AI_MAX_OUTPUT_TOKENS
+    );
+    const parsed = parseAiTradeSignalJson(raw, ctx.gold.price);
+    signal = mergeAiWithForecast(parsed, forecast, ctx.gold.price);
+    console.log("[ai-signal] DeepSeek + forecast:", signal.action);
 
     signal = applySignalPipeline(signal, forecastInput, {
       c1,
@@ -188,7 +175,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   broadcastUpdate();
 }
 
-/** Claude JSON ni bozor bashorati darajalari bilan birlashtiradi */
+/** DeepSeek JSON ni bozor bashorati darajalari bilan birlashtiradi */
 function mergeAiWithForecast(
   ai: AiTradeSignal,
   forecast: ReturnType<typeof computeMarketForecast>,

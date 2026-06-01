@@ -14,9 +14,9 @@ export const UZ = {
   logout: "Chiqish",
 
   apiKey: {
-    title: "Claude API kalit",
-    hint: "YANGI PROGNOZ — Claude Haiku 4.5 (tejamkor, aniq signallar)",
-    placeholder: "sk-ant-api03-…",
+    title: "DeepSeek API kalit",
+    hint: "YANGI PROGNOZ — DeepSeek AI (platform.deepseek.com)",
+    placeholder: "sk-…",
     saved: "Kalit saqlangan",
     notSaved: "Kalit kiritilmagan — AI ishlamaydi",
     save: "Saqlash",
