@@ -34,8 +34,22 @@ export interface ProAiSignalResult {
   master: ReturnType<typeof computeShortMasterSignal>;
   gateAllowed: boolean;
   winProbability: number;
-  grade: "A+" | "A" | "B" | "C" | "D";
+  grade: "A+" | "A" | "B" | "C" | "D" | "WAIT";
   gradeUz: string;
+}
+
+function masterDrivenAction(
+  master: ReturnType<typeof computeShortMasterSignal>,
+  verdictAction: AiTradeSignal["action"]
+): AiTradeSignal["action"] {
+  if (verdictAction === "BUY" || verdictAction === "SELL") return verdictAction;
+
+  const margin = master.longScore - master.shortScore;
+  if (master.bias === "long" && master.longScore >= 44 && margin >= 4) return "BUY";
+  if (master.bias === "short" && master.shortScore >= 44 && margin <= -4) return "SELL";
+  if (margin >= 8 && master.longScore >= 48) return "BUY";
+  if (margin <= -8 && master.shortScore >= 48) return "SELL";
+  return "HOLD";
 }
 
 function estimateWinProbability(input: {
@@ -48,44 +62,51 @@ function estimateWinProbability(input: {
   masterLong: number;
   masterShort: number;
   bias: "long" | "short" | "wait";
+  action: AiTradeSignal["action"];
 }): number {
-  if (input.bias === "wait" || !input.gateAllowed) return 38;
-
-  let p = 42;
-  p += input.confluence * 0.28;
-  p += input.confidence * 0.12;
-  p += (input.tfTotal > 0 ? (input.tfAligned / input.tfTotal) * 18 : 0);
-
   const margin = Math.abs(input.masterLong - input.masterShort);
-  if (margin >= 20) p += 8;
-  else if (margin >= 12) p += 4;
+  if (input.action === "HOLD" && margin < 6) return 42;
+
+  let p = 46;
+  p += input.confluence * 0.26;
+  p += input.confidence * 0.14;
+  p += input.tfTotal > 0 ? (input.tfAligned / input.tfTotal) * 20 : 0;
+
+  if (margin >= 20) p += 10;
+  else if (margin >= 12) p += 6;
+  else if (margin >= 6) p += 3;
+
+  if (!input.gateAllowed) p -= 6;
 
   if (input.journal) {
     const closed = input.journal.wins + input.journal.losses;
     if (closed >= 5) {
-      const wr = input.journal.last7WinRatePct;
-      p += (wr - 50) * 0.15;
+      p += (input.journal.last7WinRatePct - 50) * 0.12;
     }
   }
 
-  return Math.min(88, Math.max(35, Math.round(p)));
+  return Math.min(88, Math.max(38, Math.round(p)));
 }
 
-function gradeFromWinProb(wp: number, gateAllowed: boolean): ProAiSignalResult["grade"] {
-  if (!gateAllowed) return "D";
+function gradeFromWinProb(
+  wp: number,
+  action: AiTradeSignal["action"]
+): ProAiSignalResult["grade"] {
+  if (action === "HOLD") return "WAIT";
   if (wp >= 72) return "A+";
   if (wp >= 64) return "A";
-  if (wp >= 55) return "B";
-  if (wp >= 48) return "C";
+  if (wp >= 54) return "B";
+  if (wp >= 46) return "C";
   return "D";
 }
 
 function gradeUz(g: ProAiSignalResult["grade"]): string {
-  if (g === "A+") return "A+ — professional setup, yuqori ehtimol";
-  if (g === "A") return "A — yaxshi setup, savdo mumkin";
-  if (g === "B") return "B — o'rtacha, ehtiyot bilan";
-  if (g === "C") return "C — zaif, kichik lot yoki kuting";
-  return "D — savdo tavsiya etilmaydi";
+  if (g === "WAIT") return "Kutish — aniq kirish yo'q";
+  if (g === "A+") return "A+ — professional setup";
+  if (g === "A") return "A — yaxshi setup";
+  if (g === "B") return "B — ehtiyot bilan";
+  if (g === "C") return "C — zaif setup";
+  return "D — kirmang";
 }
 
 /** Asosiy professional signal — short-strategy + master panel */
@@ -123,22 +144,29 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
   const c5 = multiCandles["5m"] ?? multiCandles["1m"] ?? [];
   const structure = c5.length >= 5 ? analyzeMarketStructure(c5, price) : null;
 
-  let action: AiTradeSignal["action"] =
-    verdict.action === "BUY" ? "BUY" : verdict.action === "SELL" ? "SELL" : "HOLD";
+  let action = masterDrivenAction(
+    master,
+    verdict.action === "BUY" ? "BUY" : verdict.action === "SELL" ? "SELL" : "HOLD"
+  );
 
-  let confidence = strategy.confidence;
-  if (!gateAllowed && action !== "HOLD") {
-    action = "HOLD";
-    confidence = Math.min(confidence, 48);
-  }
-
+  let confidence = Math.max(strategy.confidence, master.confidence);
   let entry = verdict.entry ?? price;
-  let stopLoss = verdict.stopLoss ?? price - 3;
-  let takeProfit = verdict.takeProfit ?? price + 5;
+  let stopLoss = verdict.stopLoss ?? (action === "SELL" ? price + 3 : price - 3);
+  let takeProfit = verdict.takeProfit ?? (action === "SELL" ? price - 5 : price + 5);
   let riskReward = verdict.riskReward ?? 1.2;
 
+  if (action === "BUY" && master.bias === "long") {
+    stopLoss = Math.min(stopLoss, price - 2.5);
+    takeProfit = Math.max(takeProfit, price + 4);
+  } else if (action === "SELL" && master.bias === "short") {
+    stopLoss = Math.max(stopLoss, price + 2.5);
+    takeProfit = Math.min(takeProfit, price - 4);
+  }
+
   if (action !== "HOLD") {
-    const tech5 = analyzeTechnicalsFull(c5.length ? c5 : [{ time: 0, open: price, high: price, low: price, close: price }]);
+    const tech5 = analyzeTechnicalsFull(
+      c5.length ? c5 : [{ time: 0, open: price, high: price, low: price, close: price }]
+    );
     const enforced = enforceSwingTargets(
       {
         action,
@@ -166,8 +194,11 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     confidence = s.confidence;
   }
 
+  const biasForProb =
+    action === "BUY" ? "long" : action === "SELL" ? "short" : master.bias;
+
   const winProbability = estimateWinProbability({
-    confluence: strategy.signal.confluencePct,
+    confluence: master.confluencePct,
     confidence,
     gateAllowed,
     tfAligned: strategy.tfAligned,
@@ -175,30 +206,20 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     journal: journalStats,
     masterLong: master.longScore,
     masterShort: master.shortScore,
-    bias: strategy.bias,
+    bias: biasForProb,
+    action,
   });
 
-  const grade = gradeFromWinProb(winProbability, gateAllowed);
-
-  if (action !== "HOLD" && (!gateAllowed || winProbability < 56 || grade === "C" || grade === "D")) {
-    action = "HOLD";
-    confidence = Math.min(confidence, 46);
-  }
-
-  const pillarText = master.pillars
-    .slice(0, 6)
-    .map((p) => `${p.labelUz}: L${p.longPts}/S${p.shortPts}`)
-    .join(" · ");
+  const grade = gradeFromWinProb(winProbability, action);
 
   const analysisUz = [
     master.summaryUz,
-    strategy.playbookUz,
+    action !== "HOLD" ? strategy.playbookUz : strategy.situationUz,
     structure?.summaryUz ?? "",
-    pillarText,
     verdict.analysisUz,
-    gateAllowed ? "" : `GATE: ${verdict.reliabilityUz}`,
-    `Panel: ${master.panelUz.slice(0, 120)}`,
-    `Sessiya: ${session.nameUz}${session.primeWindow ? " (PRIME)" : ""}`,
+    !gateAllowed && action !== "HOLD" ? `⚠ Ehtiyot: ${verdict.reliabilityUz}` : "",
+    `Panel L${master.longScore} / S${master.shortScore}`,
+    `Sessiya: ${session.nameUz}${session.primeWindow ? " · PRIME" : ""}`,
   ]
     .filter(Boolean)
     .join("\n")
@@ -206,8 +227,8 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
 
   const summaryUz =
     action === "HOLD"
-      ? `HOLD — L${master.longScore} S${master.shortScore} · ${winProbability}% ehtimol · ${grade}`
-      : `${action} — yutish ~${winProbability}% · ${grade} · R:R ${riskReward} · L${master.longScore}/S${master.shortScore}`;
+      ? `KUTING — L${master.longScore} S${master.shortScore} · panel ${master.bias.toUpperCase()}`
+      : `${action} · ~${winProbability}% · ${grade} · R:R ${riskReward} · L${master.longScore}/S${master.shortScore}`;
 
   const signal: AiTradeSignal = {
     action,
@@ -218,17 +239,25 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     riskReward: round2(riskReward),
     currentPrice: round2(price),
     analysisUz,
-    triggerUz: strategy.entry.whenUz,
+    triggerUz:
+      action === "HOLD"
+        ? master.bias === "long"
+          ? `LONG moyil — $${round2(price - 1)} dan yuqori breakout kuting`
+          : master.bias === "short"
+            ? `SHORT moyil — $${round2(price + 1)} dan past breakout kuting`
+            : strategy.entry.whenUz
+        : strategy.entry.whenUz,
     invalidationUz: strategy.invalidationUz,
     summaryUz,
     createdAt: new Date().toISOString(),
     forecastHigh: structure?.r1 ?? strategy.keyLevels?.find((k) => k.label.includes("yuqori"))?.price,
     forecastLow: structure?.s1 ?? strategy.keyLevels?.find((k) => k.label.includes("past"))?.price,
-    forecastBiasUz: master.bias === "long" ? "LONG moyil" : master.bias === "short" ? "SHORT moyil" : "NEYTRAL",
+    forecastBiasUz:
+      master.bias === "long" ? "↑ LONG" : master.bias === "short" ? "↓ SHORT" : "— NEYTRAL",
     targetMoveUsd: round2(Math.abs(takeProfit - entry)),
     winProbability,
     confluencePct: master.confluencePct,
-    signalGrade: grade,
+    signalGrade: grade === "WAIT" ? undefined : grade,
     panelUz: master.panelUz,
   };
 
