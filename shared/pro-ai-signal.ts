@@ -151,6 +151,12 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     verdict.action === "BUY" ? "BUY" : verdict.action === "SELL" ? "SELL" : "HOLD"
   );
 
+  if (action === "HOLD" && news) {
+    const margin = master.longScore - master.shortScore;
+    if (news.overallBias === "bullish" && news.biasStrength >= 70 && margin >= 8) action = "BUY";
+    else if (news.overallBias === "bearish" && news.biasStrength >= 70 && margin <= -8) action = "SELL";
+  }
+
   let confidence = Math.max(strategy.confidence, master.confidence);
   let entry = verdict.entry ?? price;
   let stopLoss = verdict.stopLoss ?? (action === "SELL" ? price + 3 : price - 3);
