@@ -78,18 +78,31 @@ systemctl restart tradetcall-django
 sleep 2
 systemctl restart tradetcall-api
 
-echo "==> Nginx (faqat trade.tcall.uz va tradeapi.tcall.uz)"
-cp deploy/nginx-trade.tcall.uz.conf /etc/nginx/sites-available/trade.tcall.uz
-cp deploy/nginx-tradeapi.tcall.uz.conf /etc/nginx/sites-available/tradeapi.tcall.uz
+echo "==> Nginx HTTP (certbot oldin — boshqa saytlarga tegmaydi)"
+cp deploy/nginx-trade.tcall.uz.http.conf /etc/nginx/sites-available/trade.tcall.uz
+cp deploy/nginx-tradeapi.tcall.uz.http.conf /etc/nginx/sites-available/tradeapi.tcall.uz
 ln -sf /etc/nginx/sites-available/trade.tcall.uz /etc/nginx/sites-enabled/trade.tcall.uz
 ln -sf /etc/nginx/sites-available/tradeapi.tcall.uz /etc/nginx/sites-enabled/tradeapi.tcall.uz
 nginx -t
 systemctl reload nginx
 
 if command -v certbot >/dev/null; then
-  certbot --nginx -d trade.tcall.uz -d tradeapi.tcall.uz \
+  certbot certonly --webroot -w /var/www/html \
+    -d trade.tcall.uz -d tradeapi.tcall.uz \
     --non-interactive --agree-tos --register-unsafely-without-email \
-    --redirect 2>/dev/null || echo "SSL: certbot keyingi urinish yoki DNS kutish kerak"
+    2>/dev/null || certbot --nginx -d trade.tcall.uz -d tradeapi.tcall.uz \
+    --non-interactive --agree-tos --register-unsafely-without-email \
+    --redirect 2>/dev/null || echo "SSL: DNS tekshiring — HTTP ishlaydi"
+fi
+
+if [ -f /etc/letsencrypt/live/trade.tcall.uz/fullchain.pem ]; then
+  echo "==> Nginx HTTPS"
+  cp deploy/nginx-trade.tcall.uz.conf /etc/nginx/sites-available/trade.tcall.uz
+  cp deploy/nginx-tradeapi.tcall.uz.conf /etc/nginx/sites-available/tradeapi.tcall.uz
+  nginx -t
+  systemctl reload nginx
+else
+  echo "==> SSL hali yo'q — HTTP rejimda qoldi (DNS A yozuvlarini tekshiring)"
 fi
 
 echo "==> Tayyor"
