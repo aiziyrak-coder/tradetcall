@@ -1,3 +1,4 @@
+import { useState, type CSSProperties } from "react";
 import type { AiPhase, AiTradeSignal } from "../../../../shared/ai-trade-signal";
 import type { MonitorSessionInfo, MonitorSnapshot } from "../../../../shared/types";
 import { getMarketSession } from "../../../../shared/market-session";
@@ -21,18 +22,27 @@ interface Props {
   onOpenAdmin?: () => void;
 }
 
+type NewsTab = "direct" | "macro" | "geo";
+
 function parseScores(signal: AiTradeSignal | null | undefined) {
   const m = signal?.summaryUz.match(/L(\d+).*?S(\d+)/i);
   return { long: m ? Number(m[1]) : null, short: m ? Number(m[2]) : null };
 }
 
-function saneHint(text: string, price: number): string {
+function shortHint(text: string, price: number): string {
   if (!text) return "";
-  return text.replace(/\$?(\d{4,6}\.?\d*)/g, (match, num) => {
+  const clean = text.replace(/\$?(\d{4,6}\.?\d*)/g, (match, num) => {
     const v = parseFloat(num);
     if (v > price * 1.15 || v < price * 0.85) return `$${price.toFixed(2)}`;
     return match.startsWith("$") ? match : `$${match}`;
   });
+  return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
+}
+
+function biasLabel(bias: string | undefined) {
+  if (bias === "bullish") return { text: "LONG", cls: "nx-pill--long" };
+  if (bias === "bearish") return { text: "SHORT", cls: "nx-pill--short" };
+  return { text: "NEYTRAL", cls: "nx-pill--neutral" };
 }
 
 export function NexusTerminal({
@@ -51,6 +61,7 @@ export function NexusTerminal({
   isAdmin,
   onOpenAdmin,
 }: Props) {
+  const [newsTab, setNewsTab] = useState<NewsTab>("direct");
   const marketSession = getMarketSession();
   const signal = data?.aiSignal ?? null;
   const gold = data?.gold;
@@ -63,123 +74,64 @@ export function NexusTerminal({
   const scores = parseScores(signal);
   const up = (gold?.change ?? 0) >= 0;
   const action = signal?.action ?? null;
-  const oracleClass =
-    action === "BUY" ? "nx-oracle--buy" : action === "SELL" ? "nx-oracle--sell" : "nx-oracle--hold";
+  const prob = signal?.winProbability ?? 0;
+  const macro = biasLabel(analysis?.overallBias);
+  const signalClass =
+    action === "BUY" ? "nx-signal--buy" : action === "SELL" ? "nx-signal--sell" : "nx-signal--hold";
+
+  const newsItems =
+    newsTab === "direct" ? news.direct : newsTab === "macro" ? news.macro : news.geopolitics;
+
+  const newsTabs: { id: NewsTab; label: string; count: number }[] = [
+    { id: "direct", label: "Oltin", count: news.direct.length },
+    { id: "macro", label: "Makro", count: news.macro.length },
+    { id: "geo", label: "Geo", count: news.geopolitics.length },
+  ];
 
   return (
-    <div className="nexus-root relative flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="nexus-root">
       <NexusBackground />
 
-      <header className="nx-header relative z-10 shrink-0">
-        <span className="nx-logo">✦ OLTIN SIGNAL</span>
-        {analyzing ? (
-          <span className="font-nexus text-[11px] text-[var(--nx-gold)] animate-pulse">Tahlil...</span>
-        ) : (
-          <button
-            type="button"
-            className="nx-btn-prognoz"
-            disabled={sessionBusy}
-            onClick={onRequestForecast}
-          >
-            {sessionBusy ? "…" : `▶ ${UZ.monitorForecast}`}
-          </button>
-        )}
-        <div className="flex items-center gap-2 text-[11px] text-[var(--nx-cream-dim)]">
-          {liveOk ? <span className="nx-live-dot" /> : <span className="text-amber-600">○</span>}
-          <span className="font-nx-mono">{lastUpdate}</span>
-          <span>{marketSession.nameUz}</span>
+      <header className="nx-topbar">
+        <div className="nx-topbar__brand">
+          <span className="nx-logo-mark">✦</span>
+          <span className="nx-logo-text">OLTIN SIGNAL</span>
         </div>
-        {signal && phase === "ready" && (
-          <span className="nx-badge">
-            {signal.action}
-            {signal.winProbability != null ? ` ${signal.winProbability}%` : ""}
+
+        <div className="nx-topbar__status">
+          <span className={`nx-live ${liveOk ? "nx-live--on" : ""}`}>
+            {liveOk ? "JONLI" : "UZILDI"}
           </span>
-        )}
-        {translating && <span className="text-[10px] text-[var(--nx-gold)]">{UZ.translating}</span>}
-        <div className="ml-auto flex items-center gap-3 text-[11px]">
-          <span className="text-[var(--nx-muted)]">{username}</span>
+          <span className="nx-topbar__time">{lastUpdate}</span>
+          <span className="nx-topbar__session">{marketSession.nameUz}</span>
+        </div>
+
+        <div className="nx-topbar__user">
+          <span>{username}</span>
           {onOpenSettings && (
-            <button type="button" onClick={onOpenSettings} className="text-[var(--nx-gold)] hover:brightness-110">
+            <button type="button" onClick={onOpenSettings}>
               {UZ.settings}
             </button>
           )}
           {isAdmin && onOpenAdmin && (
-            <button type="button" onClick={onOpenAdmin} className="text-[var(--nx-cream-dim)]">
+            <button type="button" onClick={onOpenAdmin}>
               Admin
             </button>
           )}
-          <button type="button" onClick={onLogout} className="text-red-400/90">
+          <button type="button" className="nx-topbar__logout" onClick={onLogout}>
             {UZ.logout}
           </button>
         </div>
       </header>
 
-      <div className="nx-body relative z-10 min-h-0 flex-1">
-        <main className="nx-cockpit min-h-0">
-          {/* Signal */}
-          <div className="nx-glass flex min-h-0 flex-col">
-            {phase === "ready" && signal ? (
-              <>
-                <div className={`nx-oracle ${oracleClass}`}>
-                  <div className="nx-oracle__ring nx-oracle__ring--outer" />
-                  <div className="nx-oracle__ring nx-oracle__ring--inner" />
-                  <span className="nx-oracle__action">{signal.action}</span>
-                  <span className="nx-oracle__sub">
-                    {signal.action === "BUY" ? "SOTIB OLISH" : signal.action === "SELL" ? "SOTISH" : "KUTISH"}
-                  </span>
-                  {signal.winProbability != null && (
-                    <span className="nx-oracle__prob">~{signal.winProbability}% ehtimol</span>
-                  )}
-                  {(scores.long != null || scores.short != null) && (
-                    <div className="nx-oracle__scores">
-                      <span className="long">L {scores.long ?? "—"}</span>
-                      <span className="short">S {scores.short ?? "—"}</span>
-                    </div>
-                  )}
-                </div>
-                {signal.action !== "HOLD" && (
-                  <div className="nx-levels">
-                    <div className="nx-level nx-level--sl">
-                      <span className="nx-level__tag">STOP</span>
-                      <span className="nx-level__val">${signal.stopLoss.toFixed(2)}</span>
-                    </div>
-                    <div className="nx-level nx-level--en">
-                      <span className="nx-level__tag">KIRISH</span>
-                      <span className="nx-level__val">${signal.entry.toFixed(2)}</span>
-                    </div>
-                    <div className="nx-level nx-level--tp">
-                      <span className="nx-level__tag">MAQSAD</span>
-                      <span className="nx-level__val">${signal.takeProfit.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="nx-hint">{saneHint(signal.triggerUz, price)}</div>
-              </>
-            ) : analyzing ? (
-              <div className="nx-oracle nx-oracle--hold flex-1">
-                <div className="nx-analyze-spinner" />
-                <span className="nx-oracle__sub mt-3">8 treyder tahlili</span>
-              </div>
-            ) : (
-              <div className="nx-oracle nx-oracle--hold flex-1">
-                <span className="nx-oracle__action" style={{ fontSize: "1.5rem", opacity: 0.5 }}>
-                  —
-                </span>
-                <span className="nx-oracle__sub">Prognoz uchun tugma</span>
-                <button type="button" className="nx-btn-prognoz mt-4" onClick={onRequestForecast}>
-                  ▶ {UZ.monitorForecast}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Price */}
-          <div className="nx-glass nx-price-core">
-            <span className="nx-price-core__label">XAUUSD · OLTIN</span>
+      <div className="nx-main">
+        <section className="nx-hero">
+          <div className="nx-card nx-card--price">
+            <p className="nx-card__eyebrow">XAUUSD · Oltin narxi</p>
             {gold ? (
-              <div key={`${gold.price}-${tickFlash}`}>
-                <span className="nx-price-core__value">${gold.price.toFixed(2)}</span>
-                <span className={`nx-price-core__delta ${up ? "text-emerald-400" : "text-red-400"}`}>
+              <div className="nx-price-block" key={`${gold.price}-${tickFlash}`}>
+                <span className="nx-price">${gold.price.toFixed(2)}</span>
+                <span className={`nx-price-change ${up ? "up" : "down"}`}>
                   {up ? "▲" : "▼"}{" "}
                   {Math.abs(gold.changePercent) >= 0.01
                     ? `${up ? "+" : ""}${gold.changePercent.toFixed(2)}%`
@@ -187,125 +139,205 @@ export function NexusTerminal({
                 </span>
               </div>
             ) : (
-              <span className="nx-price-core__value">—</span>
-            )}
-            {(signal?.forecastBiasUz || analysis?.overallBias) && (
-              <span className="nx-price-core__bias">
-                {signal?.forecastBiasUz ??
-                  (analysis?.overallBias === "bullish"
-                    ? "↑ LONG"
-                    : analysis?.overallBias === "bearish"
-                      ? "↓ SHORT"
-                      : "— NEYTRAL")}
-              </span>
+              <span className="nx-price">—</span>
             )}
             {gold?.high24h != null && (
-              <div className="nx-price-core__hl">
+              <div className="nx-price-range">
                 <span>
-                  Yuqori <span className="text-emerald-400">${gold.high24h.toFixed(2)}</span>
+                  24s yuqori <strong>${gold.high24h.toFixed(2)}</strong>
                 </span>
                 <span>
-                  Past <span className="text-red-400">${gold.low24h?.toFixed(2)}</span>
+                  24s past <strong>${gold.low24h?.toFixed(2)}</strong>
                 </span>
               </div>
             )}
           </div>
 
-          {/* Intel */}
-          <div className="nx-glass nx-metrics">
-            {analysis && (
-              <div className="nx-verdict">
-                <strong className="text-[var(--nx-gold)]">
-                  {analysis.overallBias === "bullish"
-                    ? "↑ LONG"
-                    : analysis.overallBias === "bearish"
-                      ? "↓ SHORT"
-                      : "—"}{" "}
-                  {analysis.biasStrength}%
-                </strong>
-                <p className="mt-1 text-[10px] opacity-90">
-                  {analysis.tradeVerdictUz ?? analysis.recommendationUz}
-                </p>
-              </div>
-            )}
-            {tech && (
+          <div className={`nx-card nx-card--signal ${signalClass}`}>
+            {phase === "ready" && signal ? (
               <>
-                <div className="nx-metric">
-                  <div className="nx-metric__row">
-                    <span className="nx-metric__label">Trend</span>
-                    <span
-                      className={`nx-metric__value ${tech.trend === "bullish" ? "text-emerald-400" : tech.trend === "bearish" ? "text-red-400" : ""}`}
-                    >
-                      {tech.trend === "bullish" ? "YUQORI" : tech.trend === "bearish" ? "PAST" : "NEYTRAL"}
-                    </span>
+                <div className="nx-signal-head">
+                  <div>
+                    <p className="nx-card__eyebrow">AI prognoz</p>
+                    <h2 className="nx-signal-action">{signal.action}</h2>
+                    <p className="nx-signal-sub">
+                      {signal.action === "BUY"
+                        ? "Sotib olish"
+                        : signal.action === "SELL"
+                          ? "Sotish"
+                          : "Kutish tavsiya"}
+                    </p>
+                  </div>
+                  <div className="nx-prob-ring" style={{ "--nx-prob": `${prob}%` } as CSSProperties}>
+                    <span className="nx-prob-ring__val">{prob}%</span>
+                    <span className="nx-prob-ring__lbl">ishonch</span>
                   </div>
                 </div>
-                <div className="nx-metric">
-                  <div className="nx-metric__row">
-                    <span className="nx-metric__label">ADX kuch</span>
-                    <span className="nx-metric__value text-[var(--nx-gold-bright)]">{tech.adx}</span>
+
+                {(scores.long != null || scores.short != null) && (
+                  <div className="nx-score-bars">
+                    <div className="nx-score-bar">
+                      <div className="nx-score-bar__head">
+                        <span>Long</span>
+                        <span>{scores.long ?? 0}</span>
+                      </div>
+                      <div className="nx-score-bar__track">
+                        <div
+                          className="nx-score-bar__fill nx-score-bar__fill--long"
+                          style={{ width: `${scores.long ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="nx-score-bar">
+                      <div className="nx-score-bar__head">
+                        <span>Short</span>
+                        <span>{scores.short ?? 0}</span>
+                      </div>
+                      <div className="nx-score-bar__track">
+                        <div
+                          className="nx-score-bar__fill nx-score-bar__fill--short"
+                          style={{ width: `${scores.short ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="nx-metric-bar">
-                    <div className="nx-metric-bar__fill" style={{ width: `${Math.min(100, tech.adx)}%` }} />
+                )}
+
+                {signal.action !== "HOLD" && (
+                  <div className="nx-trade-levels">
+                    <div>
+                      <span>Stop</span>
+                      <strong>${signal.stopLoss.toFixed(2)}</strong>
+                    </div>
+                    <div>
+                      <span>Kirish</span>
+                      <strong>${signal.entry.toFixed(2)}</strong>
+                    </div>
+                    <div>
+                      <span>Maqsad</span>
+                      <strong>${signal.takeProfit.toFixed(2)}</strong>
+                    </div>
                   </div>
-                </div>
-                <div className="nx-metric">
-                  <div className="nx-metric__row">
-                    <span className="nx-metric__label">RSI</span>
-                    <span className="nx-metric__value">{tech.rsi}</span>
-                  </div>
-                </div>
+                )}
+
+                {signal.triggerUz && (
+                  <p className="nx-signal-note">{shortHint(signal.triggerUz, price)}</p>
+                )}
               </>
-            )}
-            {data?.setupQuality && (
-              <div className="nx-metric">
-                <div className="nx-metric__row">
-                  <span className="nx-metric__label">Setup</span>
-                  <span className="nx-metric__value">{data.setupQuality.score}/100</span>
-                </div>
+            ) : analyzing ? (
+              <div className="nx-signal-empty">
+                <div className="nx-spinner" />
+                <p>8 treyder tahlil qilmoqda…</p>
+              </div>
+            ) : (
+              <div className="nx-signal-empty">
+                <p className="nx-card__eyebrow">Prognoz yo'q</p>
+                <p>Yangi tahlil uchun tugmani bosing</p>
+                <button
+                  type="button"
+                  className="nx-btn-gold"
+                  disabled={sessionBusy}
+                  onClick={onRequestForecast}
+                >
+                  ▶ {UZ.monitorForecast}
+                </button>
               </div>
             )}
-          </div>
-        </main>
 
-        {/* Yangiliklar — doim ochiq */}
-        <section className="nx-news-section min-h-0">
-          <div className="nx-news-col">
-            <p className="nx-news-col__title">🥇 OLTIN YANGILIKLARI</p>
-            {news.direct.length ? (
-              news.direct.slice(0, 12).map((n) => (
-                <p key={n.id} className="nx-news-item">
-                  {n.titleUz || n.title}
-                </p>
-              ))
-            ) : (
-              <p className="nx-news-empty">Yuklanmoqda...</p>
+            {!analyzing && phase === "ready" && (
+              <button
+                type="button"
+                className="nx-btn-gold nx-btn-gold--ghost"
+                disabled={sessionBusy}
+                onClick={onRequestForecast}
+              >
+                {sessionBusy ? "Kutilmoqda…" : `↻ ${UZ.monitorForecast}`}
+              </button>
             )}
           </div>
-          <div className="nx-news-col">
-            <p className="nx-news-col__title">📊 MAKRO TAHLIL</p>
-            {news.macro.length ? (
-              news.macro.slice(0, 12).map((n) => (
-                <p key={n.id} className="nx-news-item">
-                  {n.titleUz || n.title}
-                </p>
+
+          <div className="nx-card nx-card--stats">
+            <p className="nx-card__eyebrow">Bozor holati</p>
+
+            <div className="nx-stat-pills">
+              <span className={`nx-pill ${macro.cls}`}>
+                Makro {macro.text} {analysis?.biasStrength ?? 0}%
+              </span>
+              {signal?.forecastBiasUz && (
+                <span className="nx-pill nx-pill--neutral">{signal.forecastBiasUz}</span>
+              )}
+            </div>
+
+            {analysis?.tradeVerdictUz && (
+              <p className="nx-verdict-text">{analysis.tradeVerdictUz}</p>
+            )}
+
+            <div className="nx-stat-grid">
+              <div className="nx-stat">
+                <span>Trend</span>
+                <strong
+                  className={
+                    tech?.trend === "bullish"
+                      ? "up"
+                      : tech?.trend === "bearish"
+                        ? "down"
+                        : ""
+                  }
+                >
+                  {tech?.trend === "bullish"
+                    ? "YUQORI"
+                    : tech?.trend === "bearish"
+                      ? "PAST"
+                      : "NEYTRAL"}
+                </strong>
+              </div>
+              <div className="nx-stat">
+                <span>ADX</span>
+                <strong>{tech?.adx ?? "—"}</strong>
+              </div>
+              <div className="nx-stat">
+                <span>RSI</span>
+                <strong>{tech?.rsi ?? "—"}</strong>
+              </div>
+              <div className="nx-stat">
+                <span>Setup</span>
+                <strong>{data?.setupQuality ? `${data.setupQuality.score}/100` : "—"}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="nx-card nx-card--news">
+          <div className="nx-news-head">
+            <h3>Yangiliklar</h3>
+            <div className="nx-news-tabs">
+              {newsTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={newsTab === t.id ? "active" : ""}
+                  onClick={() => setNewsTab(t.id)}
+                >
+                  {t.label}
+                  {t.count > 0 && <em>{t.count}</em>}
+                </button>
+              ))}
+            </div>
+            {translating && <span className="nx-translating">{UZ.translating}</span>}
+          </div>
+
+          <ul className="nx-news-list">
+            {newsItems.length ? (
+              newsItems.slice(0, 8).map((n) => (
+                <li key={n.id}>
+                  <span className="nx-news-dot" />
+                  <span>{n.titleUz || n.title}</span>
+                </li>
               ))
             ) : (
-              <p className="nx-news-empty">Yuklanmoqda...</p>
+              <li className="nx-news-empty">Yangiliklar yuklanmoqda…</li>
             )}
-          </div>
-          <div className="nx-news-col">
-            <p className="nx-news-col__title">🌍 GEO SIYOSAT</p>
-            {news.geopolitics.length ? (
-              news.geopolitics.slice(0, 12).map((n) => (
-                <p key={n.id} className="nx-news-item">
-                  {n.titleUz || n.title}
-                </p>
-              ))
-            ) : (
-              <p className="nx-news-empty">Yuklanmoqda...</p>
-            )}
-          </div>
+          </ul>
         </section>
       </div>
     </div>

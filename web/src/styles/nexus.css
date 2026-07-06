@@ -1,547 +1,733 @@
-/* ═══ OLTIN IMPERIYA — yorqin tillo, haqiqiy oltin effektlar ═══ */
-@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap");
+/* ═══ OLTIN SIGNAL — premium, aniq, yorqin tillo ═══ */
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
 
 .nexus-root {
-  --nx-bg: #1a1208;
-  --nx-bg-light: #2a1f0e;
-  --nx-panel: linear-gradient(145deg, rgba(42, 32, 14, 0.95), rgba(26, 18, 8, 0.98));
-  --nx-gold: #ffd54f;
-  --nx-gold-bright: #ffe082;
-  --nx-gold-deep: #c9a227;
-  --nx-gold-dark: #8b6914;
-  --nx-cream: #fff8e7;
-  --nx-cream-dim: #d4c4a0;
-  --nx-green: #2ecc71;
-  --nx-red: #e74c3c;
-  --nx-text: #fff8e7;
-  --nx-muted: #a89060;
-  font-family: "DM Sans", system-ui, sans-serif;
-  color: var(--nx-text);
-  background: var(--nx-bg);
+  --bg: #0c0a07;
+  --bg-card: rgba(22, 18, 12, 0.92);
+  --gold-1: #fff3c4;
+  --gold-2: #ffd54f;
+  --gold-3: #d4a017;
+  --gold-4: #9a7209;
+  --text: #faf6eb;
+  --text-soft: #c9b98a;
+  --text-muted: #8a7a5c;
+  --green: #3dd68c;
+  --red: #ff6b6b;
+  --border: rgba(255, 213, 79, 0.28);
+  --glow: rgba(255, 213, 79, 0.35);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-family: "Inter", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
 }
 
-.font-nexus {
-  font-family: "Cinzel", serif;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.font-nx-mono {
-  font-family: "JetBrains Mono", monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Fon: oltin nur va zarrachalar ── */
+/* ── Fon ── */
 .nx-bg {
   position: absolute;
   inset: 0;
-  overflow: hidden;
   pointer-events: none;
+  overflow: hidden;
   background:
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(255, 213, 79, 0.18), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 100% 50%, rgba(201, 162, 39, 0.12), transparent),
-    radial-gradient(ellipse 40% 30% at 0% 80%, rgba(255, 224, 130, 0.08), transparent),
-    linear-gradient(180deg, #1f1608 0%, #0f0a04 100%);
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 213, 79, 0.14), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 100% 100%, rgba(212, 160, 23, 0.08), transparent),
+    linear-gradient(180deg, #12100c 0%, #080604 100%);
+}
+
+.nx-bg__rays {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: 140%;
+  height: 55%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(255, 224, 130, 0.1), transparent 70%);
+  animation: nx-pulse 5s ease-in-out infinite;
 }
 
 .nx-bg__shimmer {
   position: absolute;
-  inset: -50%;
-  background: conic-gradient(
-    from 0deg at 50% 50%,
-    transparent 0deg,
-    rgba(255, 213, 79, 0.06) 60deg,
-    transparent 120deg,
-    rgba(255, 224, 130, 0.04) 180deg,
-    transparent 240deg
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 213, 79, 0.04) 50%,
+    transparent 60%
   );
-  animation: nx-gold-rotate 30s linear infinite;
+  background-size: 200% 100%;
+  animation: nx-shimmer 8s linear infinite;
 }
 
 .nx-bg__dust {
   position: absolute;
   inset: 0;
+  opacity: 0.5;
   background-image:
-    radial-gradient(1.5px 1.5px at 10% 20%, rgba(255, 213, 79, 0.6), transparent),
-    radial-gradient(1px 1px at 30% 60%, rgba(255, 224, 130, 0.5), transparent),
-    radial-gradient(1.5px 1.5px at 70% 30%, rgba(255, 193, 7, 0.4), transparent),
-    radial-gradient(1px 1px at 90% 70%, rgba(255, 213, 79, 0.5), transparent),
-    radial-gradient(1px 1px at 50% 90%, rgba(255, 224, 130, 0.3), transparent);
-  animation: nx-dust-float 20s ease-in-out infinite;
-}
-
-.nx-bg__rays {
-  position: absolute;
-  top: -30%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 120%;
-  height: 60%;
-  background: radial-gradient(ellipse at center, rgba(255, 213, 79, 0.12) 0%, transparent 65%);
-  animation: nx-rays-pulse 4s ease-in-out infinite;
+    radial-gradient(1px 1px at 15% 25%, rgba(255, 213, 79, 0.7), transparent),
+    radial-gradient(1px 1px at 75% 15%, rgba(255, 224, 130, 0.5), transparent),
+    radial-gradient(1px 1px at 45% 75%, rgba(255, 193, 7, 0.4), transparent);
 }
 
 /* ── Header ── */
-.nx-header {
+.nx-topbar {
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 18px;
-  border-bottom: 1px solid rgba(255, 213, 79, 0.25);
-  background: linear-gradient(180deg, rgba(255, 213, 79, 0.12), rgba(26, 18, 8, 0.6));
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 213, 79, 0.1), rgba(12, 10, 7, 0.85));
+  backdrop-filter: blur(10px);
 }
 
-.nx-logo {
-  font-family: "Cinzel", serif;
-  font-size: 15px;
-  font-weight: 900;
-  background: linear-gradient(180deg, #fff8e7 0%, #ffd54f 40%, #c9a227 100%);
+.nx-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nx-logo-mark {
+  color: var(--gold-2);
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px var(--glow));
+}
+
+.nx-logo-text {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: linear-gradient(180deg, var(--gold-1), var(--gold-2) 50%, var(--gold-3));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  filter: drop-shadow(0 0 8px rgba(255, 213, 79, 0.5));
-  text-shadow: 0 0 20px rgba(255, 213, 79, 0.3);
 }
 
-.nx-btn-prognoz {
-  padding: 9px 22px;
-  font-family: "Cinzel", serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #1a1208;
-  background: linear-gradient(180deg, #ffe082 0%, #ffd54f 40%, #c9a227 100%);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 6px;
-  cursor: pointer;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(255, 213, 79, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: transform 0.15s, box-shadow 0.15s;
+.nx-topbar__status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-soft);
 }
 
-.nx-btn-prognoz:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 24px rgba(255, 213, 79, 0.5);
-}
-
-.nx-btn-prognoz:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.nx-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--nx-green);
-  box-shadow: 0 0 10px var(--nx-green);
-  animation: nx-blink 1.5s infinite;
-}
-
-.nx-badge {
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-family: "Cinzel", serif;
+.nx-live {
+  padding: 3px 8px;
+  border-radius: 99px;
   font-size: 10px;
   font-weight: 700;
-  border: 1px solid rgba(255, 213, 79, 0.4);
-  background: rgba(255, 213, 79, 0.12);
-  color: var(--nx-gold-bright);
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ff9a9a;
 }
 
-/* ── Layout ── */
-.nx-body {
+.nx-live--on {
+  border-color: rgba(61, 214, 140, 0.5);
+  color: var(--green);
+  box-shadow: 0 0 12px rgba(61, 214, 140, 0.25);
+}
+
+.nx-topbar__time {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
+.nx-topbar__user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.nx-topbar__user button {
+  background: none;
+  border: none;
+  color: var(--gold-2);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.nx-topbar__user button:hover {
+  color: var(--gold-1);
+}
+
+.nx-topbar__logout {
+  color: #ff8a8a !important;
+}
+
+/* ── Main layout ── */
+.nx-main {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+.nx-hero {
   display: grid;
-  grid-template-rows: 1fr minmax(140px, 32%);
+  grid-template-columns: 1.1fr 1fr 0.85fr;
+  gap: 12px;
   min-height: 0;
   flex: 1;
-  gap: 8px;
-  padding: 8px;
 }
 
-.nx-cockpit {
-  display: grid;
-  grid-template-columns: 1fr 1.35fr 0.9fr;
-  gap: 8px;
-  min-height: 0;
-}
-
-/* ── Oltin panel ── */
-.nx-glass {
+/* ── Cards ── */
+.nx-card {
   position: relative;
-  background: var(--nx-panel);
-  border: 1px solid rgba(255, 213, 79, 0.22);
-  border-radius: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
   box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 213, 79, 0.15),
-    0 0 30px rgba(255, 193, 7, 0.06);
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 213, 79, 0.12);
   overflow: hidden;
 }
 
-.nx-glass::before {
+.nx-card::before {
   content: "";
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 213, 79, 0.7), transparent);
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 213, 79, 0.6), transparent);
 }
 
-/* ── Signal ── */
-.nx-oracle {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 12px;
-  min-height: 160px;
-  position: relative;
-}
-
-.nx-oracle__ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 213, 79, 0.35);
-  box-shadow: 0 0 30px rgba(255, 213, 79, 0.15);
-}
-
-.nx-oracle__ring--outer {
-  width: 150px;
-  height: 150px;
-  animation: nx-ring-spin 25s linear infinite;
-}
-
-.nx-oracle__ring--inner {
-  width: 115px;
-  height: 115px;
-  border-width: 1px;
-  animation: nx-ring-spin 18s linear infinite reverse;
-}
-
-.nx-oracle--buy .nx-oracle__ring { border-color: rgba(46, 204, 113, 0.6); box-shadow: 0 0 40px rgba(46, 204, 113, 0.25); }
-.nx-oracle--sell .nx-oracle__ring { border-color: rgba(231, 76, 60, 0.6); box-shadow: 0 0 40px rgba(231, 76, 60, 0.25); }
-.nx-oracle--hold .nx-oracle__ring { border-color: rgba(255, 213, 79, 0.5); }
-
-.nx-oracle__action {
-  position: relative;
-  z-index: 1;
-  font-family: "Cinzel", serif;
-  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
-  font-weight: 900;
-  line-height: 1;
-}
-
-.nx-oracle--buy .nx-oracle__action {
-  color: #2ecc71;
-  text-shadow: 0 0 24px rgba(46, 204, 113, 0.7);
-}
-
-.nx-oracle--sell .nx-oracle__action {
-  color: #e74c3c;
-  text-shadow: 0 0 24px rgba(231, 76, 60, 0.7);
-}
-
-.nx-oracle--hold .nx-oracle__action {
-  background: linear-gradient(180deg, #fff8e7, #ffd54f);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 12px rgba(255, 213, 79, 0.5));
-}
-
-.nx-oracle__sub {
-  position: relative;
-  z-index: 1;
-  margin-top: 6px;
-  font-size: 10px;
-  letter-spacing: 0.25em;
-  color: var(--nx-cream-dim);
-  text-transform: uppercase;
-}
-
-.nx-oracle__prob {
-  position: relative;
-  z-index: 1;
-  margin-top: 10px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 13px;
-  color: var(--nx-gold-bright);
-}
-
-.nx-oracle__scores {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  gap: 14px;
-  margin-top: 8px;
-  font-family: "JetBrains Mono", monospace;
+.nx-card__eyebrow {
+  margin: 0;
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-2);
 }
 
-.nx-oracle__scores .long { color: #2ecc71; }
-.nx-oracle__scores .short { color: #e74c3c; }
-
-/* ── Narx ── */
-.nx-price-core {
+/* ── Price card ── */
+.nx-card--price {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  padding: 20px 16px;
+  padding: 24px 28px;
 }
 
-.nx-price-core__label {
-  font-size: 10px;
-  letter-spacing: 0.35em;
-  color: var(--nx-gold);
-  margin-bottom: 6px;
+.nx-price-block {
+  margin-top: 8px;
 }
 
-.nx-price-core__value {
-  font-family: "Cinzel", serif;
-  font-size: clamp(2.2rem, 5vw, 3.2rem);
-  font-weight: 900;
+.nx-price {
+  display: block;
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(2.8rem, 5vw, 4rem);
+  font-weight: 700;
   line-height: 1;
-  background: linear-gradient(180deg, #fffde7 0%, #ffd54f 35%, #ffab00 70%, #c9a227 100%);
+  background: linear-gradient(180deg, #fffde7 0%, #ffe082 30%, #ffc107 60%, #d4a017 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  filter: drop-shadow(0 2px 8px rgba(255, 193, 7, 0.4));
-  animation: nx-gold-text-shine 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(255, 193, 7, 0.35));
 }
 
-.nx-price-core__delta {
-  margin-top: 8px;
+.nx-price-change {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 12px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
 }
 
-.nx-price-core__bias {
-  margin-top: 10px;
-  padding: 4px 14px;
-  border-radius: 99px;
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  border: 1px solid rgba(255, 213, 79, 0.35);
-  color: var(--nx-gold-bright);
-  background: rgba(255, 213, 79, 0.1);
+.nx-price-change.up {
+  color: var(--green);
+  background: rgba(61, 214, 140, 0.12);
 }
 
-.nx-price-core__hl {
-  margin-top: 12px;
+.nx-price-change.down {
+  color: var(--red);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.nx-price-range {
   display: flex;
-  gap: 20px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--nx-muted);
-}
-
-/* ── Levels ── */
-.nx-levels {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 0 10px 10px;
-}
-
-.nx-level {
-  text-align: center;
-  padding: 8px 4px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 213, 79, 0.15);
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.nx-level__tag {
-  display: block;
-  font-size: 8px;
-  letter-spacing: 0.15em;
-  color: var(--nx-muted);
-}
-
-.nx-level__val {
-  font-family: "JetBrains Mono", monospace;
+  gap: 24px;
+  margin-top: 20px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--nx-cream);
+  color: var(--text-muted);
 }
 
-.nx-level--sl .nx-level__val { color: #e74c3c; }
-.nx-level--tp .nx-level__val { color: #2ecc71; }
-.nx-level--en .nx-level__val { color: var(--nx-gold-bright); }
-
-.nx-hint {
-  padding: 8px 12px 12px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--nx-cream-dim);
-  border-top: 1px solid rgba(255, 213, 79, 0.1);
+.nx-price-range strong {
+  color: var(--text-soft);
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 500;
 }
 
-/* ── Metrics ── */
-.nx-metrics {
-  padding: 12px;
+/* ── Signal card ── */
+.nx-card--signal {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
+  padding: 20px 22px;
+  gap: 14px;
 }
 
-.nx-metric {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  border-left: 3px solid var(--nx-gold-deep);
-}
-
-.nx-metric__row {
+.nx-signal-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.nx-signal-action {
+  margin: 4px 0 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nx-signal--buy .nx-signal-action {
+  color: var(--green);
+  text-shadow: 0 0 24px rgba(61, 214, 140, 0.5);
+}
+
+.nx-signal--sell .nx-signal-action {
+  color: var(--red);
+  text-shadow: 0 0 24px rgba(255, 107, 107, 0.5);
+}
+
+.nx-signal--hold .nx-signal-action {
+  background: linear-gradient(180deg, var(--gold-1), var(--gold-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nx-signal-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.nx-prob-ring {
+  --nx-prob: 50%;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  background: conic-gradient(
+    var(--gold-2) calc(var(--nx-prob) * 1%),
+    rgba(255, 213, 79, 0.12) 0
+  );
+  position: relative;
 }
 
-.nx-metric__label {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--nx-muted);
+.nx-prob-ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--bg-card);
 }
 
-.nx-metric__value {
+.nx-prob-ring__val,
+.nx-prob-ring__lbl {
+  position: relative;
+  z-index: 1;
+}
+
+.nx-prob-ring__val {
   font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--nx-cream);
+  color: var(--gold-1);
 }
 
-.nx-metric-bar {
-  height: 4px;
-  border-radius: 2px;
+.nx-prob-ring__lbl {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.nx-score-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nx-score-bar__head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-bottom: 4px;
+}
+
+.nx-score-bar__head span:last-child {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+}
+
+.nx-score-bar__track {
+  height: 6px;
+  border-radius: 3px;
   background: rgba(255, 213, 79, 0.1);
-  margin-top: 6px;
   overflow: hidden;
 }
 
-.nx-metric-bar__fill {
+.nx-score-bar__fill {
   height: 100%;
-  border-radius: 2px;
-  background: linear-gradient(90deg, #c9a227, #ffd54f, #ffe082);
-  transition: width 0.5s ease;
+  border-radius: 3px;
+  transition: width 0.4s ease;
 }
 
-.nx-verdict {
-  padding: 10px;
-  border-radius: 8px;
-  background: rgba(255, 213, 79, 0.08);
-  border: 1px solid rgba(255, 213, 79, 0.2);
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--nx-cream);
+.nx-score-bar__fill--long {
+  background: linear-gradient(90deg, #1a8f5a, var(--green));
 }
 
-/* ── Yangiliklar — doim ko'rinadi ── */
-.nx-news-section {
+.nx-score-bar__fill--short {
+  background: linear-gradient(90deg, #b83232, var(--red));
+}
+
+.nx-trade-levels {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  min-height: 0;
 }
 
-.nx-news-col {
-  background: var(--nx-panel);
-  border: 1px solid rgba(255, 213, 79, 0.18);
-  border-radius: 10px;
+.nx-trade-levels > div {
   padding: 10px;
-  overflow-y: auto;
-  min-height: 0;
-  box-shadow: inset 0 0 20px rgba(255, 193, 7, 0.03);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 213, 79, 0.12);
+  text-align: center;
 }
 
-.nx-news-col__title {
-  font-family: "Cinzel", serif;
+.nx-trade-levels span {
+  display: block;
   font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.nx-trade-levels strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.nx-signal-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  background: rgba(255, 213, 79, 0.06);
+  border-left: 3px solid var(--gold-3);
+}
+
+.nx-signal-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.nx-spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 213, 79, 0.15);
+  border-top-color: var(--gold-2);
+  animation: nx-spin 0.8s linear infinite;
+}
+
+/* ── Stats card ── */
+.nx-card--stats {
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nx-stat-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nx-pill {
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 213, 79, 0.25);
+  background: rgba(255, 213, 79, 0.08);
+  color: var(--gold-1);
+}
+
+.nx-pill--long {
+  border-color: rgba(61, 214, 140, 0.4);
+  background: rgba(61, 214, 140, 0.1);
+  color: var(--green);
+}
+
+.nx-pill--short {
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--red);
+}
+
+.nx-pill--neutral {
+  color: var(--text-soft);
+}
+
+.nx-verdict-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.nx-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.nx-stat {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 213, 79, 0.1);
+}
+
+.nx-stat span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.nx-stat strong {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.nx-stat strong.up {
+  color: var(--green);
+}
+
+.nx-stat strong.down {
+  color: var(--red);
+}
+
+/* ── Buttons ── */
+.nx-btn-gold {
+  margin-top: auto;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--nx-gold);
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 213, 79, 0.2);
-  position: sticky;
-  top: 0;
-  background: inherit;
+  letter-spacing: 0.06em;
+  color: #1a1208;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffe082, #ffd54f 50%, #d4a017);
+  box-shadow: 0 4px 16px rgba(255, 193, 7, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.nx-news-item {
+.nx-btn-gold:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(255, 193, 7, 0.45);
+}
+
+.nx-btn-gold:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nx-btn-gold--ghost {
+  background: transparent;
+  color: var(--gold-2);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.nx-btn-gold--ghost:hover:not(:disabled) {
+  background: rgba(255, 213, 79, 0.08);
+}
+
+/* ── News ── */
+.nx-card--news {
+  flex-shrink: 0;
+  max-height: 28%;
+  min-height: 140px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nx-news-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.nx-news-head h3 {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold-1);
+}
+
+.nx-news-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.nx-news-tabs button {
+  padding: 5px 14px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 213, 79, 0.2);
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nx-news-tabs button em {
+  font-style: normal;
   font-size: 10px;
-  line-height: 1.4;
-  color: var(--nx-cream-dim);
-  padding: 6px 0;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(255, 213, 79, 0.15);
+  color: var(--gold-2);
+}
+
+.nx-news-tabs button.active {
+  background: rgba(255, 213, 79, 0.15);
+  border-color: var(--gold-2);
+  color: var(--gold-1);
+}
+
+.nx-translating {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gold-2);
+}
+
+.nx-news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.nx-news-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-soft);
   border-bottom: 1px solid rgba(255, 213, 79, 0.06);
 }
 
-.nx-news-item:hover {
-  color: var(--nx-cream);
+.nx-news-list li:hover {
+  color: var(--text);
+}
+
+.nx-news-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--gold-2);
+  box-shadow: 0 0 6px var(--glow);
 }
 
 .nx-news-empty {
-  font-size: 10px;
-  color: var(--nx-muted);
+  color: var(--text-muted);
   font-style: italic;
 }
 
-.nx-analyze-spinner {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 213, 79, 0.2);
-  border-top-color: var(--nx-gold);
-  animation: nx-ring-spin 1s linear infinite;
-}
-
-@keyframes nx-gold-rotate {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes nx-dust-float {
-  0%, 100% { opacity: 0.6; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-8px); }
-}
-
-@keyframes nx-rays-pulse {
+/* ── Animations ── */
+@keyframes nx-pulse {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
 
-@keyframes nx-ring-spin {
+@keyframes nx-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes nx-spin {
   to { transform: rotate(360deg); }
 }
 
-@keyframes nx-gold-text-shine {
-  0%, 100% { filter: drop-shadow(0 2px 8px rgba(255, 193, 7, 0.4)); }
-  50% { filter: drop-shadow(0 2px 16px rgba(255, 213, 79, 0.7)); }
-}
-
-@keyframes nx-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-@media (max-width: 900px) {
-  .nx-body {
-    grid-template-rows: auto auto;
-  }
-  .nx-cockpit {
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .nx-hero {
     grid-template-columns: 1fr;
   }
-  .nx-news-section {
-    grid-template-columns: 1fr;
-    max-height: 40vh;
+
+  .nx-card--news {
+    max-height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .nx-topbar {
+    flex-wrap: wrap;
+  }
+
+  .nx-topbar__user {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .nx-news-head {
+    flex-wrap: wrap;
   }
 }
