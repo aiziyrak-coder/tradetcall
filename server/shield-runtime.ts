@@ -1,9 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { getDataDir } from "../shared/data-dir";
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DATA_DIR = process.env.TRADE_DATA_DIR || path.join(root, "data");
+const DATA_DIR = getDataDir();
 const FILE = path.join(DATA_DIR, "shield-runtime.json");
 
 interface ShieldRuntime {

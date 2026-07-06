@@ -22,6 +22,14 @@ export interface AiTradeSignal {
   forecastLow?: number;
   forecastBiasUz?: string;
   targetMoveUsd?: number;
+  /** Yutish ehtimoli 35–88% */
+  winProbability?: number;
+  /** Moslik 0–100 */
+  confluencePct?: number;
+  /** A+ / A / B / C / D */
+  signalGrade?: string;
+  /** Treyder paneli xulosasi */
+  panelUz?: string;
 }
 
 export function isAiTradeAction(v: string): v is AiTradeAction {

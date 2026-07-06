@@ -2,20 +2,19 @@ import { analyzeTechnicalsFull } from "../shared/enhanced-technical";
 import { AI_MAX_OUTPUT_TOKENS } from "../shared/ai-config";
 import {
   buildCompactAiTradeSignalPrompt,
-  SYSTEM_AI_TRADE_SIGNAL_COMPACT,
 } from "../shared/compact-prompt";
+import {
+  SYSTEM_AI_ENRICH_ONLY,
+  buildManifestContextBlock,
+} from "../shared/ai-manifest";
 import { parseAiTradeSignalJson } from "../shared/prompts";
-import { askDeepSeek } from "../shared/deepseek";
-import { setApiKey as setLlmKey } from "../shared/deepseek";
+import { askOpenAI } from "../shared/openai";
+import { setApiKey as setLlmKey } from "../shared/openai";
 import { getLiveMomentum, guardScalpAiSignal } from "../shared/scalp-signal-guard";
 import { enforceSwingTargets } from "../shared/pip-targets";
 import { computeSetupQuality } from "../shared/setup-quality";
-import { minConfidenceForSetup } from "../shared/clear-signal";
-import {
-  computeMarketForecast,
-  tradeLevelsToAiSignal,
-} from "../shared/forecast-levels";
 import { shouldBlockAiForecast } from "../shared/profit-protection";
+import { buildProAiSignal } from "../shared/pro-ai-signal";
 import type { AiTradeSignal } from "../shared/ai-trade-signal";
 import type { Candle } from "../shared/types";
 import { completeAiSession, failAiSession } from "./ai-session";
@@ -26,13 +25,16 @@ import {
   refreshNewsDeepAnalysis,
 } from "./monitor-service";
 import { emitMonitorEvent } from "./events";
-import { recordSignalIfNew } from "./signal-journal-store";
+import { recordSignalIfNew, getJournalStats } from "./signal-journal-store";
 import { clearPause } from "./shield-runtime";
+
+/** OpenAI faqat A/B darajali setupda chaqiriladi */
+const AI_ENRICH_MIN_WIN_PROB = 58;
 
 export async function runOneShotAiAnalysis(): Promise<void> {
   const key = getApiKey();
   if (!key?.trim()) {
-    failAiSession("API kalit yo'q — Sozlamalarda DeepSeek kalitini kiriting");
+    failAiSession("API kalit yo'q — Sozlamalarda OpenAI kalitini kiriting");
     broadcastUpdate();
     return;
   }
@@ -49,14 +51,16 @@ export async function runOneShotAiAnalysis(): Promise<void> {
   }
 
   const snap = getLastSnapshot();
-  let capitalWarning: string | undefined;
+  let capitalBlock: { block: boolean; reasonUz: string; warningUz?: string } = {
+    block: false,
+    reasonUz: "",
+  };
   if (snap?.platform) {
-    const block = shouldBlockAiForecast({
+    capitalBlock = shouldBlockAiForecast({
       capitalShield: snap.platform.capitalShield,
       discipline: snap.platform.discipline,
       marketQuality: snap.platform.marketQuality,
     });
-    capitalWarning = block.warningUz;
   }
 
   const candles1m = ctx.candles1m.length ? ctx.candles1m : ctx.candles5m;
@@ -87,187 +91,204 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       capitalShieldOk: ctx.capitalShieldOk,
     });
 
-  let setupHint: string | undefined;
-  if (!setupQ.tradeAllowed) {
-    setupHint = `Setup ${setupQ.score}/100 — ${setupQ.warningsUz[0] ?? "ehtiyot"}`;
-  }
-  if (ctx.newsAnalysis?.contradictionsUz) {
-    setupHint = `${setupHint ?? ""} · Yangiliklar zid`.trim();
-  }
-
-  const forecastInput = {
-    price: ctx.gold.price,
-    tech1: tech,
-    tech5,
-    setupQ,
-    m1Scalp: ctx.m1Scalp,
-    live,
-    news: ctx.newsAnalysis,
-  };
-
-  const forecast = computeMarketForecast(forecastInput);
-  let signal = tradeLevelsToAiSignal(forecast, ctx.gold.price);
-
-  try {
-    const prompt = buildCompactAiTradeSignalPrompt({
+  if (capitalBlock.block) {
+    const pro = buildProAiSignal({
       price: ctx.gold.price,
-      changePercent: ctx.gold.changePercent,
-      tech,
-      tech5,
-      setupScore: setupQ.score,
-      longScore: setupQ.longScore,
-      shortScore: setupQ.shortScore,
-      m1Scalp: ctx.m1Scalp,
-      live,
+      multiCandles: ctx.multiCandles,
+      drivers: ctx.drivers,
       news: ctx.newsAnalysis,
-      suggestedAction:
-        forecast.action === "BUY" || forecast.action === "SELL"
-          ? forecast.action
-          : null,
-      forecastHigh: forecast.forecastHigh,
-      forecastLow: forecast.forecastLow,
-      suggestedTp: forecast.takeProfit,
-      suggestedSl: forecast.stopLoss,
-    });
-    const raw = await askDeepSeek(
-      SYSTEM_AI_TRADE_SIGNAL_COMPACT,
-      prompt,
-      AI_MAX_OUTPUT_TOKENS
-    );
-    const parsed = parseAiTradeSignalJson(raw, ctx.gold.price);
-    signal = mergeAiWithForecast(parsed, forecast, ctx.gold.price);
-    console.log("[ai-signal] DeepSeek + forecast:", signal.action);
-
-    signal = applySignalPipeline(signal, forecastInput, {
-      c1,
-      price: ctx.gold.price,
-      changePercent: ctx.gold.changePercent,
       impulse: ctx.impulse,
+      journalStats: getJournalStats(),
     });
-
-    const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
-    if (extra) {
-      signal = {
-        ...signal,
-        analysisUz: `${signal.analysisUz} ${extra}`.trim(),
-      };
-    }
-
-    completeAiSession(signal);
-    recordIfTrade(signal, ctx.gold.price);
-  } catch (e) {
-    console.warn("[ai-signal] error, forecast fallback:", e);
-    let signal = tradeLevelsToAiSignal(forecast, ctx.gold.price);
-    signal = applySignalPipeline(signal, forecastInput, {
-      c1,
-      price: ctx.gold.price,
-      changePercent: ctx.gold.changePercent,
-      impulse: ctx.impulse,
+    completeAiSession({
+      ...pro.signal,
+      action: "HOLD",
+      confidence: Math.min(pro.signal.confidence, 45),
+      summaryUz: `HOLD — ${capitalBlock.reasonUz}`,
+      analysisUz: `${pro.signal.analysisUz}\nKapital himoyasi: ${capitalBlock.reasonUz}`,
     });
-    const extra = [setupHint, capitalWarning].filter(Boolean).join(" · ");
-    if (extra) {
-      signal = { ...signal, analysisUz: `${signal.analysisUz} ${extra}`.trim() };
-    }
-    completeAiSession(signal);
-    recordIfTrade(signal, ctx.gold.price);
+    broadcastUpdate();
+    return;
   }
 
+  const pro = buildProAiSignal({
+    price: ctx.gold.price,
+    multiCandles: ctx.multiCandles,
+    drivers: ctx.drivers,
+    news: ctx.newsAnalysis,
+    impulse: ctx.impulse,
+    journalStats: getJournalStats(),
+  });
+
+  let signal = pro.signal;
+  console.log(
+    "[ai-signal] PRO:",
+    signal.action,
+    `win~${pro.winProbability}%`,
+    pro.grade,
+    `L${pro.master.longScore}/S${pro.master.shortScore}`
+  );
+
+  const shouldEnrichWithAi =
+    pro.winProbability >= AI_ENRICH_MIN_WIN_PROB &&
+    signal.action !== "HOLD" &&
+    pro.gateAllowed &&
+    (pro.grade === "A+" || pro.grade === "A" || pro.grade === "B");
+
+  if (shouldEnrichWithAi) {
+    try {
+      const manifestBlock = buildManifestContextBlock({
+        proAction: signal.action,
+        winProbability: pro.winProbability,
+        grade: pro.grade,
+        gradeUz: pro.gradeUz,
+        panelUz: pro.master.panelUz,
+        longScore: pro.master.longScore,
+        shortScore: pro.master.shortScore,
+        confluencePct: pro.master.confluencePct,
+        gateAllowed: pro.gateAllowed,
+      });
+      const prompt = buildCompactAiTradeSignalPrompt({
+        price: ctx.gold.price,
+        changePercent: ctx.gold.changePercent,
+        high24h: ctx.gold.high24h,
+        low24h: ctx.gold.low24h,
+        tech,
+        tech5,
+        setupScore: setupQ.score,
+        longScore: setupQ.longScore,
+        shortScore: setupQ.shortScore,
+        m1Scalp: ctx.m1Scalp,
+        live,
+        news: ctx.newsAnalysis,
+        suggestedAction: signal.action === "HOLD" ? null : signal.action,
+        forecastHigh: signal.forecastHigh,
+        forecastLow: signal.forecastLow,
+        suggestedTp: signal.takeProfit,
+        suggestedSl: signal.stopLoss,
+        disciplineScore: ctx.disciplineScore,
+        capitalShieldOk: ctx.capitalShieldOk,
+        calendarHint: ctx.calendar?.hintUz,
+        drivers: ctx.drivers,
+        newsTitles: ctx.newsItems?.slice(0, 15).map((n) => n.titleUz || n.title),
+      });
+      const proContext = `\n\n${manifestBlock}`;
+      const raw = await askOpenAI(
+        SYSTEM_AI_ENRICH_ONLY,
+        prompt + proContext,
+        AI_MAX_OUTPUT_TOKENS
+      );
+      const parsed = parseAiTradeSignalJson(raw, ctx.gold.price);
+      signal = mergeProWithAi(pro.signal, parsed, pro);
+      console.log("[ai-signal] OpenAI enriched:", parsed.action, "→ final:", signal.action);
+    } catch (e) {
+      console.warn("[ai-signal] OpenAI enrich skipped:", e);
+    }
+  }
+
+  signal = applyFinalGuards(signal, {
+    c1,
+    price: ctx.gold.price,
+    changePercent: ctx.gold.changePercent,
+    impulse: ctx.impulse,
+    tech1: tech,
+    m1Scalp: ctx.m1Scalp,
+    tech5,
+  });
+
+  const extra = [capitalBlock.warningUz].filter(Boolean).join(" · ");
+  if (extra) {
+    signal = { ...signal, analysisUz: `${signal.analysisUz}\n${extra}`.trim() };
+  }
+
+  completeAiSession(signal);
+  recordIfTrade(signal, ctx.gold.price);
   broadcastUpdate();
 }
 
-/** DeepSeek JSON ni bozor bashorati darajalari bilan birlashtiradi */
-function mergeAiWithForecast(
+/** Pro signal ustun — AI faqat tahlil matnini boyitadi */
+function mergeProWithAi(
+  pro: AiTradeSignal,
   ai: AiTradeSignal,
-  forecast: ReturnType<typeof computeMarketForecast>,
-  price: number
+  ctx: ReturnType<typeof buildProAiSignal>
 ): AiTradeSignal {
-  const base = tradeLevelsToAiSignal(forecast, price);
+  if (pro.action === "HOLD") return pro;
 
-  if (ai.action === "HOLD" || forecast.action === "HOLD") {
+  if (ai.action === pro.action) {
     return {
-      ...base,
-      analysisUz: ai.analysisUz?.length > 40 ? ai.analysisUz : base.analysisUz,
-      summaryUz: base.summaryUz,
+      ...pro,
+      confidence: Math.round((pro.confidence * 0.6 + ai.confidence * 0.4)),
+      analysisUz: [pro.analysisUz, ai.analysisUz].filter(Boolean).join("\n").slice(0, 900),
+      triggerUz: ai.triggerUz?.length > 15 ? ai.triggerUz : pro.triggerUz,
+      invalidationUz: ai.invalidationUz?.length > 10 ? ai.invalidationUz : pro.invalidationUz,
+      summaryUz: `${pro.action} — yutish ~${pro.winProbability}% · ${ctx.grade} · ${ai.summaryUz?.slice(0, 80) ?? pro.summaryUz}`,
     };
   }
 
-  if (ai.action !== forecast.action) {
-    return base;
+  if (ai.action === "HOLD") {
+    return {
+      ...pro,
+      analysisUz: `${pro.analysisUz}\n[OpenAI ehtiyot] ${ai.summaryUz}`.slice(0, 900),
+    };
   }
 
-  const rewardAi = Math.abs(ai.takeProfit - ai.entry);
-  const rewardFc = forecast.targetUsd;
-  const useForecastLevels = rewardAi < 4 || Math.abs(rewardAi - 5) < 0.35;
+  if (ai.confidence > pro.confidence + 15 && ctx.winProbability < 60) {
+    return {
+      ...ai,
+      winProbability: Math.max(40, pro.winProbability! - 8),
+      confluencePct: pro.confluencePct,
+      signalGrade: "C",
+      panelUz: pro.panelUz,
+      analysisUz: `${pro.analysisUz}\n[AI zid] ${ai.analysisUz}`.slice(0, 900),
+    };
+  }
 
   return {
-    ...base,
-    confidence: Math.round((ai.confidence + forecast.confidence) / 2),
-    entry: useForecastLevels ? forecast.entry : ai.entry,
-    stopLoss: useForecastLevels ? forecast.stopLoss : ai.stopLoss,
-    takeProfit: useForecastLevels ? forecast.takeProfit : ai.takeProfit,
-    riskReward: useForecastLevels ? forecast.riskReward : ai.riskReward,
-    targetMoveUsd: useForecastLevels ? forecast.targetUsd : rewardAi,
-    triggerUz: ai.triggerUz?.length > 20 ? ai.triggerUz : base.triggerUz,
-    invalidationUz: ai.invalidationUz?.length > 15 ? ai.invalidationUz : base.invalidationUz,
-    analysisUz: [base.analysisUz, ai.analysisUz].filter(Boolean).join(" ").slice(0, 900),
-    summaryUz: base.summaryUz,
+    ...pro,
+    analysisUz: `${pro.analysisUz}\n[AI zid ${ai.action} rad etildi — panel ${pro.action}]`.slice(0, 900),
   };
 }
 
-function applySignalPipeline(
+function applyFinalGuards(
   signal: AiTradeSignal,
-  forecastInput: Parameters<typeof computeMarketForecast>[0],
   ctx: {
     c1: Candle[];
     price: number;
     changePercent: number;
     impulse: ReturnType<typeof getMonitorContextForAi>["impulse"];
+    tech1: ReturnType<typeof analyzeTechnicalsFull>;
+    m1Scalp: ReturnType<typeof getMonitorContextForAi>["m1Scalp"];
+    tech5: ReturnType<typeof analyzeTechnicalsFull>;
   }
 ): AiTradeSignal {
-  let s = signal;
-  const setupQ = forecastInput.setupQ;
-  const minConf = minConfidenceForSetup(setupQ.score);
+  if (signal.action === "HOLD") return signal;
 
-  if (s.action !== "HOLD" && s.confidence < minConf) {
-    const hold = computeMarketForecast(forecastInput);
-    s = tradeLevelsToAiSignal(hold, ctx.price);
-    s = {
-      ...s,
-      summaryUz: `HOLD — ishonch ${signal.confidence}% (min ${minConf}%). ${hold.summaryUz}`,
-      analysisUz: `${hold.analysisUz} Avvalgi yo'nalish: ${signal.action}, lekin ishonch yetarli emas.`,
-    };
-  }
-
-  const guarded = guardScalpAiSignal(s, {
+  const guarded = guardScalpAiSignal(signal, {
     candles1m: ctx.c1,
     price: ctx.price,
     changePercent: ctx.changePercent,
-    tech1: forecastInput.tech1,
-    m1Scalp: forecastInput.m1Scalp,
+    tech1: ctx.tech1,
+    m1Scalp: ctx.m1Scalp,
     impulse: ctx.impulse,
   });
-  s = guarded.signal;
 
+  let s = guarded.signal;
   if (s.action === "HOLD") {
-    const hold = computeMarketForecast(forecastInput);
-    s = {
-      ...tradeLevelsToAiSignal(hold, ctx.price),
-      analysisUz: guarded.reasonUz
-        ? `${hold.analysisUz} ${guarded.reasonUz}`
-        : hold.analysisUz,
+    return {
+      ...s,
+      winProbability: Math.min(s.winProbability ?? 50, 42),
+      summaryUz: `HOLD — ${guarded.reasonUz ?? "jonli momentum teskari"}`,
     };
-    return s;
   }
 
-  const swing = enforceSwingTargets(s, ctx.price, forecastInput.tech5);
-  s = swing.signal;
-
-  if (swing.rejected && s.action === "HOLD") {
-    const hold = computeMarketForecast(forecastInput);
-    return tradeLevelsToAiSignal(hold, ctx.price);
-  }
-
-  return s;
+  const swing = enforceSwingTargets(s, ctx.price, ctx.tech5);
+  return {
+    ...swing.signal,
+    winProbability: signal.winProbability,
+    confluencePct: signal.confluencePct,
+    signalGrade: signal.signalGrade,
+    panelUz: signal.panelUz,
+  };
 }
 
 function recordIfTrade(signal: AiTradeSignal, price: number): void {

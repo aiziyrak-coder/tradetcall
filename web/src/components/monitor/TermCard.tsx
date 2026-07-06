@@ -25,6 +25,7 @@ interface Props {
   children: ReactNode;
   className?: string;
   headerExtra?: ReactNode;
+  empire?: boolean;
 }
 
 export function TermCard({
@@ -34,10 +35,11 @@ export function TermCard({
   children,
   className = "",
   headerExtra,
+  empire = false,
 }: Props) {
   return (
     <div
-      className={`term-card flex h-full min-h-0 flex-col overflow-hidden ${accentBorder[accent]} ${className}`}
+      className={`term-card flex h-full min-h-0 flex-col overflow-hidden ${accentBorder[accent]} ${empire ? "empire-card-glow" : ""} ${className}`}
     >
       <div className="term-card-header shrink-0 px-2 py-1.5">
         <div className="flex items-start justify-between gap-2">

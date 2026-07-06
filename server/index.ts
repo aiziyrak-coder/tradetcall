@@ -1,3 +1,4 @@
+import "./load-env";
 import http from "http";
 import path from "path";
 import fs from "fs";
@@ -45,7 +46,8 @@ import {
   clearEnvApiKeys,
   setApiKey as setLlmKey,
   testApiKey,
-} from "../shared/deepseek";
+} from "../shared/openai";
+import { validateApiKeyFormat } from "../shared/api-key";
 import { getApiKey, setApiKey as persistApiKey } from "./store";
 
 const bootKey = getApiKey();
@@ -64,11 +66,16 @@ function assertProductionSecrets() {
   if (!isProd) return;
   const sessionSecret = process.env.SESSION_SECRET || "";
   const djangoSecret = process.env.DJANGO_SECRET_KEY || "";
+  const errors: string[] = [];
   if (!sessionSecret || DEFAULT_SECRETS.has(sessionSecret)) {
-    console.warn("[WARN] SESSION_SECRET production uchun o'rnatilmagan yoki zaif");
+    errors.push("SESSION_SECRET production uchun o'rnatilmagan yoki zaif");
   }
   if (!djangoSecret || DEFAULT_SECRETS.has(djangoSecret)) {
-    console.warn("[WARN] DJANGO_SECRET_KEY production uchun o'rnatilmagan yoki zaif");
+    errors.push("DJANGO_SECRET_KEY production uchun o'rnatilmagan yoki zaif");
+  }
+  if (errors.length) {
+    console.error("[FATAL]", errors.join("; "));
+    process.exit(1);
   }
 }
 
@@ -201,8 +208,14 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
+app.get("/api/health", async (_req, res) => {
+  let djangoOk = false;
+  try {
+    djangoOk = await djangoHealth();
+  } catch {
+    djangoOk = false;
+  }
+  res.json({ ok: true, aiReady: !!getApiKey(), djangoAuth: djangoOk });
 });
 
 app.get("/api/status", requireAuth, (_req, res) => {
@@ -243,11 +256,11 @@ app.get("/api/auth/session", async (req, res) => {
   }
 });
 
+app.use("/api/settings", requireAuth);
+
 app.get("/api/settings/internet", async (_req, res) => {
   res.json({ online: await checkInternet() });
 });
-
-app.use("/api/settings", requireAuth);
 
 app.get("/api/settings/api-key", (req, res) => {
   const key = getApiKey();
@@ -260,6 +273,11 @@ app.post("/api/settings/api-key", (req, res) => {
   const { key } = req.body as { key?: string };
   if (!key?.trim()) {
     res.status(400).json({ error: "Kalit bo'sh" });
+    return;
+  }
+  const formatErr = validateApiKeyFormat(key.trim());
+  if (formatErr) {
+    res.status(400).json({ error: formatErr });
     return;
   }
   persistApiKey(key.trim());
@@ -298,7 +316,7 @@ app.delete("/api/settings/api-key", (req, res) => {
 });
 
 app.use("/api/admin", requireAuth);
-app.get("/api/admin/django-url", (_req, res) => {
+app.get("/api/admin/django-url", requireAdmin, (_req, res) => {
   res.json({
     url: process.env.DJANGO_PUBLIC_ADMIN_URL || getDjangoAdminUrl(),
   });

@@ -1,3 +1,4 @@
+import type { AiTradeSignal } from "./ai-trade-signal";
 import type { CapitalShieldState } from "./capital-shield";
 import type { HorizonVerdict } from "./horizon-verdict";
 import type { JournalStats } from "./platform-insight";
@@ -27,7 +28,7 @@ export function useStrictShortMode(journal: JournalStats | null | undefined): bo
   return journal.last7WinRatePct < ADAPTIVE_WR_CUTOFF;
 }
 
-/** YANGI PROGNOZ — hech qachon bloklanmaydi; faqat ogohlantirish */
+/** YANGI PROGNOZ — xavfli shartlarda BUY/SELL bloklanadi */
 export function shouldBlockAiForecast(input: {
   capitalShield: CapitalShieldState;
   discipline: TradingDiscipline;
@@ -35,14 +36,27 @@ export function shouldBlockAiForecast(input: {
 }): { block: boolean; reasonUz: string; warningUz?: string } {
   const { capitalShield, discipline, marketQuality } = input;
 
+  if (!capitalShield.allowNewTrades || !capitalShield.allowed) {
+    const reason =
+      capitalShield.messagesUz[0] ?? "Kapital himoyasi — bugun savdo cheklangan";
+    return { block: true, reasonUz: reason, warningUz: reason };
+  }
+
+  if (!marketQuality.tradeable) {
+    const reason = `Bozor ${marketQuality.grade} (${marketQuality.score}) — savdo xavfli`;
+    return { block: true, reasonUz: reason, warningUz: reason };
+  }
+
   const hints: string[] = [];
+  if (capitalShield.level === "red") {
+    hints.push(capitalShield.messagesUz[0] ?? "Kapital himoyasi qizil");
+  }
   for (const m of capitalShield.messagesUz) {
     if (!/shartlar normal|Kapital himoyasi: shartlar/i.test(m)) hints.push(m);
   }
-  if (!marketQuality.tradeable) {
-    hints.push(`Bozor ${marketQuality.grade} (${marketQuality.score})`);
-  }
-  if (discipline.score < 55) {
+  if (discipline.score < 50) {
+    hints.push(`Qoidalar ${discipline.score}% — ehtiyot`);
+  } else if (discipline.score < 65) {
     hints.push(`Qoidalar ${discipline.score}%`);
   }
 
@@ -108,6 +122,21 @@ export function downgradeVerdictForProtection(
   };
 }
 
+export function downgradeAiSignalForProtection(
+  aiSignal: AiTradeSignal,
+  reasonUz: string
+): AiTradeSignal {
+  if (aiSignal.action === "HOLD") return aiSignal;
+  return {
+    ...aiSignal,
+    action: "HOLD",
+    confidence: Math.min(aiSignal.confidence, 48),
+    summaryUz: `HOLD — ${reasonUz}`,
+    analysisUz: `${aiSignal.analysisUz.slice(0, 700)} · ${reasonUz}`,
+    triggerUz: "Kapital himoyasi — hozir kirmang",
+  };
+}
+
 /** Snapshot verdictlarini himoya qoidalari bilan HOLD ga tushirish */
 export function applyProfitProtectionToSnapshot(
   snap: MonitorSnapshot,
@@ -117,11 +146,19 @@ export function applyProfitProtectionToSnapshot(
     marketQuality: MarketQuality;
   }
 ): MonitorSnapshot {
-  const { block, reasonUz } = shouldBlockNewTrades(input);
-  if (!block) return snap;
+  const forecastBlock = shouldBlockAiForecast(input);
+  const tradeBlock = shouldBlockNewTrades(input);
+  const reasonUz = forecastBlock.block
+    ? forecastBlock.reasonUz
+    : tradeBlock.block
+      ? tradeBlock.reasonUz
+      : "";
+
+  if (!reasonUz) return snap;
 
   let shortStrategy = snap.shortStrategy;
   let strategy = snap.strategy;
+  let aiSignal = snap.aiSignal;
 
   if (shortStrategy?.verdict && shortStrategy.verdict.action !== "HOLD") {
     shortStrategy = {
@@ -135,6 +172,9 @@ export function applyProfitProtectionToSnapshot(
       verdict: downgradeVerdictForProtection(strategy.verdict, reasonUz),
     };
   }
+  if (aiSignal && aiSignal.action !== "HOLD") {
+    aiSignal = downgradeAiSignalForProtection(aiSignal, reasonUz);
+  }
 
-  return { ...snap, shortStrategy, strategy };
+  return { ...snap, shortStrategy, strategy, aiSignal };
 }

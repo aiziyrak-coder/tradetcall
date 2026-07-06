@@ -46,7 +46,7 @@ export function SettingsScreen({ username, onBack }: Props) {
   const saveApiKey = async () => {
     const trimmed = keyInput.trim();
     if (!trimmed) {
-      setKeyMsg("Kalitni kiriting (sk-… DeepSeek)");
+      setKeyMsg("Kalitni kiriting (sk-… OpenAI)");
       return;
     }
     setKeyBusy(true);

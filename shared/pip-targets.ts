@@ -13,7 +13,7 @@ export const DEFAULT_TP_USD = 6.0;
 export const MAX_TP_USD = 25.0;
 export const MIN_SL_USD = 2.0;
 export const MAX_SL_USD = 12.0;
-export const SWING_MIN_RR = 1.2;
+export const SWING_MIN_RR = 1.5;
 
 export const SWING_MIN_TP_PIPS = MIN_TP_USD / GOLD_PIP_USD;
 export const SWING_MIN_SL_PIPS = MIN_SL_USD / GOLD_PIP_USD;

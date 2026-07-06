@@ -111,15 +111,17 @@ export function AuthScreen({ onLogin }: Props) {
           </form>
 
           <div className="mt-6 flex items-center justify-between border-t border-cyan-900/30 pt-5">
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-1.5 font-mono-ui text-[10px] text-amber-400 transition hover:border-amber-400/50 hover:bg-amber-900/30"
-            >
-              Tez kirish
-            </button>
-            <span className="font-mono-ui text-[9px] text-slate-600">
-              Admin → alohida kirish
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={fillDemo}
+                className="rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-1.5 font-mono-ui text-[10px] text-amber-400 transition hover:border-amber-400/50 hover:bg-amber-900/30"
+              >
+                Tez kirish (dev)
+              </button>
+            )}
+            <span className={`font-mono-ui text-[9px] text-slate-600 ${import.meta.env.DEV ? "" : "mx-auto"}`}>
+              Foydalanuvchilar admin panel orqali boshqariladi
             </span>
           </div>
         </div>

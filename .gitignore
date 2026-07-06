@@ -11,6 +11,7 @@ _trash_*/
 _removed_*/
 scripts/_admin-screen-django.tsx
 deploy/.remote-setup-lf.sh
+deploy/.remote-setup-tcall-lf.sh
 .next/
 dist-server/
 dist-web/

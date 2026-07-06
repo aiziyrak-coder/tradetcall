@@ -147,23 +147,23 @@ export function computeMarketForecast(input: MarketForecastInput): TradeLevels {
   let action: "BUY" | "SELL" | "HOLD" = "HOLD";
 
   if (
-    longScore >= shortScore + 10 &&
-    margin >= 8 &&
-    (m1?.direction !== "short" || m1.strength < 55) &&
+    longScore >= shortScore + 6 &&
+    margin >= 5 &&
+    (m1?.direction !== "short" || m1.strength < 60) &&
     live.direction !== "down"
   ) {
     action = "BUY";
   } else if (
-    shortScore >= longScore + 10 &&
-    margin >= 8 &&
-    (m1?.direction !== "long" || m1.strength < 55) &&
+    shortScore >= longScore + 6 &&
+    margin >= 5 &&
+    (m1?.direction !== "long" || m1.strength < 60) &&
     live.direction !== "up"
   ) {
     action = "SELL";
   }
 
-  if (news?.contradictionsUz && margin < 18) action = "HOLD";
-  if (tech1.adx < 14 && margin < 14) action = "HOLD";
+  if (news?.contradictionsUz && margin < 12) action = "HOLD";
+  if (tech1.adx < 12 && margin < 10) action = "HOLD";
 
   if (action === "HOLD") {
     return buildHoldForecast(input, forecastHigh, forecastLow, biasUz, reasons, margin);

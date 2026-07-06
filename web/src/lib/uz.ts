@@ -14,8 +14,8 @@ export const UZ = {
   logout: "Chiqish",
 
   apiKey: {
-    title: "DeepSeek API kalit",
-    hint: "YANGI PROGNOZ — DeepSeek AI (platform.deepseek.com)",
+    title: "OpenAI API kalit",
+    hint: "YANGI PROGNOZ — GPT-4o (platform.openai.com)",
     placeholder: "sk-…",
     saved: "Kalit saqlangan",
     notSaved: "Kalit kiritilmagan — AI ishlamaydi",

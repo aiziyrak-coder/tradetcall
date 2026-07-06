@@ -21,8 +21,8 @@ export interface SetupQuality {
   summaryUz: string;
 }
 
-const MIN_TRADE_SCORE = 48;
-const MIN_TRADE_SCORE_STRICT = 58;
+const MIN_TRADE_SCORE = 42;
+const MIN_TRADE_SCORE_STRICT = 55;
 
 function gradeFromScore(s: number): SetupQuality["grade"] {
   if (s >= 78) return "A";
@@ -155,7 +155,7 @@ export function computeSetupQuality(input: {
     score >= MIN_TRADE_SCORE &&
     warnings.filter((w) => /makro|kapital|zid/i.test(w)).length === 0 &&
     input.capitalShieldOk !== false &&
-    clarity >= 8;
+    clarity >= 5;
 
   const summaryUz = tradeAllowed
     ? `Setup ${score}/100 (${gradeUz(grade)}) — savdo mumkin, SL majburiy.`

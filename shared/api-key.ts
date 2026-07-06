@@ -1,4 +1,4 @@
-/** DeepSeek API kalitini tozalash */
+/** OpenAI API kalitini tozalash */
 export function normalizeApiKey(raw: string): string {
   return raw
     .replace(/^\uFEFF/, "")
@@ -12,10 +12,10 @@ export function validateApiKeyFormat(key: string): string | null {
   const k = normalizeApiKey(key);
   if (!k) return "API kalit bo'sh";
   if (k.startsWith("sk-ant-")) {
-    return "Bu Claude kaliti. DeepSeek kalit kerak — platform.deepseek.com → API Keys";
+    return "Bu Claude kaliti. OpenAI kalit kerak — platform.openai.com → API Keys";
   }
   if (!k.startsWith("sk-")) {
-    return "Kalit sk- bilan boshlanishi kerak (platform.deepseek.com → API Keys)";
+    return "Kalit sk- bilan boshlanishi kerak (platform.openai.com → API Keys)";
   }
   if (k.length < 32) {
     return `Kalit juda qisqa (${k.length} belgi). To'liq nusxalang.`;
@@ -40,8 +40,8 @@ export function formatApiError(e: unknown): string {
     apiMsg.includes("Incorrect API key")
   ) {
     return [
-      "DeepSeek API kalit qabul qilinmadi (401).",
-      "• platform.deepseek.com → API Keys",
+      "OpenAI API kalit qabul qilinmadi (401).",
+      "• platform.openai.com → API Keys",
       "• Balans va kalit faolligini tekshiring",
       apiMsg && apiMsg.length < 120 ? `• ${apiMsg}` : "",
     ]
@@ -59,7 +59,7 @@ export function formatApiError(e: unknown): string {
   }
   if (apiMsg && apiMsg.length < 280) return apiMsg;
   if (e instanceof Error && e.message.length < 280) return e.message;
-  return "DeepSeek ulanish xatosi";
+  return "OpenAI ulanish xatosi";
 }
 
 function getErrorStatus(e: unknown): number | undefined {

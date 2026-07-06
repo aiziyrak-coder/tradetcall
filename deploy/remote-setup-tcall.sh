@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_DIR="/opt/trade"
-REPO="https://github.com/aiziyrak-coder/trade.git"
-FRONTEND_ORIGIN="https://trade.ziyrak.org"
-API_PUBLIC="https://tradeapi.ziyrak.org"
+APP_DIR="/opt/tradetcall"
+REPO="https://github.com/aiziyrak-coder/tradetcall.git"
+FRONTEND_ORIGIN="https://trade.tcall.uz"
+API_PUBLIC="https://tradeapi.tcall.uz"
+COOKIE_DOMAIN=".tcall.uz"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -51,9 +52,9 @@ DATA_DIR=$APP_DIR/data
 DJANGO_AUTH_URL=http://127.0.0.1:8070
 FRONTEND_ORIGIN=$FRONTEND_ORIGIN
 CORS_ORIGINS=$FRONTEND_ORIGIN
-DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.ziyrak.org
+DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost,tradeapi.tcall.uz
 DJANGO_PUBLIC_ADMIN_URL=$API_PUBLIC/admin/
-COOKIE_DOMAIN=.ziyrak.org
+COOKIE_DOMAIN=$COOKIE_DOMAIN
 TRADINGVIEW_SYMBOL=$TV_SYM
 EOF
 if [ -n "$AI_KEY" ]; then
@@ -65,29 +66,32 @@ npm ci
 export VITE_API_BASE="$API_PUBLIC"
 npm run build
 
-echo "==> Systemd (yangi servislar)"
-cp deploy/systemd/trade-api.service /etc/systemd/system/
-cp deploy/systemd/trade-django.service /etc/systemd/system/
+echo "==> Systemd (tradetcall servislar — boshqa servislarga tegmaydi)"
+sed "s|/opt/trade|/opt/tradetcall|g" deploy/systemd/trade-api.service > /etc/systemd/system/tradetcall-api.service
+sed "s|/opt/trade|/opt/tradetcall|g" deploy/systemd/trade-django.service > /etc/systemd/system/tradetcall-django.service
+sed -i 's/Description=XAUUSD Trade API/Description=TradeTCall API/' /etc/systemd/system/tradetcall-api.service
+sed -i 's/Description=XAUUSD Trade Auth/Description=TradeTCall Auth/' /etc/systemd/system/tradetcall-django.service
+sed -i 's/trade-django.service/tradetcall-django.service/g' /etc/systemd/system/tradetcall-api.service
 systemctl daemon-reload
-systemctl enable trade-django trade-api
-systemctl restart trade-django
+systemctl enable tradetcall-django tradetcall-api
+systemctl restart tradetcall-django
 sleep 2
-systemctl restart trade-api
+systemctl restart tradetcall-api
 
-echo "==> Nginx (faqat trade* saytlar)"
-cp deploy/nginx-trade.ziyrak.org.conf /etc/nginx/sites-available/trade.ziyrak.org
-cp deploy/nginx-tradeapi.ziyrak.org.conf /etc/nginx/sites-available/tradeapi.ziyrak.org
-ln -sf /etc/nginx/sites-available/trade.ziyrak.org /etc/nginx/sites-enabled/trade.ziyrak.org
-ln -sf /etc/nginx/sites-available/tradeapi.ziyrak.org /etc/nginx/sites-enabled/tradeapi.ziyrak.org
+echo "==> Nginx (faqat trade.tcall.uz va tradeapi.tcall.uz)"
+cp deploy/nginx-trade.tcall.uz.conf /etc/nginx/sites-available/trade.tcall.uz
+cp deploy/nginx-tradeapi.tcall.uz.conf /etc/nginx/sites-available/tradeapi.tcall.uz
+ln -sf /etc/nginx/sites-available/trade.tcall.uz /etc/nginx/sites-enabled/trade.tcall.uz
+ln -sf /etc/nginx/sites-available/tradeapi.tcall.uz /etc/nginx/sites-enabled/tradeapi.tcall.uz
 nginx -t
 systemctl reload nginx
 
 if command -v certbot >/dev/null; then
-  certbot --nginx -d trade.ziyrak.org -d tradeapi.ziyrak.org \
+  certbot --nginx -d trade.tcall.uz -d tradeapi.tcall.uz \
     --non-interactive --agree-tos --register-unsafely-without-email \
-    --redirect 2>/dev/null || echo "SSL: certbot keyingi urinish yoki allaqachon mavjud"
+    --redirect 2>/dev/null || echo "SSL: certbot keyingi urinish yoki DNS kutish kerak"
 fi
 
 echo "==> Tayyor"
-systemctl is-active trade-django trade-api nginx
+systemctl is-active tradetcall-django tradetcall-api nginx
 curl -sS -o /dev/null -w "API health: %{http_code}\n" http://127.0.0.1:3070/api/health || true

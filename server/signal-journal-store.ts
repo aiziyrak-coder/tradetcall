@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { getDataDir } from "../shared/data-dir";
 import type { TradeAction } from "../shared/horizon-verdict";
 import type {
   JournalOutcome,
@@ -13,8 +13,7 @@ import { getPauseUntil } from "./shield-runtime";
 import { DEFAULT_CAPITAL_SHIELD } from "../shared/capital-shield";
 import { journalImpactUsd } from "../shared/journal-pnl";
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DATA_DIR = process.env.TRADE_DATA_DIR || path.join(root, "data");
+const DATA_DIR = getDataDir();
 const JOURNAL_FILE = path.join(DATA_DIR, "signal-journal.json");
 const MAX_ENTRIES = 500;
 

@@ -50,7 +50,6 @@ const mustExist = [
   "shared/market-regime.ts",
   "shared/economic-calendar.ts",
   "server/calendar-service.ts",
-  "server/price-feed.ts",
   "django_auth/manage.py",
   "deploy/remote-setup.sh",
   "deploy/nginx-trade.ziyrak.org.conf",

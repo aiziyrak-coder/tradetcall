@@ -17,37 +17,21 @@ import {
   startTradingViewPriceStream,
   stopTradingViewPriceStream,
 } from "./tradingview-price";
-import {
-  createSignalStabilityState,
-  stabilizeTradeAction,
-  type SignalStabilityState,
-} from "../shared/signal-stability";
-import type { Candle, LongTermStrategy, ShortTermStrategy } from "../shared/types";
 import { startCalendarService, stopCalendarService } from "./calendar-service";
 import { computeNewsIntelligence } from "../shared/news-intelligence";
-import { analyzeTechnicals } from "../shared/technical";
 import { analyzeTechnicalsFull } from "../shared/enhanced-technical";
 import { computeSetupQuality } from "../shared/setup-quality";
 import { computeMarketQuality } from "../shared/market-quality";
 import { computeLongTermStrategy } from "../shared/strategy";
-import {
-  computeShortTermStrategy,
-  SHORT_STRATEGY_INTERVALS,
-} from "../shared/short-strategy";
+import { SHORT_STRATEGY_INTERVALS } from "../shared/short-strategy";
 import {
   applyNewsTranslations,
   mergeTranslationCache,
   translateNewsBatch,
 } from "../shared/translate";
-import type {
-  GoldNewsBundle,
-  LongTermForecast,
-  MonitorSnapshot,
-  NewsMarketAnalysis,
-} from "../shared/types";
+import type { Candle, GoldNewsBundle, LongTermForecast, MonitorSnapshot, NewsMarketAnalysis } from "../shared/types";
 import { checkInternet } from "./network";
 import { enrichSnapshotWithPlatform } from "./platform-service";
-import { getJournalStats } from "./signal-journal-store";
 import { getTranslationCache, setTranslationCache } from "./store";
 import { getAiPhase, getAiSessionStatus, getAiSignal, setAiAnalysisRunner } from "./ai-session";
 import { runOneShotAiAnalysis } from "./ai-signal-runner";
@@ -55,7 +39,6 @@ import { runOneShotAiAnalysis } from "./ai-signal-runner";
 const PRICE_FAST_MS = 600;
 const PRICE_FETCH_MS = 900;
 const STRATEGY_TICK_MS = 2000;
-const STRATEGY_TICK_IMPULSE_MS = 700;
 const HEARTBEAT_MS = 1500;
 const INTERNET_CHECK_MS = 25_000;
 const DRIVERS_TICK_MS = 20_000;
@@ -92,15 +75,10 @@ let multiTfCandles: Partial<Record<ChartInterval, Candle[]>> = {};
 let multiTfFetchedAt = 0;
 let lastStrategyRebuildAt = 0;
 let bootstrapPromise: Promise<void> | null = null;
-let shortStability = createSignalStabilityState();
-let longStability = createSignalStabilityState();
-let frozenShort: ShortTermStrategy | null = null;
-let frozenLong: LongTermStrategy | null = null;
 let lastStrategyPrice = 0;
 let priceFetchInFlight = false;
 let lastPriceFetchAt = 0;
 let lastImpulse: PriceImpulse | null = null;
-let strategyTickMs = STRATEGY_TICK_MS;
 
 function getPrimaryCandles(): Candle[] {
   return (
@@ -129,9 +107,9 @@ function attachSession(snap: MonitorSnapshot): MonitorSnapshot {
     aiSession: ai,
     aiPhase,
     aiSignal,
+    strategy: null, shortStrategy: null,
   };
-  // Klient faqat AI signal — eski YAQIN/UZOQ strategiyalar yuborilmaydi
-  out = { ...out, strategy: null, shortStrategy: null };
+  // AI signal himoyasi faqat ai-signal-runner da — bu yerda qayta HOLD qilmaymiz
   return out;
 }
 
@@ -144,6 +122,7 @@ export function getMonitorContextForAi(): {
   candles1m: Candle[];
   candles5m: Candle[];
   candles15m: Candle[];
+  multiCandles: Partial<Record<ChartInterval, Candle[]>>;
   m1Scalp: ReturnType<typeof analyzeM1ScalpLead> | null;
   impulse: PriceImpulse | null;
   setupQuality: import("../shared/setup-quality").SetupQuality | null;
@@ -162,6 +141,7 @@ export function getMonitorContextForAi(): {
     candles1m: c1,
     candles5m: c5,
     candles15m: multiTfCandles["15m"] ?? [],
+    multiCandles: { ...multiTfCandles },
     m1Scalp: gold && c1.length >= 3 ? analyzeM1ScalpLead(c1, c5, gold.price, lastImpulse) : null,
     impulse: lastImpulse,
     setupQuality: computeSetupQualitySnapshot(),
@@ -282,16 +262,10 @@ async function runNewsTranslation(): Promise<void> {
     setTranslationCache(updated);
     publishSnapshot({ news: newsWithCache(), translating: false });
     if (lastSnapshot?.gold) {
-      const built = buildStrategies(
-        lastSnapshot.gold,
-        getPrimaryCandles(),
-        lastSnapshot.drivers ?? [],
-        getTranslatedNews(),
-        lastImpulse
-      );
+      const intel = refreshMarketIntel(lastSnapshot.gold.price);
       publishSnapshot({
-        newsAnalysis: built.newsAnalysis,
-        marketTechnical: built.shortStrategy?.technical ?? computeMarketTechnical(lastSnapshot.gold.price),
+        newsAnalysis: intel.newsAnalysis,
+        marketTechnical: intel.marketTechnical,
         translating: false,
       });
     }
@@ -346,96 +320,14 @@ function refreshNewsAnalysisLocal(): NewsMarketAnalysis | null {
   return lastNewsAnalysis;
 }
 
-function mergeStableVerdict<T extends LongTermStrategy | ShortTermStrategy>(
-  raw: T,
-  horizon: "long" | "short",
-  stability: SignalStabilityState,
-  frozen: T | null
-): { strategy: T; stability: SignalStabilityState; frozen: T | null } {
-  const rawAction = raw.verdict.action;
-  const stab = stabilizeTradeAction(stability, rawAction, horizon);
-  let nextFrozen = frozen;
-
-  if (rawAction === stab.action) {
-    nextFrozen = raw;
-    return { strategy: raw, stability: stab.state, frozen: nextFrozen };
-  }
-
-  if (stab.action === "HOLD") {
-    nextFrozen = null;
-    return {
-      strategy: {
-        ...raw,
-        verdict: {
-          ...raw.verdict,
-          action: "HOLD",
-          reliabilityUz: stab.noteUz,
-          signalUz: `HOLD — ${stab.noteUz}`,
-          gateAllowed: false,
-        },
-      } as T,
-      stability: stab.state,
-      frozen: null,
-    };
-  }
-
-  if (frozen && frozen.verdict.action === stab.action) {
-    const merged = {
-      ...frozen,
-      signal: raw.signal,
-      confidence: raw.confidence,
-      situationUz: `${stab.noteUz}. ${raw.situationUz.slice(0, 120)}`,
-      verdict: {
-        ...frozen.verdict,
-        action: stab.action,
-        reliabilityUz: `${stab.noteUz}. ${frozen.verdict.reliabilityUz}`,
-        entry: raw.verdict.entry,
-        stopLoss: raw.verdict.stopLoss,
-        takeProfit: raw.verdict.takeProfit,
-        riskReward: raw.verdict.riskReward,
-        inEntryZone: raw.verdict.inEntryZone,
-        strength: raw.verdict.strength,
-        signalUz: raw.verdict.signalUz.replace(/^(BUY|SELL|HOLD)/, stab.action),
-      },
-    } as T;
-    return { strategy: merged, stability: stab.state, frozen: merged };
-  }
-
-  nextFrozen = raw;
-  return { strategy: raw, stability: stab.state, frozen: nextFrozen };
-}
-
-function buildStrategies(
-  gold: { price: number },
-  candles: Candle[],
-  drivers: import("../shared/types").MarketQuote[],
-  newsItems: ReturnType<typeof getTranslatedNews>,
-  impulse?: PriceImpulse | null
-) {
-  const na = lastNewsAnalysis;
-  const rawLong = computeLongTermStrategy(gold.price, candles, drivers, newsItems, na, impulse);
-  const rawShort = computeShortTermStrategy(
-    gold.price,
-    multiTfCandles,
-    drivers,
-    newsItems,
-    na,
-    impulse,
-    getJournalStats()
-  );
-
-  const longR = mergeStableVerdict(rawLong, "long", longStability, frozenLong);
-  longStability = longR.stability;
-  frozenLong = longR.frozen;
-
-  const shortR = mergeStableVerdict(rawShort, "short", shortStability, frozenShort);
-  shortStability = shortR.stability;
-  frozenShort = shortR.frozen;
-
+function refreshMarketIntel(goldPrice: number): {
+  newsAnalysis: NewsMarketAnalysis | null;
+  marketTechnical: ReturnType<typeof computeMarketTechnical>;
+} {
+  const newsAnalysis = refreshNewsAnalysisLocal();
   return {
-    strategy: longR.strategy,
-    shortStrategy: shortR.strategy,
-    newsAnalysis: na,
+    newsAnalysis,
+    marketTechnical: computeMarketTechnical(goldPrice),
   };
 }
 
@@ -557,19 +449,11 @@ async function refreshStrategyLive() {
     }
     if (getPrimaryCandles().length < 5) return;
 
-    refreshNewsAnalysisLocal();
-    await refreshMultiTimeframes(gold.price);
-    const built = buildStrategies(
-      gold,
-      patchLastCandle(getPrimaryCandles(), gold.price),
-      lastSnapshot.drivers ?? [],
-      getTranslatedNews(),
-      lastImpulse
-    );
+    const intel = refreshMarketIntel(gold.price);
     lastStrategyRebuildAt = Date.now();
     publishSnapshot({
-      newsAnalysis: built.newsAnalysis,
-      marketTechnical: built.shortStrategy?.technical ?? analyzeTechnicals(patchLastCandle(getPrimaryCandles(), gold.price)),
+      newsAnalysis: intel.newsAnalysis,
+      marketTechnical: intel.marketTechnical,
       signalUpdatedAt: new Date().toISOString(),
     });
   } catch {
@@ -600,17 +484,11 @@ async function refreshNews() {
     refreshNewsAnalysisLocal();
     const gold = lastSnapshot?.gold;
     if (gold && lastSnapshot) {
-      const { shortStrategy, newsAnalysis } = buildStrategies(
-        gold,
-        getPrimaryCandles(),
-        lastSnapshot.drivers ?? [],
-        getTranslatedNews(),
-        lastImpulse
-      );
+      const intel = refreshMarketIntel(gold.price);
       publishSnapshot({
         news: newsWithCache(),
-        newsAnalysis,
-        marketTechnical: shortStrategy?.technical ?? computeMarketTechnical(gold.price),
+        newsAnalysis: intel.newsAnalysis,
+        marketTechnical: intel.marketTechnical,
         online: true,
         feedError: null,
       });
@@ -649,16 +527,7 @@ async function bootstrapSnapshot(): Promise<void> {
       drivers,
       multiTfCandles
     );
-    const { shortStrategy, newsAnalysis } = buildStrategies(
-      gold,
-      candles,
-      drivers,
-      allNews,
-      lastImpulse
-    );
-
-    const marketTechnical =
-      shortStrategy?.technical ?? (candles.length >= 5 ? analyzeTechnicals(candles) : null);
+    const intel = refreshMarketIntel(gold.price);
     mergeSnapshot({
       online: true,
       priceStale: false,
@@ -666,8 +535,8 @@ async function bootstrapSnapshot(): Promise<void> {
       gold,
       drivers,
       news: newsWithCache(),
-      newsAnalysis,
-      marketTechnical,
+      newsAnalysis: intel.newsAnalysis,
+      marketTechnical: intel.marketTechnical,
       translating: false,
       analyzingNews: false,
     });
@@ -698,16 +567,11 @@ function startIntervals() {
     publishSnapshot({ newsAnalysis, analyzingNews: false });
     if (Date.now() - lastStrategyRebuildAt < STRATEGY_TICK_MS - 1500) return;
     const gold = lastSnapshot.gold;
-    const built = buildStrategies(
-      gold,
-      getPrimaryCandles(),
-      lastSnapshot.drivers ?? [],
-      getTranslatedNews(),
-      lastImpulse
-    );
+    const intel = refreshMarketIntel(gold.price);
     lastStrategyRebuildAt = Date.now();
     publishSnapshot({
-      newsAnalysis: built.newsAnalysis,
+      newsAnalysis: intel.newsAnalysis,
+      marketTechnical: intel.marketTechnical,
       signalUpdatedAt: new Date().toISOString(),
     });
   }, NEWS_ANALYSIS_MS);

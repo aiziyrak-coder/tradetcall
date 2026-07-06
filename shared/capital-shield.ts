@@ -50,6 +50,15 @@ function pauseRemainingMinutes(pauseUntil: string | null): number {
   return ms > 0 ? Math.ceil(ms / 60_000) : 0;
 }
 
+function bumpLevel(
+  current: CapitalShieldState["level"],
+  target: "yellow" | "red"
+): CapitalShieldState["level"] {
+  if (target === "red" || current === "red") return "red";
+  if (target === "yellow" || current === "yellow") return "yellow";
+  return "green";
+}
+
 export function evaluateCapitalShield(input: {
   prefs: CapitalShieldPrefs;
   stats: CapitalShieldDayStats;
@@ -80,13 +89,13 @@ export function evaluateCapitalShield(input: {
   const pauseMin = pauseRemainingMinutes(stats.pauseUntil);
   if (pauseMin > 0) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(`Tanaffus — ${pauseMin} daqiqa (ketma-ket zarar) — prognoz mumkin`);
   }
 
   if (stats.estimatedProfitPct >= prefs.maxDailyProfitPct) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(
       `Kunlik foyda maqsadi yetdi: ${stats.estimatedProfitPct.toFixed(1)}% / ${prefs.maxDailyProfitPct}% — yangi lot ochmang`
     );
@@ -94,7 +103,7 @@ export function evaluateCapitalShield(input: {
 
   if (stats.estimatedLossPct >= prefs.maxDailyLossPct) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(
       `Kunlik zarar limiti: ${stats.estimatedLossPct.toFixed(1)}% / ${prefs.maxDailyLossPct}% — yangi lot ochmang`
     );
@@ -102,13 +111,13 @@ export function evaluateCapitalShield(input: {
 
   if (stats.trades >= prefs.maxTradesPerDay) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(`Kunlik signal limiti: ${stats.trades}/${prefs.maxTradesPerDay}`);
   }
 
   if (stats.consecutiveLosses >= prefs.pauseAfterLosses && pauseMin <= 0) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(
       `${stats.consecutiveLosses} ketma-ket zarar — ehtiyot, prognoz mumkin`
     );
@@ -116,7 +125,7 @@ export function evaluateCapitalShield(input: {
 
   if (marketQuality.score < prefs.minMarketQuality) {
     allowNewTrades = false;
-    level = level === "red" ? "red" : "yellow";
+    level = bumpLevel(level, "yellow");
     messages.push(`Bozor sifati past: ${marketQuality.score} — prognoz mumkin`);
   }
 

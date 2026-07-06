@@ -1,20 +1,18 @@
 import fs from "fs";
 import path from "path";
 import { normalizeApiKey } from "../shared/api-key";
+import { getDataDir } from "../shared/data-dir";
 import type { TranslationCache } from "../shared/translate";
-import type { UserRecord } from "../shared/types";
 
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
+const DATA_DIR = getDataDir();
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 
 interface AppStore {
-  users: UserRecord[];
   apiKey: string;
   translationCache: TranslationCache;
 }
 
 const defaults: AppStore = {
-  users: [],
   apiKey: "",
   translationCache: {},
 };
@@ -31,7 +29,6 @@ function load(): AppStore {
   try {
     const raw = JSON.parse(fs.readFileSync(STORE_PATH, "utf8")) as Partial<AppStore>;
     return {
-      users: raw.users ?? [],
       apiKey: raw.apiKey ?? "",
       translationCache: raw.translationCache ?? {},
     };
@@ -53,7 +50,9 @@ export function getStoreData(): AppStore {
 
 export function getApiKey(): string {
   const env =
-    process.env.DEEPSEEK_API_KEY?.trim() || process.env.ANTHROPIC_API_KEY?.trim();
+    process.env.OPENAI_API_KEY?.trim() ||
+    process.env.DEEPSEEK_API_KEY?.trim() ||
+    process.env.ANTHROPIC_API_KEY?.trim();
   if (env) return env;
   return getStoreData().apiKey;
 }
@@ -71,15 +70,5 @@ export function getTranslationCache(): TranslationCache {
 export function setTranslationCache(cache: TranslationCache): void {
   const s = getStoreData();
   s.translationCache = cache;
-  persist();
-}
-
-export function getUsersFromStore(): UserRecord[] {
-  return getStoreData().users;
-}
-
-export function saveUsersToStore(users: UserRecord[]): void {
-  const s = getStoreData();
-  s.users = users;
   persist();
 }

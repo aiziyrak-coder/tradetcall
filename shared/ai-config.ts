@@ -1,9 +1,11 @@
-/** DeepSeek — YANGI PROGNOZ */
+/** OpenAI — YANGI PROGNOZ (GPT-4o) */
 
-export const AI_MAX_OUTPUT_TOKENS = 600;
+export const AI_MAX_OUTPUT_TOKENS = 1200;
 
-/** Har prognozda DeepSeek chaqiriladi (to'liq tahlil) */
 export const AI_ALWAYS_CALL_LLM = true;
 
-/** @deprecated qoida-only yo'l o'chirilgan */
-export const AI_SKIP_CLAUDE_MIN_CONFIDENCE = 999;
+/** Juda past setup — faqat ogohlantirish, AI chaqiriladi */
+export const AI_MIN_SETUP_SCORE = 35;
+
+/** Min ishonch savdo uchun */
+export const AI_MIN_CONFIDENCE_TRADE = 55;

@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => {
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": { target: "http://127.0.0.1:3000", changeOrigin: true },
-      "/ws": { target: "ws://127.0.0.1:3000", ws: true },
+      "/api": { target: "http://127.0.0.1:3080", changeOrigin: true },
+      "/ws": { target: "ws://127.0.0.1:3080", ws: true },
     },
   },
   resolve: {

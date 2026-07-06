@@ -34,17 +34,28 @@ function applyQuote(raw: Record<string, number | null | undefined>): void {
   const bid = hasBid ? round2(bidRaw) : undefined;
   const ask = hasAsk ? round2(askRaw) : undefined;
   const ch = raw.ch != null && Number.isFinite(raw.ch) ? round2(raw.ch) : 0;
-  const chp =
+  let chp =
     raw.chp != null && Number.isFinite(raw.chp) ? Math.round(raw.chp * 100) / 100 : 0;
+  const prevClose =
+    raw.prev_close_price != null && Number.isFinite(raw.prev_close_price)
+      ? round2(raw.prev_close_price)
+      : null;
 
   const spread =
     bid != null && ask != null ? round2(ask - bid) : undefined;
 
+  let change = ch;
+  let changePercent = chp;
+  if ((Math.abs(change) < 0.001 || Math.abs(changePercent) < 0.001) && prevClose && prevClose > 100) {
+    change = round2(price - prevClose);
+    changePercent = Math.round((change / prevClose) * 10000) / 100;
+  }
+
   latest = {
     symbol: "XAUUSD",
     price,
-    change: ch,
-    changePercent: chp,
+    change,
+    changePercent,
     high24h:
       raw.high_price != null && Number.isFinite(raw.high_price)
         ? round2(raw.high_price)

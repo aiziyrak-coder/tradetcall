@@ -4,9 +4,9 @@ import {
   normalizeApiKey,
   validateApiKeyFormat,
 } from "./api-key";
-import { DEEPSEEK_MODEL_PRIMARY, DEEPSEEK_MODELS } from "./models";
+import { OPENAI_MODEL_PRIMARY, OPENAI_MODELS } from "./models";
 
-const API_URL = "https://api.deepseek.com/chat/completions";
+const API_URL = "https://api.openai.com/v1/chat/completions";
 
 let currentKey = "";
 
@@ -19,6 +19,7 @@ export function getApiKey(): string {
 }
 
 export function clearEnvApiKeys(): void {
+  delete process.env.OPENAI_API_KEY;
   delete process.env.DEEPSEEK_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
 }
@@ -28,24 +29,30 @@ async function chatCompletion(
   model: string,
   system: string,
   userMessage: string,
-  maxTokens: number
+  maxTokens: number,
+  jsonMode = true
 ): Promise<string> {
+  const body: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.05,
+    top_p: 0.88,
+  };
+  if (jsonMode) {
+    body.response_format = { type: "json_object" };
+  }
+
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: maxTokens,
-      temperature: 0.25,
-      stream: false,
-    }),
+    body: JSON.stringify(body),
   });
 
   const text = await res.text();
@@ -69,9 +76,9 @@ async function chatCompletion(
     };
     content = j.choices?.[0]?.message?.content?.trim() ?? "";
   } catch {
-    throw new Error("DeepSeek javob formati noto'g'ri");
+    throw new Error("OpenAI javob formati noto'g'ri");
   }
-  if (!content) throw new Error("DeepSeek bo'sh javob qaytardi");
+  if (!content) throw new Error("OpenAI bo'sh javob qaytardi");
   return content;
 }
 
@@ -82,17 +89,17 @@ export async function testApiKey(key: string): Promise<{ hint: string; model: st
   if (formatErr) throw new Error(formatErr);
 
   try {
-    await chatCompletion(normalized, DEEPSEEK_MODEL_PRIMARY, "Test", "OK", 8);
-    return { hint: apiKeyHint(normalized), model: DEEPSEEK_MODEL_PRIMARY };
+    await chatCompletion(normalized, OPENAI_MODEL_PRIMARY, "Test", "OK", 8, false);
+    return { hint: apiKeyHint(normalized), model: OPENAI_MODEL_PRIMARY };
   } catch (e) {
     throw new Error(formatApiError(e));
   }
 }
 
-export async function askDeepSeek(
+export async function askOpenAI(
   system: string,
   userMessage: string,
-  maxTokens = 512
+  maxTokens = 1024
 ): Promise<string> {
   clearEnvApiKeys();
   const formatErr = validateApiKeyFormat(currentKey);
@@ -103,17 +110,18 @@ export async function askDeepSeek(
   try {
     return await chatCompletion(
       currentKey,
-      DEEPSEEK_MODEL_PRIMARY,
+      OPENAI_MODEL_PRIMARY,
       system,
       userMessage,
-      maxTokens
+      maxTokens,
+      true
     );
   } catch (e) {
     const status = (e as { status?: number })?.status;
-    if (status === 404 && DEEPSEEK_MODELS.length > 1) {
-      for (const model of DEEPSEEK_MODELS.slice(1)) {
+    if (status === 404 && OPENAI_MODELS.length > 1) {
+      for (const model of OPENAI_MODELS.slice(1)) {
         try {
-          return await chatCompletion(currentKey, model, system, userMessage, maxTokens);
+          return await chatCompletion(currentKey, model, system, userMessage, maxTokens, true);
         } catch (inner) {
           const innerStatus = (inner as { status?: number })?.status;
           if (innerStatus === 401 || innerStatus === 403) {

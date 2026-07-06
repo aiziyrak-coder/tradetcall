@@ -123,8 +123,9 @@ export function guardScalpAiSignal(
     reasons.push(`kunlik fon ${opts.changePercent}% — long qarshi`);
   }
 
-  if (reasons.length < 2) return { signal, adjusted: false };
-  if (reasons.length === 1 && signal.confidence >= 65) return { signal, adjusted: false };
+  if (reasons.length === 0) return { signal, adjusted: false };
+  if (reasons.length === 1 && signal.confidence >= 68) return { signal, adjusted: false };
+  if (reasons.length < 2 && signal.confidence >= 62) return { signal, adjusted: false };
 
   const reasonUz = reasons.slice(0, 3).join("; ");
   return {

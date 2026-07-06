@@ -37,6 +37,8 @@ export interface PriceData {
   ask?: number;
   spread?: number;
   feed?: "tradingview" | "yahoo" | "spot";
+  /** Oxirgi tick delta ($) */
+  tickDelta?: number;
 }
 
 export interface MarketQuote {
