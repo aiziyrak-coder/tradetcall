@@ -7,6 +7,7 @@ User = get_user_model()
 SEED = [
     {"username": "lynxos", "password": "3888", "role": "admin", "is_staff": True, "is_superuser": True},
     {"username": "ahror", "password": "9930", "role": "user", "is_staff": False, "is_superuser": False},
+    {"username": "javlon", "password": "123123", "role": "user", "is_staff": False, "is_superuser": False},
 ]
 
 FORCE_RESET = os.environ.get("TRADE_FORCE_RESET_PASSWORD", "").strip() in ("1", "true", "yes")
