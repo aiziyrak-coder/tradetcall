@@ -1,0 +1,210 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syncopate:wght@400;700&family=JetBrains+Mono:wght@500;600&display=swap");
+
+:root {
+  --empire-bg: #000000;
+  --empire-bg-1: #050505;
+  --empire-bg-2: #090909;
+  --empire-bg-3: #101010;
+  --empire-gold: #ffd54a;
+  --empire-gold-mid: #ffb800;
+  --empire-gold-light: #ffe88b;
+  --empire-gold-dim: rgba(255, 213, 74, 0.45);
+  --empire-glass: rgba(8, 8, 8, 0.55);
+  --empire-glass-border: rgba(255, 213, 74, 0.18);
+  --empire-glow: rgba(255, 184, 0, 0.35);
+  --empire-text: #faf6eb;
+  --empire-muted: rgba(255, 232, 139, 0.45);
+  --empire-danger: #ff6b4a;
+  --empire-font: "Space Grotesk", system-ui, sans-serif;
+  --empire-display: "Syncopate", sans-serif;
+  --empire-mono: "JetBrains Mono", monospace;
+  --empire-corner: 4px;
+}
+
+.empire-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--empire-bg);
+  color: var(--empire-text);
+  font-family: var(--empire-font);
+}
+
+.empire-glass {
+  position: relative;
+  background: var(--empire-glass);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--empire-glass-border);
+  border-radius: var(--empire-corner);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 232, 139, 0.08);
+}
+
+.empire-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 232, 139, 0.35),
+    transparent 40%,
+    transparent 60%,
+    rgba(255, 184, 0, 0.2)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.empire-border-beam {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.empire-border-beam::after {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, var(--empire-gold-light), transparent 70%);
+  animation: empire-beam 4s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes empire-beam {
+  0% { top: -60px; left: -60px; }
+  25% { top: -60px; left: calc(100% - 60px); }
+  50% { top: calc(100% - 60px); left: calc(100% - 60px); }
+  75% { top: calc(100% - 60px); left: -60px; }
+  100% { top: -60px; left: -60px; }
+}
+
+@keyframes empire-pulse-glow {
+  0%, 100% { opacity: 0.5; filter: blur(20px); }
+  50% { opacity: 1; filter: blur(28px); }
+}
+
+@keyframes empire-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes empire-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes empire-ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes empire-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes empire-price-flash {
+  0% { filter: brightness(1.6) drop-shadow(0 0 20px var(--empire-glow)); }
+  100% { filter: brightness(1) drop-shadow(0 0 12px var(--empire-glow)); }
+}
+
+.empire-price-flash {
+  animation: empire-price-flash 0.4s ease-out;
+}
+
+.empire-glow-text {
+  background: linear-gradient(180deg, #fffef5 0%, var(--empire-gold-light) 35%, var(--empire-gold-mid) 70%, #c9a020 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.empire-btn-gold {
+  padding: 8px 20px;
+  font-family: var(--empire-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #0a0800;
+  background: linear-gradient(180deg, var(--empire-gold-light), var(--empire-gold) 50%, var(--empire-gold-mid));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--empire-corner);
+  cursor: pointer;
+  box-shadow: 0 0 24px var(--empire-glow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.empire-btn-gold:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0 36px rgba(255, 184, 0, 0.55);
+}
+
+.empire-btn-gold:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.empire-grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 213, 74, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 213, 74, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, black, transparent);
+}
+
+.empire-landscape {
+  height: 72px;
+  margin-top: auto;
+  background:
+    linear-gradient(180deg, transparent 30%, rgba(255, 184, 0, 0.08) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23ffb800' stop-opacity='0.6'/%3E%3Cstop offset='100%25' stop-color='%23ffb800' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon fill='%23050505' points='0,80 0,50 60,35 120,55 180,25 240,45 300,20 360,40 400,30 400,80'/%3E%3Ccircle cx='200' cy='18' r='14' fill='url(%23g)'/%3E%3C/svg%3E")
+    center bottom / 100% 100% no-repeat;
+  border-top: 1px solid rgba(255, 213, 74, 0.1);
+}
+
+.empire-ind-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 213, 74, 0.08);
+  overflow: hidden;
+}
+
+.empire-ind-bar__fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #c9a020, var(--empire-gold), var(--empire-gold-light));
+  box-shadow: 0 0 8px var(--empire-glow);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.empire-news-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 213, 74, 0.2) transparent;
+}
+
+.empire-news-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.empire-news-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 213, 74, 0.25);
+  border-radius: 2px;
+}
+
+@media (max-width: 1100px) {
+  .empire-root .grid-cols-\[minmax\(200px\,240px\)_1fr_minmax\(200px\,240px\)\] {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+}

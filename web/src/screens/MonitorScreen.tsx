@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import type { MonitorSessionInfo, MonitorSnapshot } from "../../../shared/types";
+import { EmpireTerminal } from "../components/empire/EmpireTerminal";
 import { MonitorLoading } from "../components/monitor/MonitorLoading";
 import { api, connectMonitor } from "../lib/api";
 import { useSignalNotifications } from "../hooks/useSignalNotifications";
 import { requestNotificationPermission } from "../lib/notifications";
-import { UZ } from "../lib/uz";
 
 function formatLiveTime(s: MonitorSnapshot): string {
   const t = s.priceUpdatedAt ?? s.timestamp;
@@ -35,7 +35,7 @@ export function MonitorScreen({
   const [data, setData] = useState<MonitorSnapshot | null>(null);
   const [ready, setReady] = useState(false);
   const [lastUpdate, setLastUpdate] = useState("—");
-  const [, setTickFlash] = useState(0);
+  const [tickFlash, setTickFlash] = useState(0);
   const [translating, setTranslating] = useState(false);
   const [analyzingNews, setAnalyzingNews] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,52 +136,31 @@ export function MonitorScreen({
   if (!ready) return <MonitorLoading />;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-neutral-950 text-neutral-300">
+    <div className="h-full min-h-0 overflow-hidden">
       {error && (
-        <div className="shrink-0 bg-red-950/80 px-3 py-1 text-center text-xs text-red-300">
+        <div className="relative z-50 bg-black/90 px-3 py-1 text-center text-[10px] text-[#ff6b4a]">
           {error}
           <button type="button" className="ml-2 underline" onClick={() => setError(null)}>
             yopish
           </button>
         </div>
       )}
-
-      <header className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-2 text-sm">
-        <span className="text-neutral-500">{username}</span>
-        <div className="flex items-center gap-3 text-xs">
-          <span className={liveOk ? "text-emerald-500" : "text-neutral-500"}>
-            {liveOk ? "jonli" : "offline"}
-          </span>
-          <span className="font-mono text-neutral-500">{lastUpdate}</span>
-          <button
-            type="button"
-            className="text-neutral-400 hover:text-white"
-            disabled={sessionBusy || aiPhase === "analyzing"}
-            onClick={() => void handleStartMonitor()}
-          >
-            {sessionBusy || aiPhase === "analyzing" ? "…" : UZ.monitorForecast}
-          </button>
-          {onOpenSettings && (
-            <button type="button" className="text-neutral-400 hover:text-white" onClick={onOpenSettings}>
-              {UZ.settings}
-            </button>
-          )}
-          {isAdmin && onOpenAdmin && (
-            <button type="button" className="text-neutral-400 hover:text-white" onClick={onOpenAdmin}>
-              Admin
-            </button>
-          )}
-          <button type="button" className="text-neutral-400 hover:text-white" onClick={onLogout}>
-            {UZ.logout}
-          </button>
-        </div>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center text-neutral-600">
-        {(translating || analyzingNews) && (
-          <p className="text-xs text-neutral-500">{UZ.translating}</p>
-        )}
-      </main>
+      <EmpireTerminal
+        username={username}
+        data={data}
+        aiPhase={aiPhase}
+        session={monitorSession ?? data?.aiSession ?? data?.monitorSession ?? null}
+        sessionBusy={sessionBusy}
+        lastUpdate={lastUpdate}
+        liveOk={liveOk}
+        tickFlash={tickFlash}
+        translating={translating || analyzingNews}
+        onRequestForecast={() => void handleStartMonitor()}
+        onOpenSettings={onOpenSettings}
+        onLogout={onLogout}
+        isAdmin={isAdmin}
+        onOpenAdmin={onOpenAdmin}
+      />
     </div>
   );
 }

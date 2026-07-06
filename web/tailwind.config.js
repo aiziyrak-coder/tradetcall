@@ -13,6 +13,15 @@ export default {
     extend: {
       fontFamily: {
         mono: ["JetBrains Mono", "Consolas", "monospace"],
+        empire: ["Space Grotesk", "system-ui", "sans-serif"],
+        display: ["Syncopate", "sans-serif"],
+      },
+      colors: {
+        empire: {
+          gold: "#ffd54a",
+          mid: "#ffb800",
+          light: "#ffe88b",
+        },
       },
     },
   },
