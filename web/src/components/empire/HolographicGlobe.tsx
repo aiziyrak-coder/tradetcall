@@ -45,11 +45,11 @@ function GoldParticleSphere() {
         <PointMaterial
           transparent
           color="#ffd54a"
-          size={0.028}
+          size={0.032}
           sizeAttenuation
           depthWrite={false}
           blending={THREE.AdditiveBlending}
-          opacity={0.85}
+          opacity={0.9}
         />
       </Points>
 
@@ -68,7 +68,11 @@ function GoldParticleSphere() {
 
       <mesh position={[0, -2.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[1.6, 2.4, 64]} />
-        <meshBasicMaterial color="#ffb800" transparent opacity={0.12} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ffb800" transparent opacity={0.18} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, -2.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[2.5, 2.52, 64]} />
+        <meshBasicMaterial color="#ffe88b" transparent opacity={0.25} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );

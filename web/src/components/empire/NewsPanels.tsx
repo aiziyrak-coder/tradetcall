@@ -1,37 +1,39 @@
 import { motion } from "framer-motion";
-import type { GoldNewsBundle } from "../../../../shared/types";
+import type { GoldNewsBundle, NewsItem } from "../../../../shared/types";
 import { GlassCard } from "./GlassCard";
 
 interface Props {
   news: GoldNewsBundle;
 }
 
-function NewsCol({ title, items }: { title: string; items: GoldNewsBundle["direct"] }) {
+function NewsCol({ title, items }: { title: string; items: NewsItem[] }) {
   return (
-    <GlassCard className="flex min-h-0 flex-col p-3" float>
-      <p className="mb-2 shrink-0 font-['Syncopate'] text-[9px] font-bold tracking-[0.12em] text-[#ffd54a]">
-        {title}
-      </p>
+    <GlassCard className="empire-card empire-card--news flex min-h-0 flex-col p-3" float>
+      <div className="mb-2 flex shrink-0 items-center justify-between">
+        <p className="empire-card-title mb-0">{title}</p>
+        <button type="button" className="empire-view-all">
+          VIEW ALL
+        </button>
+      </div>
       <div className="empire-news-scroll min-h-0 flex-1 overflow-y-auto">
         {items.length ? (
-          items.slice(0, 8).map((n, i) => (
-            <motion.p
+          items.slice(0, 7).map((n, i) => (
+            <motion.div
               key={n.id}
-              className="mb-2 flex gap-2 text-[10px] leading-snug text-[rgba(255,232,139,0.55)]"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04 }}
-              whileHover={{ x: 4, color: "rgba(255,232,139,0.85)" }}
+              className="empire-news-row"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
             >
-              <span
-                className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#ffd54a]"
-                style={{ boxShadow: "0 0 6px rgba(255,213,74,0.6)" }}
-              />
-              <span>{n.titleUz || n.title}</span>
-            </motion.p>
+              <span className="empire-news-row__dot" />
+              <div className="min-w-0">
+                {n.timeAgo && <span className="empire-news-row__time">{n.timeAgo}</span>}
+                <p className="empire-news-row__text">{n.titleUz || n.title}</p>
+              </div>
+            </motion.div>
           ))
         ) : (
-          <p className="text-[10px] italic text-[rgba(255,232,139,0.3)]">Yuklanmoqda…</p>
+          <p className="text-[10px] italic opacity-40">Yuklanmoqda…</p>
         )}
       </div>
     </GlassCard>
@@ -40,16 +42,10 @@ function NewsCol({ title, items }: { title: string; items: GoldNewsBundle["direc
 
 export function NewsPanels({ news }: Props) {
   return (
-    <motion.section
-      className="grid min-h-0 shrink-0 grid-cols-3 gap-2 px-2 pb-2"
-      style={{ maxHeight: "22%" }}
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ delay: 0.3 }}
-    >
+    <section className="empire-news-grid px-2 pb-2">
       <NewsCol title="🥇 OLTIN YANGILIKLARI" items={news.direct} />
       <NewsCol title="📊 MAKRO TAHLIL" items={news.macro} />
       <NewsCol title="🌍 GEO SIYOSAT" items={news.geopolitics} />
-    </motion.section>
+    </section>
   );
 }

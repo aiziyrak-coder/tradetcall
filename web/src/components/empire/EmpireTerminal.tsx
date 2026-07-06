@@ -4,7 +4,7 @@ import type { MonitorSessionInfo, MonitorSnapshot } from "../../../../shared/typ
 import { EmpireBackground } from "./EmpireBackground";
 import { EmpireNavbar } from "./EmpireNavbar";
 import { EmpireSidebar } from "./EmpireSidebar";
-import { SignalPanel } from "./SignalPanel";
+import { LeftColumn } from "./LeftColumn";
 import { HolographicGlobe } from "./HolographicGlobe";
 import { PriceHero } from "./PriceHero";
 import { AnalysisPanel } from "./AnalysisPanel";
@@ -47,6 +47,7 @@ export function EmpireTerminal({
   const signal = data?.aiSignal ?? null;
   const gold = data?.gold ?? null;
   const news = data?.news ?? { direct: [], macro: [], geopolitics: [] };
+  const analysis = data?.newsAnalysis ?? null;
   const phase = aiPhase ?? session?.phase ?? "idle";
   const analyzing = phase === "analyzing";
   const price = gold?.price ?? 0;
@@ -77,42 +78,49 @@ export function EmpireTerminal({
         onOpenAdmin={onOpenAdmin}
       />
 
-      <div className="relative z-10 flex min-h-0 flex-1">
+      <div className="empire-body">
         <EmpireSidebar />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="grid min-h-0 flex-1 grid-cols-[minmax(200px,240px)_1fr_minmax(200px,240px)] gap-2 p-2">
+        <div className="empire-main">
+          <div className="empire-cockpit">
             <motion.div
-              className="min-h-0"
-              initial={{ x: -30, opacity: 0 }}
+              className="empire-cockpit__side"
+              initial={{ x: -24, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.15 }}
+              transition={{ delay: 0.1 }}
             >
-              <SignalPanel
+              <LeftColumn
                 signal={signal}
                 phase={phase}
                 analyzing={analyzing}
                 sessionBusy={sessionBusy}
                 price={price}
+                analysis={analysis}
                 onRequestForecast={onRequestForecast}
               />
             </motion.div>
 
             <motion.div
-              className="relative min-h-0"
-              initial={{ scale: 0.92, opacity: 0 }}
+              className="empire-cockpit__center"
+              initial={{ scale: 0.94, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
+              transition={{ delay: 0.15, duration: 0.5 }}
             >
+              <div className="empire-center-beam" aria-hidden />
               <HolographicGlobe />
-              <PriceHero gold={gold} tickFlash={tickFlash} signal={signal} />
+              <PriceHero
+                gold={gold}
+                tickFlash={tickFlash}
+                signal={signal}
+                analysis={analysis}
+              />
             </motion.div>
 
             <motion.div
-              className="min-h-0"
-              initial={{ x: 30, opacity: 0 }}
+              className="empire-cockpit__side"
+              initial={{ x: 24, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.15 }}
+              transition={{ delay: 0.1 }}
             >
               <AnalysisPanel data={data} signal={signal} />
             </motion.div>
@@ -124,11 +132,7 @@ export function EmpireTerminal({
 
       <EmpireFooter gold={gold} lastUpdate={lastUpdate} liveOk={liveOk} tickerText={tickerText} />
 
-      {translating && (
-        <div className="absolute bottom-12 right-4 z-40 text-[9px] tracking-widest text-[#ffd54a]">
-          TARJIMA…
-        </div>
-      )}
+      {translating && <div className="empire-translating">TARJIMA…</div>}
     </div>
   );
 }
