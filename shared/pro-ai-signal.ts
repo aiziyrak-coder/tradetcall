@@ -45,6 +45,8 @@ function masterDrivenAction(
   if (verdictAction === "BUY" || verdictAction === "SELL") return verdictAction;
 
   const margin = master.longScore - master.shortScore;
+  if (margin >= 18 && master.longScore >= 50) return "BUY";
+  if (margin <= -18 && master.shortScore >= 50) return "SELL";
   if (master.bias === "long" && master.longScore >= 44 && margin >= 4) return "BUY";
   if (master.bias === "short" && master.shortScore >= 44 && margin <= -4) return "SELL";
   if (margin >= 8 && master.longScore >= 48) return "BUY";
@@ -185,13 +187,28 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
       price,
       tech5
     );
-    const s = enforced.signal;
-    action = s.action;
-    entry = s.entry;
-    stopLoss = s.stopLoss;
-    takeProfit = s.takeProfit;
-    riskReward = s.riskReward;
-    confidence = s.confidence;
+
+    const margin = master.longScore - master.shortScore;
+    if (
+      enforced.rejected &&
+      Math.abs(margin) >= 18 &&
+      (master.longScore >= 55 || master.shortScore >= 55)
+    ) {
+      action = margin > 0 ? "BUY" : "SELL";
+      entry = round2(price);
+      stopLoss = action === "BUY" ? round2(price - 3) : round2(price + 3);
+      takeProfit = action === "BUY" ? round2(price + 5) : round2(price - 5);
+      riskReward = 1.67;
+      confidence = Math.max(confidence, 64);
+    } else {
+      const s = enforced.signal;
+      action = s.action;
+      entry = s.entry;
+      stopLoss = s.stopLoss;
+      takeProfit = s.takeProfit;
+      riskReward = s.riskReward;
+      confidence = s.confidence;
+    }
   }
 
   const biasForProb =
@@ -227,8 +244,8 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
 
   const summaryUz =
     action === "HOLD"
-      ? `KUTING — L${master.longScore} S${master.shortScore} · panel ${master.bias.toUpperCase()}`
-      : `${action} · ~${winProbability}% · ${grade} · R:R ${riskReward} · L${master.longScore}/S${master.shortScore}`;
+      ? `KUTING · L${master.longScore} · S${master.shortScore} · ${master.bias.toUpperCase()}`
+      : `${action} · ~${winProbability}% · ${grade} · R:R ${riskReward} · L${master.longScore} · S${master.shortScore}`;
 
   const signal: AiTradeSignal = {
     action,

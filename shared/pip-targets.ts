@@ -72,7 +72,8 @@ export function enforceSwingTargets(
 
   if (reward < MIN_TP_USD) {
     const target = Math.min(room * 0.92, Math.max(MIN_TP_USD, reward));
-    if (target < MIN_TP_USD) {
+  // Kuchli panel — qarshilik yaqin bo'lsa ham minimal TP bilan savdo
+  if (target < MIN_TP_USD && reward < MIN_TP_USD * 0.85) {
       return {
         signal: holdSignal(
           signal,
