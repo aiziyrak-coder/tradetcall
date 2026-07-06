@@ -41,17 +41,8 @@ export function SignalPanel({
         <>
           <motion.div
             className="relative mx-auto mb-3 flex h-[140px] w-[140px] items-center justify-center"
-            animate={{ scale: [1, 1.02, 1] }}
-            transition={{ duration: 3, repeat: Infinity }}
           >
-            <div
-              className="absolute inset-0 rounded-full border border-[rgba(255,213,74,0.35)]"
-              style={{ animation: "empire-ring-spin 18s linear infinite" }}
-            />
-            <div
-              className="absolute inset-3 rounded-full border border-[rgba(255,213,74,0.2)]"
-              style={{ animation: "empire-ring-spin 12s linear infinite reverse" }}
-            />
+            <div className="absolute inset-4 rounded-full border border-[rgba(255,213,74,0.2)]" />
             <div className="relative z-10 text-center">
               <p className={`font-['Syncopate'] text-3xl font-bold leading-none ${actionClass}`}>
                 {signal.action}
