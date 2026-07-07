@@ -38,6 +38,8 @@ interface ModeConfig {
   strongMargin: number;
   /** Bias yo'nalishi uchun minimal margin */
   biasMargin: number;
+  /** Eng kichik yo'nalish (lean) margini */
+  leanMargin: number;
   /** Minimal longScore/shortScore */
   minScore: number;
   /** SL masofasi ($) */
@@ -50,18 +52,20 @@ const MODE_CONFIG: Record<SignalMode, ModeConfig> = {
   scalp: {
     label: "TEZ SAVDO",
     holdTimeUz: "5–20 daqiqa",
-    strongMargin: 8,
-    biasMargin: 2,
-    minScore: 38,
+    strongMargin: 6,
+    biasMargin: 1,
+    leanMargin: 1,
+    minScore: 32,
     slUsd: 2,
     targetRr: 1.5,
   },
   swing: {
     label: "1–2 SOAT",
     holdTimeUz: "1–2 soat",
-    strongMargin: 18,
-    biasMargin: 4,
-    minScore: 44,
+    strongMargin: 12,
+    biasMargin: 3,
+    leanMargin: 2,
+    minScore: 38,
     slUsd: 4,
     targetRr: 1.8,
   },
@@ -93,6 +97,15 @@ function masterDrivenAction(
   if (master.bias === "short" && master.shortScore >= cfg.minScore && margin <= -cfg.biasMargin) return "SELL";
   if (margin >= half && master.longScore >= cfg.minScore + 4) return "BUY";
   if (margin <= -half && master.shortScore >= cfg.minScore + 4) return "SELL";
+
+  // Yumshoq lean — kichik margin bo'lsa ham yo'nalish tanlanadi
+  if (margin >= cfg.leanMargin && master.longScore >= cfg.minScore - 4) return "BUY";
+  if (margin <= -cfg.leanMargin && master.shortScore >= cfg.minScore - 4) return "SELL";
+
+  // Bias asosida oxirgi imkoniyat (yo'nalishga qarshi emas)
+  if (master.bias === "long" && margin >= 0 && master.longScore >= cfg.minScore - 8) return "BUY";
+  if (master.bias === "short" && margin <= 0 && master.shortScore >= cfg.minScore - 8) return "SELL";
+
   return "HOLD";
 }
 
@@ -198,18 +211,18 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
 
   if (action === "HOLD" && news) {
     const margin = master.longScore - master.shortScore;
-    const newsMargin = mode === "scalp" ? 4 : 8;
-    const newsStrength = mode === "scalp" ? 60 : 70;
+    const newsMargin = mode === "scalp" ? 0 : 4;
+    const newsStrength = mode === "scalp" ? 52 : 62;
     if (news.overallBias === "bullish" && news.biasStrength >= newsStrength && margin >= newsMargin) action = "BUY";
     else if (news.overallBias === "bearish" && news.biasStrength >= newsStrength && margin <= -newsMargin) action = "SELL";
   }
 
-  // Scalp: jonli impuls yo'nalishi bo'lsa, kichik margin bilan ham kirish
-  if (action === "HOLD" && mode === "scalp" && impulse && impulse.moveUsd >= 0.4) {
+  // Jonli impuls yo'nalishi bo'lsa, kichik margin bilan ham kirish
+  if (action === "HOLD" && impulse && impulse.moveUsd >= (mode === "scalp" ? 0.3 : 0.5)) {
     const margin = master.longScore - master.shortScore;
     const dir = impulse.direction;
-    if (dir === "long" && margin >= 0 && master.longScore >= cfg.minScore - 4) action = "BUY";
-    else if (dir === "short" && margin <= 0 && master.shortScore >= cfg.minScore - 4) action = "SELL";
+    if (dir === "long" && margin >= -2 && master.longScore >= cfg.minScore - 8) action = "BUY";
+    else if (dir === "short" && margin <= 2 && master.shortScore >= cfg.minScore - 8) action = "SELL";
   }
 
   let confidence = Math.max(strategy.confidence, master.confidence);
@@ -264,17 +277,14 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     );
 
     const margin = master.longScore - master.shortScore;
-    if (
-      enforced.rejected &&
-      Math.abs(margin) >= 18 &&
-      (master.longScore >= 55 || master.shortScore >= 55)
-    ) {
-      action = margin > 0 ? "BUY" : "SELL";
+    if (enforced.rejected) {
+      // Joy tor bo'lsa ham — minimal target bilan savdo (HOLD emas)
+      action = margin >= 0 ? "BUY" : "SELL";
       entry = round2(price);
       stopLoss = action === "BUY" ? round2(price - 3) : round2(price + 3);
       takeProfit = action === "BUY" ? round2(price + 5) : round2(price - 5);
       riskReward = 1.67;
-      confidence = Math.max(confidence, 64);
+      confidence = Math.max(confidence, 58);
     } else {
       const s = enforced.signal;
       action = s.action;

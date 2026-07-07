@@ -123,9 +123,11 @@ export function guardScalpAiSignal(
     reasons.push(`kunlik fon ${opts.changePercent}% — long qarshi`);
   }
 
+  // Yumshoq — faqat kuchli qarama-qarshilikda HOLD ga aylantiriladi
   if (reasons.length === 0) return { signal, adjusted: false };
-  if (reasons.length === 1 && signal.confidence >= 64) return { signal, adjusted: false };
-  if (reasons.length < 3 && signal.confidence >= 58) return { signal, adjusted: false };
+  if (reasons.length === 1) return { signal, adjusted: false };
+  if (reasons.length === 2 && signal.confidence >= 50) return { signal, adjusted: false };
+  if (reasons.length === 3 && signal.confidence >= 66) return { signal, adjusted: false };
 
   const reasonUz = reasons.slice(0, 3).join("; ");
   return {
