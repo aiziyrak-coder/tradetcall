@@ -74,7 +74,7 @@ export function AnalysisPanel({ data, signal }: Props) {
         </div>
       </GlassCard>
 
-      <GlassCard className="empire-card empire-card--forecast p-3">
+      <GlassCard className="empire-card empire-card--forecast empire-card--grow p-3">
         <p className="empire-card-title mb-2">PROGNOZ</p>
         <ForecastChart signal={signal} price={data?.gold?.price ?? 0} />
       </GlassCard>

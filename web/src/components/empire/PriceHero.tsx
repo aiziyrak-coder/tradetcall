@@ -46,7 +46,9 @@ export function PriceHero({ gold, tickFlash, signal, analysis }: Props) {
           )}
         </div>
       ) : (
-        <p className="empire-price-hero__value opacity-30">—</p>
+        <div className="empire-price-flash">
+          <p className="empire-price-hero__value opacity-30">—</p>
+        </div>
       )}
       {bias && <span className="empire-bias-pill">{bias}</span>}
     </div>

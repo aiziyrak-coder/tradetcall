@@ -40,7 +40,7 @@ export function LeftColumn({
 
   return (
     <div className="empire-col">
-      <GlassCard className="empire-card p-3">
+      <GlassCard className="empire-card empire-card--grow p-3">
         {phase === "ready" && signal ? (
           <>
             <div className="empire-signal-ring">

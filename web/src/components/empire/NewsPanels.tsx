@@ -11,7 +11,7 @@ function NewsCol({ title, items }: { title: string; items: NewsItem[] }) {
       <p className="empire-card-title">{title}</p>
       <div className="empire-news-scroll">
         {items.length ? (
-          items.slice(0, 6).map((n) => (
+          items.slice(0, 15).map((n) => (
             <div key={n.id} className="empire-news-row">
               <span className="empire-news-row__dot" />
               <div className="min-w-0">
