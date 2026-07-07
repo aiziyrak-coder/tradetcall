@@ -5,7 +5,6 @@ import * as THREE from "three";
 
 function GoldParticleSphere() {
   const ref = useRef<THREE.Points>(null);
-  const ring = useRef<THREE.Mesh>(null);
 
   const particles = useMemo(() => {
     const n = 2200;
@@ -25,7 +24,6 @@ function GoldParticleSphere() {
 
   useFrame((_, delta) => {
     if (ref.current) ref.current.rotation.y += delta * 0.1;
-    if (ring.current) ring.current.rotation.z += delta * 0.15;
   });
 
   return (
@@ -44,16 +42,6 @@ function GoldParticleSphere() {
           opacity={0.72}
         />
       </Points>
-
-      <mesh ref={ring} rotation={[Math.PI / 3.2, 0.2, 0]}>
-        <torusGeometry args={[2.05, 0.01, 8, 128]} />
-        <meshBasicMaterial color="#c9a020" transparent opacity={0.28} />
-      </mesh>
-
-      <mesh position={[0, -1.95, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.5, 2.1, 64]} />
-        <meshBasicMaterial color="#a67c00" transparent opacity={0.14} side={THREE.DoubleSide} />
-      </mesh>
     </group>
   );
 }
