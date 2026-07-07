@@ -28,18 +28,18 @@ function GoldParticleSphere() {
 
   return (
     <group>
-      <ambientLight intensity={0.06} />
-      <pointLight position={[3, 3, 4]} intensity={0.5} color="#d4a012" />
+      <ambientLight intensity={0.04} />
+      <pointLight position={[3, 3, 4]} intensity={0.35} color="#c9a020" />
 
       <Points ref={ref} positions={particles} stride={3} frustumCulled={false}>
         <PointMaterial
           transparent
-          color="#e8b923"
-          size={0.03}
+          color="#c9a020"
+          size={0.028}
           sizeAttenuation
           depthWrite={false}
           blending={THREE.AdditiveBlending}
-          opacity={0.72}
+          opacity={0.65}
         />
       </Points>
     </group>

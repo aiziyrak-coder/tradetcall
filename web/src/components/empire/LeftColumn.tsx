@@ -82,7 +82,7 @@ export function LeftColumn({
         ) : (
           <div className="empire-empty">
             <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={onRequestForecast}>
-              ▶ {UZ.monitorForecast}
+              {UZ.monitorForecast}
             </button>
           </div>
         )}

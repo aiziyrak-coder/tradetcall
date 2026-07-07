@@ -28,9 +28,9 @@ export function ForecastChart({ signal, price }: Props) {
           <svg viewBox="0 0 160 70" preserveAspectRatio="none">
             <defs>
               <linearGradient id="emp-fg" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="rgba(255,184,0,0.2)" />
-                <stop offset="50%" stopColor="#ffd54a" />
-                <stop offset="100%" stopColor="rgba(255,184,0,0.2)" />
+                <stop offset="0%" stopColor="rgba(201,160,32,0.2)" />
+                <stop offset="50%" stopColor="#c9a020" />
+                <stop offset="100%" stopColor="rgba(201,160,32,0.2)" />
               </linearGradient>
             </defs>
             <motion.path
@@ -69,8 +69,8 @@ export function ForecastChart({ signal, price }: Props) {
         <svg viewBox="0 0 160 70" preserveAspectRatio="none">
           <defs>
             <linearGradient id="emp-fg2" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#c9a020" />
-              <stop offset="100%" stopColor="#ffe88b" />
+              <stop offset="0%" stopColor="#a08018" />
+              <stop offset="100%" stopColor="#e8c84a" />
             </linearGradient>
           </defs>
           {levels.map((l) => (
@@ -80,7 +80,7 @@ export function ForecastChart({ signal, price }: Props) {
               y1={y(l.val)}
               x2="156"
               y2={y(l.val)}
-              stroke={l.kind === "sl" ? "#ff6b4a" : "#3dd68c"}
+              stroke={l.kind === "sl" ? "#d45448" : "#c9a020"}
               strokeWidth="0.4"
               strokeDasharray="2 2"
               opacity="0.45"
