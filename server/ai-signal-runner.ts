@@ -23,6 +23,7 @@ import {
   getLastSnapshot,
   getMonitorContextForAi,
   refreshNewsDeepAnalysis,
+  ensureCandlesForAnalysis,
 } from "./monitor-service";
 import { emitMonitorEvent } from "./events";
 import { recordSignalIfNew, getJournalStats } from "./signal-journal-store";
@@ -43,6 +44,8 @@ export async function runOneShotAiAnalysis(mode: SignalMode = "swing"): Promise<
   clearPause();
 
   await refreshNewsDeepAnalysis();
+  // Shamlar to'liq bo'lishini kafolatlash — aks holda confluence neytral chiqadi
+  await ensureCandlesForAnalysis();
   const ctx = getMonitorContextForAi();
   if (!ctx.gold) {
     failAiSession("Narx mavjud emas — internet yoki serverni tekshiring");

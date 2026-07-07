@@ -608,6 +608,27 @@ export async function refreshNewsDeepAnalysis(): Promise<NewsMarketAnalysis | nu
   return refreshNewsAnalysisLocal();
 }
 
+/**
+ * Signal tahlilidan oldin ko'p-TF shamlar to'liq ekanini kafolatlaydi.
+ * Bo'sh yoki kam bo'lsa Yahoo'dan majburan yangilaydi (bir necha urinish).
+ */
+export async function ensureCandlesForAnalysis(): Promise<boolean> {
+  const gold = lastSnapshot?.gold;
+  if (!gold) return false;
+  const enough = () =>
+    (multiTfCandles["1m"]?.length ?? 0) >= 6 &&
+    (multiTfCandles["1h"]?.length ?? 0) >= 6;
+  for (let attempt = 0; attempt < 2 && !enough(); attempt++) {
+    multiTfFetchedAt = 0; // keshni bekor qilib majburan yangilash
+    try {
+      await refreshMultiTimeframes(gold.price);
+    } catch {
+      /* keyingi urinish */
+    }
+  }
+  return enough();
+}
+
 export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
   return Promise.resolve(refreshNewsAnalysisLocal());
 }

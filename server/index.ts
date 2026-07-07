@@ -552,9 +552,18 @@ function shutdown(signal: string) {
   console.log(`${signal} — to'xtatilmoqda`);
   stopAiSession("user");
   stopMonitorService();
+  // Ochiq WebSocket ulanishlarni majburan yopish — aks holda server.close tugamaydi
+  for (const client of wss.clients) {
+    try {
+      client.terminate();
+    } catch {
+      /* e'tibor bermaymiz */
+    }
+  }
   wss.close();
   server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 10_000).unref();
+  // Zaxira — muddat tugasa ham toza chiqish (restart uchun FAILURE bo'lmasin)
+  setTimeout(() => process.exit(0), 8_000).unref();
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));

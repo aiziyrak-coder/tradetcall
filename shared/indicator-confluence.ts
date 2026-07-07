@@ -104,6 +104,22 @@ function atr(candles: Candle[], period = 14): number {
   return s[s.length - 1] ?? 0;
 }
 
+/** Har bar uchun Wilder ATR seriyasi — bir martalik O(n) hisob */
+function atrSeries(candles: Candle[], period = 14): number[] {
+  const trs = trueRanges(candles);
+  if (!trs.length) return [];
+  const p = Math.min(period, trs.length);
+  const smoothed = wilderSmooth(trs, p);
+  // wilderSmooth (trs.length-p+1) ta qiymat qaytaradi; barlarga moslaymiz
+  const pad = candles.length - smoothed.length;
+  const out: number[] = new Array(candles.length).fill(smoothed[0] ?? 0);
+  for (let i = 0; i < smoothed.length; i++) {
+    const idx = pad + i;
+    if (idx >= 0 && idx < out.length) out[idx] = smoothed[i];
+  }
+  return out;
+}
+
 function rsiVal(closes: number[], period = 14): number {
   if (closes.length < period + 1) return 50;
   let gain = 0;
@@ -168,30 +184,33 @@ function voteEmaRibbon(closes: number[]): IndicatorVote {
 function voteSupertrend(candles: Candle[]): IndicatorVote {
   const period = 10;
   const mult = 3;
-  const a = atr(candles, period);
   const price = candles[candles.length - 1]?.close ?? 0;
-  if (!a || candles.length < period + 2) {
+  if (candles.length < period + 2) {
     return { name: "Supertrend", labelUz: "Supertrend (ma'lumot kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.4 };
   }
-  // Soddalashtirilgan supertrend — oxirgi qiymat
-  let upper = 0;
-  let lower = 0;
+  // O(n) yagona o'tish — ATR seriyasi oldindan hisoblangan
+  const atrs = atrSeries(candles, period);
+  let finalUpper = 0;
+  let finalLower = 0;
   let trendUp = true;
-  for (let i = period; i < candles.length; i++) {
-    const slice = candles.slice(0, i + 1);
-    const at = atr(slice, period);
+  for (let i = 1; i < candles.length; i++) {
+    const at = atrs[i] || atrs[atrs.length - 1] || 0.01;
     const mid = (candles[i].high + candles[i].low) / 2;
     const basicUpper = mid + mult * at;
     const basicLower = mid - mult * at;
-    upper = i === period ? basicUpper : basicUpper < upper || candles[i - 1].close > upper ? basicUpper : upper;
-    lower = i === period ? basicLower : basicLower > lower || candles[i - 1].close < lower ? basicLower : lower;
-    if (candles[i].close > upper) trendUp = true;
-    else if (candles[i].close < lower) trendUp = false;
+    const prevClose = candles[i - 1].close;
+    finalUpper =
+      i === 1 ? basicUpper : basicUpper < finalUpper || prevClose > finalUpper ? basicUpper : finalUpper;
+    finalLower =
+      i === 1 ? basicLower : basicLower > finalLower || prevClose < finalLower ? basicLower : finalLower;
+    if (candles[i].close > finalUpper) trendUp = true;
+    else if (candles[i].close < finalLower) trendUp = false;
   }
-  const line = trendUp ? lower : upper;
+  const a = atrs[atrs.length - 1] || 0.01;
+  const line = trendUp ? finalLower : finalUpper;
   const dist = Math.abs(price - line) / Math.max(a, 0.01);
   const signal: VoteSignal = trendUp ? "long" : "short";
-  const strength = Math.round(clamp(55 + dist * 15, 40, 95));
+  const strength = Math.round(clamp(52 + dist * 12, 40, 92));
   return {
     name: "Supertrend",
     labelUz: `Supertrend (${trendUp ? "long" : "short"})`,
@@ -203,7 +222,9 @@ function voteSupertrend(candles: Candle[]): IndicatorVote {
 }
 
 function voteMacd(closes: number[]): IndicatorVote {
-  const macdLine = emaSeries(closes, 12).map((v, i) => v - emaSeries(closes, 26)[i]);
+  const ema12 = emaSeries(closes, 12);
+  const ema26 = emaSeries(closes, 26);
+  const macdLine = ema12.map((v, i) => v - ema26[i]);
   const macd = macdLine[macdLine.length - 1] ?? 0;
   const signalLine = emaSeries(macdLine.slice(-Math.min(35, macdLine.length)), 9);
   const sig = signalLine[signalLine.length - 1] ?? 0;

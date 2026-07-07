@@ -154,13 +154,20 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
   const riskReward = round2(Math.abs(takeProfit - entry) / Math.max(0.5, Math.abs(entry - stopLoss)));
 
   const confluencePct = Math.max(conf1.strength, Math.round((conf1.strength + conf5.strength) / 2));
-  let wp = Math.min(
-    84,
-    Math.max(42, Math.round(48 + Math.abs(score) * 0.7 + Math.max(0, aligned) * 4 + m1.strength * 0.12))
-  );
-  if (conf1.bias === "neutral" && m1.phase === "range") wp = Math.min(wp, 60);
-  if (live.direction === "flat" && Math.abs(score) < 6) wp = Math.min(wp, 64);
-  const grade = wp >= 70 ? "A+" : wp >= 62 ? "A" : wp >= 52 ? "B" : wp >= 46 ? "C" : "D";
+  // Haqqoniy, o'zgaruvchan yutish ehtimoli — kelishmovchilik va shovqin jazolanadi
+  const biasSig = action === "BUY" ? "long" : action === "SELL" ? "short" : "neutral";
+  const conVotes1 =
+    action === "HOLD"
+      ? 0
+      : conf1.votes.filter((v) => v.signal !== "neutral" && v.signal !== biasSig).length;
+  let wp = 50 + Math.abs(score) * 0.5 + Math.max(0, aligned) * 3 + m1.strength * 0.1 - conVotes1 * 2.2;
+  // Jonli narx signalga qarshi bo'lsa jazolash
+  if (action === "BUY" && live.direction === "down") wp -= 6;
+  if (action === "SELL" && live.direction === "up") wp -= 6;
+  if (conf1.bias === "neutral" && m1.phase === "range") wp -= 7;
+  if (live.direction === "flat" && Math.abs(score) < 6) wp -= 4;
+  wp = Math.round(Math.min(86, Math.max(40, wp)));
+  const grade = wp >= 76 ? "A+" : wp >= 68 ? "A" : wp >= 58 ? "B" : wp >= 50 ? "C" : "D";
 
   const topVotes = conf1.votes
     .filter((v) => v.signal === (action === "BUY" ? "long" : action === "SELL" ? "short" : v.signal))
@@ -303,13 +310,27 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
 
   const riskReward = round2(Math.abs(takeProfit - entry) / Math.max(1, Math.abs(entry - stopLoss)));
 
-  let wp = Math.min(
-    90,
-    Math.max(44, Math.round(46 + mtf.strength * 0.3 + mtf.alignedTf * 6 + Math.abs(score) * 0.4))
-  );
-  if (mtf.alignedTf <= 1 && Math.abs(score) < 8) wp = Math.min(wp, 62);
-  if (mtf.bias === "neutral") wp = Math.min(wp, 58);
-  const grade = action === "HOLD" ? undefined : wp >= 74 ? "A+" : wp >= 66 ? "A" : wp >= 56 ? "B" : "C";
+  // Haqqoniy, o'zgaruvchan yutish ehtimoli — qarama-qarshi TF jazolanadi
+  const swingBias = action === "BUY" ? "long" : action === "SELL" ? "short" : "neutral";
+  const disTf =
+    action === "HOLD"
+      ? 0
+      : mtf.perTf.filter((p) => p.result.bias !== "neutral" && p.result.bias !== swingBias).length;
+  // Uzluksiz score asosiy omil — to'yinish kamayadi, qiymatlar tabiiy o'zgaradi
+  let wp = 46 + Math.abs(score) * 0.45 + mtf.alignedTf * 2.5 + mtf.strength * 0.08 - disTf * 6;
+  // 1h RSI ekstremum — trend davomiga qarshi xavf
+  const rsi1h = tech1h.rsi;
+  if (action === "BUY" && rsi1h >= 72) wp -= 5;
+  if (action === "SELL" && rsi1h <= 28) wp -= 5;
+  if (news && action !== "HOLD") {
+    const newsDir = news.overallBias === "bullish" ? "long" : news.overallBias === "bearish" ? "short" : "neutral";
+    if (newsDir === swingBias && news.biasStrength >= 55) wp += 3;
+    else if (newsDir !== "neutral" && newsDir !== swingBias) wp -= 3;
+  }
+  if (mtf.alignedTf <= 1 && Math.abs(score) < 8) wp -= 6;
+  if (mtf.bias === "neutral") wp -= 8;
+  wp = Math.round(Math.min(87, Math.max(42, wp)));
+  const grade = action === "HOLD" ? undefined : wp >= 78 ? "A+" : wp >= 70 ? "A" : wp >= 60 ? "B" : wp >= 52 ? "C" : "D";
 
   const perTfLine = mtf.perTf
     .map((p) => `${p.tf} ${p.result.bias === "long" ? "↑" : p.result.bias === "short" ? "↓" : "·"}${Math.abs(p.result.score)}`)

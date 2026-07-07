@@ -62,9 +62,13 @@ if [ -n "$AI_KEY" ]; then
 fi
 
 echo "==> Node build (VITE_API_BASE=$API_PUBLIC)"
-npm ci
+# Xotira OOM oldini olish — build vaqtida API servisni to'xtatamiz (keyin qayta ishga tushadi)
+systemctl stop tradetcall-api 2>/dev/null || true
+npm ci --no-audit --no-fund
 export VITE_API_BASE="$API_PUBLIC"
+export NODE_OPTIONS="--max-old-space-size=1536"
 npm run build
+unset NODE_OPTIONS
 
 echo "==> Systemd (tradetcall servislar — boshqa servislarga tegmaydi)"
 sed "s|/opt/trade|/opt/tradetcall|g" deploy/systemd/trade-api.service > /etc/systemd/system/tradetcall-api.service
