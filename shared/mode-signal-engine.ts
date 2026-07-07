@@ -148,7 +148,10 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
 
   riskReward = round2(Math.abs(takeProfit - entry) / Math.max(0.5, Math.abs(entry - stopLoss)));
 
-  const wp = Math.min(82, Math.max(42, Math.round(confidence * 0.85 + (action !== "HOLD" ? 8 : 0))));
+  let wp = Math.min(82, Math.max(42, Math.round(confidence * 0.85 + (action !== "HOLD" ? 8 : 0))));
+  // Choppy/range bozorda ishonch haqqoniy pasaytiriladi (HOLD ga majburlamasdan)
+  if (m1.phase === "range") wp = Math.min(wp, 62);
+  if (live.direction === "flat" && m1.phase !== "reversal") wp = Math.min(wp, 66);
   const grade = wp >= 68 ? "A" : wp >= 58 ? "B" : wp >= 48 ? "C" : "D";
 
   const triggerUz =
@@ -234,9 +237,13 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
   const c15 = multiCandles["15m"] ?? c5;
   const fallback: Candle[] = [{ time: 0, open: price, high: price, low: price, close: price }];
 
+  // Swing 1m ni hisobga olmaydi — strategiya 5m/15m/1h asosida
+  const swingCandles: Partial<Record<ChartInterval, Candle[]>> = { ...multiCandles };
+  delete swingCandles["1m"];
+
   const strategy = computeShortTermStrategy(
     price,
-    multiCandles,
+    swingCandles,
     drivers,
     [],
     news,
@@ -290,16 +297,32 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
     const atr = Math.max(3, Math.min(10, tech5.atr || 5));
     const slDist = Math.max(4, atr * 1.1);
     const tpDist = Math.max(8, slDist * 2);
+    // Swing uchun haqiqiy masofa chegaralari (oltin) — absurd stop/target oldini oladi
+    const MAX_SL = 18;
+    const MAX_TP = 40;
+    const MIN_SL = 4;
+    const MIN_TP = 8;
 
     entry = round2(price);
     if (action === "BUY") {
-      stopLoss = round2(structure?.s1 ?? price - slDist);
-      takeProfit = round2(structure?.r1 ?? price + tpDist);
-      if (takeProfit - entry < 6) takeProfit = round2(entry + tpDist);
+      // Stop narxdan past, TP narxdan yuqori bo'lishi shart
+      const rawSl = structure?.s1;
+      const sl = rawSl != null && rawSl < price - 1 ? rawSl : price - slDist;
+      const slD = Math.min(MAX_SL, Math.max(MIN_SL, price - sl));
+      stopLoss = round2(price - slD);
+      const rawTp = structure?.r1;
+      const tp = rawTp != null && rawTp > price + 1 ? rawTp : price + tpDist;
+      const tpD = Math.min(MAX_TP, Math.max(MIN_TP, tp - price));
+      takeProfit = round2(price + tpD);
     } else {
-      stopLoss = round2(structure?.r1 ?? price + slDist);
-      takeProfit = round2(structure?.s1 ?? price - tpDist);
-      if (entry - takeProfit < 6) takeProfit = round2(entry - tpDist);
+      const rawSl = structure?.r1;
+      const sl = rawSl != null && rawSl > price + 1 ? rawSl : price + slDist;
+      const slD = Math.min(MAX_SL, Math.max(MIN_SL, sl - price));
+      stopLoss = round2(price + slD);
+      const rawTp = structure?.s1;
+      const tp = rawTp != null && rawTp < price - 1 ? rawTp : price - tpDist;
+      const tpD = Math.min(MAX_TP, Math.max(MIN_TP, price - tp));
+      takeProfit = round2(price - tpD);
     }
 
     const enforced = enforceSwingTargets(
@@ -345,7 +368,7 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
     Math.round((tf.aligned / 3) * 40 + Math.abs(margin) * 0.5 + (news?.biasStrength ?? 50) * 0.2)
   );
 
-  const wp = Math.min(
+  let wp = Math.min(
     88,
     Math.max(
       44,
@@ -357,6 +380,9 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
       )
     )
   );
+  // TF moslik yo'q bo'lsa (aligned 0) ishonch haqqoniy pasaytiriladi
+  if (tf.aligned === 0) wp = Math.min(wp, 60);
+  else if (tf.aligned === 1 && Math.abs(margin) < 15) wp = Math.min(wp, 70);
 
   const grade =
     action === "HOLD" ? undefined : wp >= 72 ? "A+" : wp >= 64 ? "A" : wp >= 54 ? "B" : "C";
@@ -409,5 +435,27 @@ export function buildModeSignal(
   mode: SignalMode,
   input: ModeEngineInput
 ): ModeBuildResult {
-  return mode === "scalp" ? buildScalpSignal(input) : buildSwingSignal(input);
+  const result = mode === "scalp" ? buildScalpSignal(input) : buildSwingSignal(input);
+
+  // HOLD holatida yutish ehtimoli chalg'itmasligi uchun past ushlanadi
+  if (result.action === "HOLD") {
+    result.winProbability = Math.min(result.winProbability, 45);
+    result.signalGrade = undefined;
+  }
+
+  // Yakuniy sanity — target/stop yo'nalishi to'g'ri ekanini kafolatlash
+  if (result.action === "BUY") {
+    if (result.takeProfit <= result.entry) result.takeProfit = round2(result.entry + (mode === "scalp" ? 2.5 : 9));
+    if (result.stopLoss >= result.entry) result.stopLoss = round2(result.entry - (mode === "scalp" ? 1.8 : 5));
+  } else if (result.action === "SELL") {
+    if (result.takeProfit >= result.entry) result.takeProfit = round2(result.entry - (mode === "scalp" ? 2.5 : 9));
+    if (result.stopLoss <= result.entry) result.stopLoss = round2(result.entry + (mode === "scalp" ? 1.8 : 5));
+  }
+
+  if (result.action !== "HOLD") {
+    const risk = Math.abs(result.entry - result.stopLoss) || 1;
+    result.riskReward = round2(Math.abs(result.takeProfit - result.entry) / risk);
+  }
+
+  return result;
 }

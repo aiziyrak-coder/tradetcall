@@ -243,6 +243,11 @@ function mergeProWithAi(
       confluencePct: pro.confluencePct,
       signalGrade: "C",
       panelUz: pro.panelUz,
+      mode: pro.mode,
+      modeLabelUz: pro.modeLabelUz,
+      holdTimeUz: pro.holdTimeUz,
+      forecastHigh: pro.forecastHigh,
+      forecastLow: pro.forecastLow,
       analysisUz: `${pro.analysisUz}\n[AI zid] ${ai.analysisUz}`.slice(0, 900),
     };
   }
