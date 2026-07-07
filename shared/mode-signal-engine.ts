@@ -1,7 +1,15 @@
 /**
- * Scalp vs Swing — alohida strategiya engine
- * Scalp: M1 momentum, jonli impuls, tor SL/TP
- * Swing: 5m/15m/1h moslik, struktura, yangilik, keng target
+ * Scalp vs Swing — BUTUNLAY ALOHIDA strategiya va indikator to'plami
+ *
+ * ⚡ SCALP (TEZ SAVDO): tez momentum + mikro-reversion
+ *   computeScalpConfluence — EMA 8/20, RSI(7), Stochastic, ROC(4),
+ *   price-action mikro-struktura, breakout, VWAP, Bollinger + M1 lead + jonli impuls.
+ *   1m+5m, tor SL/TP, 5–20 daqiqa.
+ *
+ * ◷ SWING (UZOQ MUDDAT): trend-following + struktura
+ *   computeConfluence — EMA 50/200, Supertrend, MACD, ADX/DMI, Ichimoku,
+ *   Donchian, RSI(14), swing struktura (HH/HL) — 15m/1h/4h/1d MTF.
+ *   Keng target, 4–24 soat.
  */
 
 import type { ChartInterval } from "./chart";
@@ -17,6 +25,7 @@ import { getLiveMomentum } from "./scalp-signal-guard";
 import { getMarketSession } from "./market-session";
 import {
   computeConfluence,
+  computeScalpConfluence,
   computeMtfConfluence,
   aggregateCandles,
   type IndicatorVote,
@@ -69,7 +78,7 @@ const SWING_META = {
   holdTimeUz: "4–24 soat",
 };
 
-/** ── SCALP: 1m+5m confluence (10 indikator) + M1 + jonli momentum ── */
+/** ── SCALP: tez intraday confluence (8 tez indikator) + M1 + jonli momentum ── */
 function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
   const { price, multiCandles, impulse } = input;
   const fallback: Candle[] = [{ time: 0, open: price, high: price, low: price, close: price }];
@@ -79,9 +88,9 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
   const m1 = analyzeM1ScalpLead(c1, c5, price, impulse);
   const live = getLiveMomentum(c1, price);
 
-  // Tez confluence — 1m ustun, 5m tasdiq
-  const conf1 = computeConfluence(c1.length >= 6 ? c1 : fallback);
-  const conf5 = computeConfluence(c5.length >= 6 ? c5 : fallback);
+  // Tez SCALP confluence — intraday indikatorlar (1m ustun, 5m tasdiq)
+  const conf1 = computeScalpConfluence(c1.length >= 6 ? c1 : fallback);
+  const conf5 = computeScalpConfluence(c5.length >= 6 ? c5 : fallback);
   const w1 = 1.7;
   const w5 = 1.1;
   const longScore = Math.round((conf1.longScore * w1 + conf5.longScore * w5) / (w1 + w5));
@@ -197,7 +206,8 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
     confluencePct,
     signalGrade: action === "HOLD" ? undefined : grade,
     analysisUz: [
-      `⚡ TEZ SAVDO — 1m+5m 10 indikator confluence`,
+      `⚡ TEZ SAVDO — tez momentum + mikro-reversion strategiyasi`,
+      `Indikatorlar: EMA 8/20, RSI(7), Stochastic, ROC(4), price-action, breakout, VWAP, Bollinger`,
       `1m: ${conf1.summaryUz}`,
       `5m: ${conf5.summaryUz}`,
       m1.summaryUz,
@@ -211,8 +221,8 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
     invalidationUz,
     summaryUz:
       action === "HOLD"
-        ? `KUTING · confluence L${longScore}/S${shortScore}`
-        : `${action} · ~${wp}% · ${grade} · R:R ${riskReward} · ${Math.max(conf1.agree, 0)}/10 mos`,
+        ? `KUTING · tez confluence L${longScore}/S${shortScore}`
+        : `${action} · ~${wp}% · ${grade} · R:R ${riskReward} · ${Math.max(conf1.agree, 0)}/8 tez indikator`,
     panelUz: `1m L${conf1.longScore}/S${conf1.shortScore} · 5m ${conf5.bias} · M1 ${m1.direction}`,
     forecastHigh: takeProfit > price ? takeProfit : price + atr1 * 2,
     forecastLow: takeProfit < price ? takeProfit : price - atr1 * 2,
@@ -352,7 +362,8 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
     confluencePct: mtf.strength,
     signalGrade: grade,
     analysisUz: [
-      `◷ UZOQ MUDDAT — 15m/1h/4h/1d MTF confluence`,
+      `◷ UZOQ MUDDAT — trend-following + struktura strategiyasi (15m/1h/4h/1d MTF)`,
+      `Indikatorlar: EMA 50/200, Supertrend, MACD, ADX/DMI, Ichimoku, Donchian, RSI(14), swing struktura`,
       mtf.summaryUz,
       `TF: ${perTfLine}`,
       structure?.summaryUz ?? "",

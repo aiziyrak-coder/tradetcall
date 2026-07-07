@@ -1,9 +1,15 @@
 /**
- * Top-10 indikator confluence engine — professional signal yadrosi
+ * Ikki alohida confluence engine — har rejim uchun O'ZIGA XOS indikatorlar:
  *
- * Indikatorlar: EMA ribbon, Supertrend, MACD, RSI, Stochastic,
- * ADX/DMI, Bollinger %B, CCI, ROC (momentum), SMA/struktura + hajm.
- * Har biri long/short/neutral ovoz beradi; vaznli yig'indi bias va kuch.
+ * SCALP (computeScalpConfluence) — tez intraday:
+ *   EMA 8/20, RSI(7), Stochastic, mikro-momentum ROC(4), price-action
+ *   mikro-struktura, qisqa breakout, VWAP og'ish, Bollinger bounce.
+ *
+ * SWING (computeConfluence) — trend + struktura:
+ *   EMA 50/200 rejim, Supertrend, MACD, ADX/DMI, Ichimoku bulut,
+ *   Donchian kanal, RSI(14), swing struktura (HH/HL).
+ *
+ * Har indikator long/short/neutral ovoz beradi; vaznli yig'indi bias va kuch.
  */
 
 import type { Candle } from "./types";
@@ -151,33 +157,363 @@ function round2(n: number) {
 
 // ── Indikator ovozlari ──
 
-function voteEmaRibbon(closes: number[]): IndicatorVote {
-  const e9 = ema(closes, 9);
-  const e21 = ema(closes, 21);
-  const e50 = ema(closes, Math.min(50, closes.length));
+// ══════════════════ SCALP indikatorlari (tez, intraday) ══════════════════
+
+/** Tez EMA 8/20 kesishuv + qiyalik — scalp trend */
+function voteScalpEma(closes: number[]): IndicatorVote {
+  const e8 = ema(closes, 8);
+  const e20 = ema(closes, 20);
+  const e8prev = ema(closes.slice(0, -1), 8);
   const price = closes[closes.length - 1] ?? 0;
+  const slopeUp = e8 > e8prev;
   let signal: VoteSignal = "neutral";
-  let strength = 30;
-  if (e9 > e21 && e21 > e50 && price > e9) {
+  let strength = 32;
+  if (e8 > e20 && price > e8) {
     signal = "long";
-    strength = 70 + clamp((e9 - e50) / Math.max(e50, 1) * 4000, 0, 30);
-  } else if (e9 < e21 && e21 < e50 && price < e9) {
+    strength = slopeUp ? 72 : 58;
+  } else if (e8 < e20 && price < e8) {
     signal = "short";
-    strength = 70 + clamp((e50 - e9) / Math.max(e50, 1) * 4000, 0, 30);
-  } else if (e9 > e21 && price > e21) {
+    strength = !slopeUp ? 72 : 58;
+  } else if (e8 > e20) {
     signal = "long";
-    strength = 52;
-  } else if (e9 < e21 && price < e21) {
+    strength = 48;
+  } else if (e8 < e20) {
     signal = "short";
-    strength = 52;
+    strength = 48;
   }
   return {
-    name: "EMA",
-    labelUz: `EMA lenta 9/21/50 (${signal === "long" ? "ko'tarilish" : signal === "short" ? "tushish" : "aralash"})`,
+    name: "EMA8/20",
+    labelUz: `EMA 8/20 tez kesishuv (${signal === "long" ? "ko'tarilish" : signal === "short" ? "tushish" : "aralash"})`,
     signal,
     strength: Math.round(clamp(strength, 0, 100)),
-    valueUz: `${round2(e9)}/${round2(e21)}/${round2(e50)}`,
+    valueUz: `${round2(e8)}/${round2(e20)}`,
+    weight: 1.5,
+  };
+}
+
+/** RSI(7) — tez momentum + ekstremum reversion */
+function voteFastRsi(closes: number[]): IndicatorVote {
+  const r = rsiVal(closes, 7);
+  let signal: VoteSignal = "neutral";
+  let strength = 32;
+  if (r >= 78) {
+    signal = "short";
+    strength = 64;
+  } else if (r <= 22) {
+    signal = "long";
+    strength = 64;
+  } else if (r > 56) {
+    signal = "long";
+    strength = 44 + Math.min(18, r - 56);
+  } else if (r < 44) {
+    signal = "short";
+    strength = 44 + Math.min(18, 44 - r);
+  }
+  return {
+    name: "RSI7",
+    labelUz: `RSI(7) tez ${round2(r)}`,
+    signal,
+    strength: Math.round(clamp(strength, 0, 100)),
+    valueUz: `${round2(r)}`,
+    weight: 1.1,
+  };
+}
+
+/** Mikro-momentum ROC(4) — sof tezlik */
+function voteScalpRoc(closes: number[]): IndicatorVote {
+  const period = Math.min(4, closes.length - 1);
+  if (period < 2) {
+    return { name: "ROC4", labelUz: "Mikro-momentum (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.2 };
+  }
+  const prev = closes[closes.length - 1 - period];
+  const cur = closes[closes.length - 1];
+  const roc = ((cur - prev) / prev) * 100;
+  let signal: VoteSignal = "neutral";
+  if (roc > 0.03) signal = "long";
+  else if (roc < -0.03) signal = "short";
+  const strength = signal === "neutral" ? 28 : Math.round(clamp(46 + Math.abs(roc) * 40, 40, 92));
+  return {
+    name: "ROC4",
+    labelUz: `Mikro-momentum ROC(4) ${round2(roc)}%`,
+    signal,
+    strength,
+    valueUz: `${round2(roc)}%`,
+    weight: 1.2,
+  };
+}
+
+/** Mikro-struktura — oxirgi 4 sham tanasi + pin-bar rad etish (price action) */
+function voteMicroStructure(candles: Candle[]): IndicatorVote {
+  const last = candles.slice(-4);
+  if (last.length < 3) {
+    return { name: "PA", labelUz: "Mikro-struktura (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.2 };
+  }
+  let up = 0;
+  let down = 0;
+  let bodyU = 0;
+  let bodyD = 0;
+  for (const c of last) {
+    if (c.close > c.open) {
+      up++;
+      bodyU += c.close - c.open;
+    } else {
+      down++;
+      bodyD += c.open - c.close;
+    }
+  }
+  const lc = last[last.length - 1];
+  const range = Math.max(lc.high - lc.low, 0.01);
+  const upperWick = lc.high - Math.max(lc.open, lc.close);
+  const lowerWick = Math.min(lc.open, lc.close) - lc.low;
+  let signal: VoteSignal = "neutral";
+  let strength = 34;
+  if (up > down && bodyU > bodyD) {
+    signal = "long";
+    strength = 54 + Math.min(20, up * 4);
+  } else if (down > up && bodyD > bodyU) {
+    signal = "short";
+    strength = 54 + Math.min(20, down * 4);
+  }
+  // Pin-bar rad etish ustun
+  if (lowerWick > range * 0.6 && lowerWick > upperWick) {
+    signal = "long";
+    strength = Math.max(strength, 66);
+  } else if (upperWick > range * 0.6 && upperWick > lowerWick) {
+    signal = "short";
+    strength = Math.max(strength, 66);
+  }
+  return {
+    name: "PA",
+    labelUz: `Mikro-struktura (${signal === "long" ? "bullish push" : signal === "short" ? "bearish push" : "aralash"})`,
+    signal,
+    strength: Math.round(clamp(strength, 0, 100)),
+    valueUz: `${up}▲/${down}▼`,
+    weight: 1.2,
+  };
+}
+
+/** Qisqa breakout — oxirgi N-bar yuqori/quyi sindirish (momentum) */
+function voteScalpBreakout(candles: Candle[]): IndicatorVote {
+  const n = Math.min(15, candles.length - 1);
+  if (n < 5) {
+    return { name: "Breakout", labelUz: "Breakout (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.1 };
+  }
+  const prior = candles.slice(-n - 1, -1);
+  const hh = Math.max(...prior.map((c) => c.high));
+  const ll = Math.min(...prior.map((c) => c.low));
+  const price = candles[candles.length - 1].close;
+  let signal: VoteSignal = "neutral";
+  let strength = 30;
+  if (price > hh) {
+    signal = "long";
+    strength = 68;
+  } else if (price < ll) {
+    signal = "short";
+    strength = 68;
+  } else {
+    const pos = (price - ll) / Math.max(hh - ll, 0.01);
+    if (pos > 0.7) {
+      signal = "long";
+      strength = 46;
+    } else if (pos < 0.3) {
+      signal = "short";
+      strength = 46;
+    }
+  }
+  return {
+    name: "Breakout",
+    labelUz: `Breakout ${n}-bar (${signal === "long" ? "yuqoriga" : signal === "short" ? "pastga" : "kanal ichida"})`,
+    signal,
+    strength,
+    valueUz: `H${round2(hh)}/L${round2(ll)}`,
+    weight: 1.1,
+  };
+}
+
+/** VWAP proksi — jonli anchor'dan og'ish (ATR birligida) */
+function voteVwapProxy(candles: Candle[]): IndicatorVote {
+  const n = Math.min(30, candles.length);
+  const slice = candles.slice(-n);
+  const tp = slice.map((c) => (c.high + c.low + c.close) / 3);
+  const vwap = tp.reduce((a, b) => a + b, 0) / tp.length;
+  const price = candles[candles.length - 1].close;
+  const a = atr(candles) || 0.01;
+  const dev = (price - vwap) / a;
+  let signal: VoteSignal = "neutral";
+  let strength = 32;
+  if (dev > 2.2) {
+    signal = "short";
+    strength = 58;
+  } else if (dev < -2.2) {
+    signal = "long";
+    strength = 58;
+  } else if (dev > 0.2) {
+    signal = "long";
+    strength = 46;
+  } else if (dev < -0.2) {
+    signal = "short";
+    strength = 46;
+  }
+  return {
+    name: "VWAP",
+    labelUz: `VWAP og'ish ${dev > 0 ? "+" : ""}${round2(dev)} ATR`,
+    signal,
+    strength,
+    valueUz: `VWAP ${round2(vwap)}`,
+    weight: 1.0,
+  };
+}
+
+// ══════════════════ SWING indikatorlari (trend + struktura) ══════════════════
+
+/** EMA 50/200 rejim — golden/death cross (uzoq trend) */
+function voteRegimeEma(closes: number[]): IndicatorVote {
+  const e50 = ema(closes, Math.min(50, closes.length));
+  const e200 = ema(closes, Math.min(200, closes.length));
+  const price = closes[closes.length - 1] ?? 0;
+  const gap = (Math.abs(e50 - e200) / Math.max(e200, 1)) * 100;
+  let signal: VoteSignal = "neutral";
+  let strength = 34;
+  if (e50 > e200 && price > e50) {
+    signal = "long";
+    strength = 68 + clamp(gap * 8, 0, 24);
+  } else if (e50 < e200 && price < e50) {
+    signal = "short";
+    strength = 68 + clamp(gap * 8, 0, 24);
+  } else if (price > e200) {
+    signal = "long";
+    strength = 50;
+  } else if (price < e200) {
+    signal = "short";
+    strength = 50;
+  }
+  return {
+    name: "EMA50/200",
+    labelUz: `EMA 50/200 rejim (${signal === "long" ? "golden ko'tarilish" : signal === "short" ? "death tushish" : "aralash"})`,
+    signal,
+    strength: Math.round(clamp(strength, 0, 100)),
+    valueUz: `${round2(e50)}/${round2(e200)}`,
+    weight: 1.6,
+  };
+}
+
+/** Ichimoku bulut — Tenkan/Kijun + Kumo (klassik swing) */
+function voteIchimoku(candles: Candle[]): IndicatorVote {
+  if (candles.length < 10) {
+    return { name: "Ichimoku", labelUz: "Ichimoku (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.4 };
+  }
+  const hilo = (n: number) => {
+    const s = candles.slice(-Math.min(n, candles.length));
+    return (Math.max(...s.map((c) => c.high)) + Math.min(...s.map((c) => c.low))) / 2;
+  };
+  const tenkan = hilo(9);
+  const kijun = hilo(26);
+  const spanA = (tenkan + kijun) / 2;
+  const spanB = hilo(52);
+  const price = candles[candles.length - 1].close;
+  const cloudTop = Math.max(spanA, spanB);
+  const cloudBot = Math.min(spanA, spanB);
+  let signal: VoteSignal = "neutral";
+  let strength = 34;
+  if (price > cloudTop && tenkan > kijun) {
+    signal = "long";
+    strength = 72;
+  } else if (price < cloudBot && tenkan < kijun) {
+    signal = "short";
+    strength = 72;
+  } else if (price > cloudTop) {
+    signal = "long";
+    strength = 54;
+  } else if (price < cloudBot) {
+    signal = "short";
+    strength = 54;
+  } else {
+    signal = tenkan > kijun ? "long" : tenkan < kijun ? "short" : "neutral";
+    strength = 40;
+  }
+  return {
+    name: "Ichimoku",
+    labelUz: `Ichimoku bulut (${signal === "long" ? "bulut ustida" : signal === "short" ? "bulut ostida" : "bulut ichida"})`,
+    signal,
+    strength: Math.round(clamp(strength, 0, 100)),
+    valueUz: `T${round2(tenkan)}/K${round2(kijun)}`,
     weight: 1.4,
+  };
+}
+
+/** Donchian kanal (turtle) — N-bar breakout */
+function voteDonchian(candles: Candle[]): IndicatorVote {
+  const n = Math.min(20, candles.length - 1);
+  if (n < 6) {
+    return { name: "Donchian", labelUz: "Donchian (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.2 };
+  }
+  const prior = candles.slice(-n - 1, -1);
+  const hh = Math.max(...prior.map((c) => c.high));
+  const ll = Math.min(...prior.map((c) => c.low));
+  const mid = (hh + ll) / 2;
+  const price = candles[candles.length - 1].close;
+  let signal: VoteSignal = "neutral";
+  let strength = 32;
+  if (price >= hh) {
+    signal = "long";
+    strength = 70;
+  } else if (price <= ll) {
+    signal = "short";
+    strength = 70;
+  } else if (price > mid) {
+    signal = "long";
+    strength = 46;
+  } else if (price < mid) {
+    signal = "short";
+    strength = 46;
+  }
+  return {
+    name: "Donchian",
+    labelUz: `Donchian ${n} kanal (${signal === "long" ? "yuqori breakout" : signal === "short" ? "quyi breakout" : "kanalda"})`,
+    signal,
+    strength,
+    valueUz: `H${round2(hh)}/L${round2(ll)}`,
+    weight: 1.2,
+  };
+}
+
+/** Swing struktura — HH/HL vs LH/LL (bozor tuzilishi) */
+function voteSwingStructure(candles: Candle[]): IndicatorVote {
+  if (candles.length < 16) {
+    return { name: "Struktura", labelUz: "Swing struktura (kam)", signal: "neutral", strength: 24, valueUz: "—", weight: 1.3 };
+  }
+  const seg = candles.slice(-40);
+  const half = Math.floor(seg.length / 2);
+  const firstH = Math.max(...seg.slice(0, half).map((c) => c.high));
+  const lastH = Math.max(...seg.slice(half).map((c) => c.high));
+  const firstL = Math.min(...seg.slice(0, half).map((c) => c.low));
+  const lastL = Math.min(...seg.slice(half).map((c) => c.low));
+  const hh = lastH > firstH;
+  const hl = lastL > firstL;
+  const lh = lastH < firstH;
+  const ll = lastL < firstL;
+  let signal: VoteSignal = "neutral";
+  let strength = 36;
+  if (hh && hl) {
+    signal = "long";
+    strength = 66;
+  } else if (lh && ll) {
+    signal = "short";
+    strength = 66;
+  } else if (hh || hl) {
+    signal = "long";
+    strength = 48;
+  } else if (lh || ll) {
+    signal = "short";
+    strength = 48;
+  }
+  return {
+    name: "Struktura",
+    labelUz: `Swing struktura (${signal === "long" ? "HH/HL ko'tarilish" : signal === "short" ? "LH/LL tushish" : "diapazon"})`,
+    signal,
+    strength: Math.round(clamp(strength, 0, 100)),
+    valueUz: `H${round2(lastH)}/L${round2(lastL)}`,
+    weight: 1.3,
   };
 }
 
@@ -392,117 +728,13 @@ function voteBollinger(closes: number[]): IndicatorVote {
   };
 }
 
-function voteCci(candles: Candle[]): IndicatorVote {
-  const period = Math.min(20, candles.length);
-  if (candles.length < 5) {
-    return { name: "CCI", labelUz: "CCI (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 0.9 };
-  }
-  const tp = candles.map((c) => (c.high + c.low + c.close) / 3);
-  const slice = tp.slice(-period);
-  const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
-  const meanDev = slice.reduce((a, c) => a + Math.abs(c - mean), 0) / slice.length || 0.0001;
-  const cci = (tp[tp.length - 1] - mean) / (0.015 * meanDev);
-  let signal: VoteSignal = "neutral";
-  let strength = 32;
-  if (cci > 100) {
-    signal = "long";
-    strength = 58 + clamp((cci - 100) / 5, 0, 30);
-  } else if (cci < -100) {
-    signal = "short";
-    strength = 58 + clamp((-100 - cci) / 5, 0, 30);
-  } else if (cci > 20) {
-    signal = "long";
-    strength = 44;
-  } else if (cci < -20) {
-    signal = "short";
-    strength = 44;
-  }
-  return {
-    name: "CCI",
-    labelUz: `CCI ${Math.round(cci)}`,
-    signal,
-    strength: Math.round(clamp(strength, 0, 100)),
-    valueUz: `${Math.round(cci)}`,
-    weight: 0.9,
-  };
-}
-
-function voteRoc(closes: number[]): IndicatorVote {
-  const period = Math.min(10, closes.length - 1);
-  if (period < 2) {
-    return { name: "ROC", labelUz: "ROC (kam)", signal: "neutral", strength: 20, valueUz: "—", weight: 1.0 };
-  }
-  const prev = closes[closes.length - 1 - period];
-  const cur = closes[closes.length - 1];
-  const roc = ((cur - prev) / prev) * 100;
-  let signal: VoteSignal = "neutral";
-  if (roc > 0.05) signal = "long";
-  else if (roc < -0.05) signal = "short";
-  const strength = signal === "neutral" ? 30 : Math.round(clamp(45 + Math.abs(roc) * 30, 40, 92));
-  return {
-    name: "ROC",
-    labelUz: `Momentum (ROC ${round2(roc)}%)`,
-    signal,
-    strength,
-    valueUz: `${round2(roc)}%`,
-    weight: 1.0,
-  };
-}
-
-function voteStructure(candles: Candle[], closes: number[]): IndicatorVote {
-  const price = closes[closes.length - 1] ?? 0;
-  const sma50 = sma(closes, Math.min(50, closes.length));
-  const sma200 = sma(closes, Math.min(200, closes.length));
-  const last6 = candles.slice(-6);
-  let bull = 0;
-  let bear = 0;
-  for (const c of last6) {
-    if (c.close > c.open) bull += Math.abs(c.close - c.open);
-    else bear += Math.abs(c.close - c.open);
-  }
-  const aboveMa = price > sma50 && sma50 >= sma200;
-  const belowMa = price < sma50 && sma50 <= sma200;
-  let signal: VoteSignal = "neutral";
-  let strength = 34;
-  if (aboveMa && bull >= bear) {
-    signal = "long";
-    strength = 60;
-  } else if (belowMa && bear >= bull) {
-    signal = "short";
-    strength = 60;
-  } else if (price > sma50) {
-    signal = "long";
-    strength = 46;
-  } else if (price < sma50) {
-    signal = "short";
-    strength = 46;
-  }
-  return {
-    name: "Struktura",
-    labelUz: `Narx SMA50 ${price > sma50 ? "ustida" : "ostida"} · tana ${bull >= bear ? "yashil" : "qizil"}`,
-    signal,
-    strength: Math.round(clamp(strength, 0, 100)),
-    valueUz: `SMA50 ${round2(sma50)}`,
-    weight: 1.2,
-  };
-}
-
-/** Bitta timeframe uchun 10 indikator confluence */
-export function computeConfluence(candles: Candle[]): ConfluenceResult {
-  const closes = candles.map((c) => c.close);
-  const votes: IndicatorVote[] = [
-    voteEmaRibbon(closes),
-    voteSupertrend(candles),
-    voteMacd(closes),
-    voteRsi(closes),
-    voteStochastic(candles),
-    voteAdxDmi(candles),
-    voteBollinger(closes),
-    voteCci(candles),
-    voteRoc(closes),
-    voteStructure(candles, closes),
-  ];
-
+/** Ovozlarni vaznli yig'ib ConfluenceResult qurish (umumiy yadro) */
+function tallyVotes(
+  votes: IndicatorVote[],
+  candles: Candle[],
+  closes: number[],
+  biasThreshold: number
+): ConfluenceResult {
   let longW = 0;
   let shortW = 0;
   let weightSum = 0;
@@ -512,15 +744,13 @@ export function computeConfluence(candles: Candle[]): ConfluenceResult {
     if (v.signal === "long") longW += contrib;
     else if (v.signal === "short") shortW += contrib;
   }
-  const longScore = Math.round((longW / weightSum) * 100);
-  const shortScore = Math.round((shortW / weightSum) * 100);
+  const longScore = weightSum ? Math.round((longW / weightSum) * 100) : 0;
+  const shortScore = weightSum ? Math.round((shortW / weightSum) * 100) : 0;
   const score = longScore - shortScore;
-  const bias: VoteSignal = score >= 6 ? "long" : score <= -6 ? "short" : "neutral";
+  const bias: VoteSignal = score >= biasThreshold ? "long" : score <= -biasThreshold ? "short" : "neutral";
   const agree = votes.filter((v) => v.signal === bias && bias !== "neutral").length;
   const strength = Math.round(clamp(Math.abs(score) + agree * 3, 0, 100));
-
-  const summaryUz = `Confluence ${bias === "long" ? "LONG" : bias === "short" ? "SHORT" : "NEYTRAL"} · L${longScore}/S${shortScore} · ${agree}/10 mos`;
-
+  const summaryUz = `Confluence ${bias === "long" ? "LONG" : bias === "short" ? "SHORT" : "NEYTRAL"} · L${longScore}/S${shortScore} · ${agree}/${votes.length} mos`;
   return {
     bias,
     score,
@@ -537,6 +767,46 @@ export function computeConfluence(candles: Candle[]): ConfluenceResult {
     ema50: round2(ema(closes, Math.min(50, closes.length))),
     ema200: round2(sma(closes, Math.min(200, closes.length))),
   };
+}
+
+/**
+ * SCALP confluence — TEZ SAVDO uchun intraday indikatorlar:
+ * EMA 8/20, RSI(7), Stochastic, mikro-momentum ROC(4), price-action
+ * mikro-struktura, qisqa breakout, VWAP og'ish, Bollinger bounce.
+ */
+export function computeScalpConfluence(candles: Candle[]): ConfluenceResult {
+  const closes = candles.map((c) => c.close);
+  const votes: IndicatorVote[] = [
+    voteScalpEma(closes),
+    voteFastRsi(closes),
+    voteStochastic(candles),
+    voteScalpRoc(closes),
+    voteMicroStructure(candles),
+    voteScalpBreakout(candles),
+    voteVwapProxy(candles),
+    voteBollinger(closes),
+  ];
+  return tallyVotes(votes, candles, closes, 6);
+}
+
+/**
+ * SWING confluence — UZOQ MUDDAT uchun trend + struktura indikatorlari:
+ * EMA 50/200 rejim, Supertrend, MACD, ADX/DMI, Ichimoku bulut,
+ * Donchian kanal, RSI(14), swing struktura (HH/HL).
+ */
+export function computeConfluence(candles: Candle[]): ConfluenceResult {
+  const closes = candles.map((c) => c.close);
+  const votes: IndicatorVote[] = [
+    voteRegimeEma(closes),
+    voteSupertrend(candles),
+    voteMacd(closes),
+    voteAdxDmi(candles),
+    voteIchimoku(candles),
+    voteDonchian(candles),
+    voteRsi(closes),
+    voteSwingStructure(candles),
+  ];
+  return tallyVotes(votes, candles, closes, 5);
 }
 
 export interface TfConfluence {

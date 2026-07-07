@@ -60,8 +60,8 @@ export function startAiSession(mode: SignalMode = "swing"): MonitorSessionInfo {
   phase = "analyzing";
   messageUz =
     mode === "scalp"
-      ? "Tez savdo signali tahlil qilinmoqda — 1m+5m 10 indikator confluence…"
-      : "Uzoq muddat signali tahlil qilinmoqda — 15m/1h/4h/1d MTF confluence…";
+      ? "Tez savdo — momentum+reversion (EMA8/20, RSI7, Stoch, ROC, PA, breakout, VWAP)…"
+      : "Uzoq muddat — trend+struktura (EMA50/200, Supertrend, MACD, ADX, Ichimoku, Donchian)…";
   aiSignal = null;
   notifyChange();
 

@@ -121,7 +121,7 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
     }
   }
 
-  // Confluence — eng kuchli indikatorlar (10 tadan tanlab olingan)
+  // Confluence — rejimga xos eng kuchli indikatorlar (scalp: tez / swing: trend)
   if (signal.indicatorsUz?.length) {
     for (const ind of signal.indicatorsUz.slice(0, 6)) {
       reasons.push({
