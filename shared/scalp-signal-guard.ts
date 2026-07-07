@@ -76,58 +76,64 @@ export function guardScalpAiSignal(
     tech1: TechnicalAnalysis;
     m1Scalp: M1ScalpLead | null;
     impulse: PriceImpulse | null;
+    mode?: "scalp" | "swing";
   }
 ): GuardResult {
   if (signal.action === "HOLD") return { signal, adjusted: false };
 
+  const mode = opts.mode ?? "scalp";
   const live = getLiveMomentum(opts.candles1m, opts.price);
   const rsi = opts.tech1.rsi;
   const reasons: string[] = [];
 
   if (signal.action === "SELL") {
-    if (live.direction === "up" && live.changeUsd >= 0.25) {
+    if (live.direction === "up" && live.changeUsd >= (mode === "scalp" ? 0.25 : 0.55)) {
       reasons.push(`narx hozir ko'tarilmoqda (+$${live.changeUsd})`);
     }
-    if (rsi < 42) reasons.push(`RSI ${rsi} oversold — pastga sotish xavfli`);
-    if (opts.impulse?.direction === "long" && opts.impulse.moveUsd >= 0.35) {
+    if (mode === "scalp" && rsi < 42) reasons.push(`RSI ${rsi} oversold — pastga sotish xavfli`);
+    if (opts.impulse?.direction === "long" && opts.impulse.moveUsd >= (mode === "scalp" ? 0.35 : 0.6)) {
       reasons.push(`jonli impuls yuqoriga $${opts.impulse.moveUsd}`);
     }
-    if (opts.m1Scalp?.phase === "exhausted" || opts.m1Scalp?.phase === "reversal") {
+    if (mode === "scalp" && (opts.m1Scalp?.phase === "exhausted" || opts.m1Scalp?.phase === "reversal")) {
       reasons.push(`M1 faza: ${opts.m1Scalp.phase}`);
     }
-    if (live.bullishCloses >= 3 && live.bearishCloses <= 1) {
+    if (mode === "scalp" && live.bullishCloses >= 3 && live.bearishCloses <= 1) {
       reasons.push("oxirgi M1 shamlar ko'proq yashil");
     }
   }
 
   if (signal.action === "BUY") {
-    if (live.direction === "down" && live.changeUsd <= -0.25) {
+    if (live.direction === "down" && live.changeUsd <= (mode === "scalp" ? -0.25 : -0.55)) {
       reasons.push(`narx hozir tushmoqda ($${live.changeUsd})`);
     }
-    if (rsi > 58) reasons.push(`RSI ${rsi} yuqori — sotib olish kech`);
-    if (opts.impulse?.direction === "short" && opts.impulse.moveUsd >= 0.35) {
+    if (mode === "scalp" && rsi > 58) reasons.push(`RSI ${rsi} yuqori — sotib olish kech`);
+    if (opts.impulse?.direction === "short" && opts.impulse.moveUsd >= (mode === "scalp" ? 0.35 : 0.6)) {
       reasons.push(`jonli impuls pastga $${opts.impulse.moveUsd}`);
     }
-    if (opts.m1Scalp?.phase === "exhausted" || opts.m1Scalp?.phase === "reversal") {
+    if (mode === "scalp" && (opts.m1Scalp?.phase === "exhausted" || opts.m1Scalp?.phase === "reversal")) {
       reasons.push(`M1 faza: ${opts.m1Scalp.phase}`);
     }
-    if (live.bearishCloses >= 3 && live.bullishCloses <= 1) {
+    if (mode === "scalp" && live.bearishCloses >= 3 && live.bullishCloses <= 1) {
       reasons.push("oxirgi M1 shamlar qizil");
     }
   }
 
-  if (opts.changePercent > 0.45 && signal.action === "SELL") {
+  if (opts.changePercent > (mode === "scalp" ? 0.45 : 0.85) && signal.action === "SELL") {
     reasons.push(`kunlik fon +${opts.changePercent}% — short qarshi`);
   }
-  if (opts.changePercent < -0.45 && signal.action === "BUY") {
+  if (opts.changePercent < (mode === "scalp" ? -0.45 : -0.85) && signal.action === "BUY") {
     reasons.push(`kunlik fon ${opts.changePercent}% — long qarshi`);
   }
 
-  // Yumshoq — faqat kuchli qarama-qarshilikda HOLD ga aylantiriladi
-  if (reasons.length === 0) return { signal, adjusted: false };
-  if (reasons.length === 1) return { signal, adjusted: false };
-  if (reasons.length === 2 && signal.confidence >= 50) return { signal, adjusted: false };
-  if (reasons.length === 3 && signal.confidence >= 66) return { signal, adjusted: false };
+  // Scalp — faqat juda kuchli qarama-qarshilik (4+ sabab)
+  if (mode === "scalp") {
+    if (reasons.length < 4) return { signal, adjusted: false };
+    if (reasons.length === 4 && signal.confidence >= 50) return { signal, adjusted: false };
+  } else {
+    // Swing — 3+ sabab
+    if (reasons.length < 3) return { signal, adjusted: false };
+    if (reasons.length === 3 && signal.confidence >= 60) return { signal, adjusted: false };
+  }
 
   const reasonUz = reasons.slice(0, 3).join("; ");
   return {

@@ -613,9 +613,19 @@
 }
 
 .empire-forecast-wrap {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
   min-height: 72px;
+}
+
+.empire-forecast-mode {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--empire-mono);
+  font-size: 8px;
+  color: var(--empire-muted);
+  letter-spacing: 0.04em;
 }
 
 .empire-forecast-chart {

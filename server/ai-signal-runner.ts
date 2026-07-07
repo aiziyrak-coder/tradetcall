@@ -275,6 +275,7 @@ function applyFinalGuards(
     tech1: ctx.tech1,
     m1Scalp: ctx.m1Scalp,
     impulse: ctx.impulse,
+    mode: ctx.mode,
   });
 
   let s = guarded.signal;

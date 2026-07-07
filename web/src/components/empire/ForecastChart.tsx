@@ -7,13 +7,26 @@ interface Props {
 }
 
 function buildLevels(signal: AiTradeSignal) {
+  const isScalp = signal.mode === "scalp";
+  const move = Math.abs(signal.takeProfit - signal.entry) || (isScalp ? 2.5 : 8);
+
+  if (isScalp) {
+    return [
+      { label: "TP", val: signal.takeProfit, kind: "tp" as const },
+      { label: "SL", val: signal.stopLoss, kind: "sl" as const },
+    ];
+  }
+
   const levels = [
     { label: "TP1", val: signal.takeProfit, kind: "tp" as const },
     { label: "SL", val: signal.stopLoss, kind: "sl" as const },
   ];
-  if (signal.forecastHigh) {
+  if (signal.forecastHigh && signal.action === "BUY") {
+    levels.unshift({ label: "TP3", val: signal.forecastHigh + move * 0.4, kind: "tp" as const });
     levels.unshift({ label: "TP2", val: signal.forecastHigh, kind: "tp" as const });
-    levels.unshift({ label: "TP3", val: signal.forecastHigh + (signal.takeProfit - signal.entry) * 0.3, kind: "tp" as const });
+  } else if (signal.forecastLow && signal.action === "SELL") {
+    levels.unshift({ label: "TP3", val: signal.forecastLow - move * 0.4, kind: "tp" as const });
+    levels.unshift({ label: "TP2", val: signal.forecastLow, kind: "tp" as const });
   }
   return levels;
 }
@@ -65,6 +78,11 @@ export function ForecastChart({ signal, price }: Props) {
 
   return (
     <div className="empire-forecast-wrap">
+      {signal.mode && (
+        <p className="empire-forecast-mode">
+          {signal.mode === "scalp" ? "⚡ Tor target (5–20 daq)" : "◷ Keng target (1–2 soat)"}
+        </p>
+      )}
       <div className="empire-forecast-chart">
         <svg viewBox="0 0 160 70" preserveAspectRatio="none">
           <defs>

@@ -250,7 +250,7 @@ export function analyzeM1ScalpLead(
     entryHint,
     stopHint,
     tpHint,
-    maxHoldMin: 480,
+    maxHoldMin: 20,
     summaryUz,
   };
 }

@@ -21,6 +21,8 @@ export function SignalReasoning({ data, signal }: Props) {
     news: data?.newsAnalysis,
     setup: data?.setupQuality,
     gold: data?.gold,
+    m1Scalp: data?.m1Scalp,
+    liveMomentum: data?.liveMomentum,
   });
 
   if (!signal || !reasoning) return null;

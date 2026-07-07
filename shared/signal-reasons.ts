@@ -5,6 +5,8 @@ import type {
   PriceData,
 } from "./types";
 import type { SetupQuality } from "./setup-quality";
+import type { M1ScalpLead } from "./m1-scalp";
+import type { LiveMomentum } from "./scalp-signal-guard";
 
 export type ReasonStance = "pro" | "con" | "neutral";
 
@@ -34,6 +36,8 @@ interface Input {
   news?: NewsMarketAnalysis | null;
   setup?: SetupQuality | null;
   gold?: PriceData | null;
+  m1Scalp?: M1ScalpLead | null;
+  liveMomentum?: LiveMomentum | null;
 }
 
 /** Signal yo'nalishiga nisbatan biasni pro/con ga aylantiradi */
@@ -61,10 +65,61 @@ function biasUz(b: "bullish" | "bearish" | "neutral"): string {
  * AI matniga tayanmaydi — jonli texnik, yangilik va setup raqamlaridan quriladi.
  */
 export function buildSignalReasoning(input: Input): SignalReasoning | null {
-  const { signal, technical, news, setup, gold } = input;
+  const { signal, technical, news, setup, gold, m1Scalp, liveMomentum } = input;
   if (!signal) return null;
   const action = signal.action;
+  const mode = signal.mode ?? "swing";
   const reasons: SignalReason[] = [];
+
+  // Rejim — scalp vs swing asoslari
+  if (mode === "scalp") {
+    if (m1Scalp) {
+      const dir = m1Scalp.direction === "long" ? "bullish" : m1Scalp.direction === "short" ? "bearish" : "neutral";
+      reasons.push({
+        labelUz: `M1 skalp: ${m1Scalp.direction.toUpperCase()} ${m1Scalp.strength}% · ${m1Scalp.phase}`,
+        valueUz: m1Scalp.structureUz,
+        stance: biasStance(dir as "bullish" | "bearish" | "neutral", action),
+      });
+    }
+    if (liveMomentum) {
+      const liveBias =
+        liveMomentum.direction === "up" ? "bullish" : liveMomentum.direction === "down" ? "bearish" : "neutral";
+      reasons.push({
+        labelUz: `Jonli momentum: ${liveMomentum.summaryUz}`,
+        valueUz: `$${liveMomentum.changeUsd}`,
+        stance: biasStance(liveBias, action),
+      });
+    }
+    if (signal.holdTimeUz) {
+      reasons.push({
+        labelUz: `Tez savdo — ushlab turish ${signal.holdTimeUz}`,
+        valueUz: signal.holdTimeUz,
+        stance: action === "HOLD" ? "neutral" : "pro",
+      });
+    }
+  } else {
+    if (signal.panelUz) {
+      reasons.push({
+        labelUz: `Swing panel: ${signal.panelUz}`,
+        valueUz: signal.modeLabelUz ?? "1–2 SOAT",
+        stance: action === "HOLD" ? "neutral" : "pro",
+      });
+    }
+    if (signal.confluencePct != null) {
+      reasons.push({
+        labelUz: `TF moslik (5m/15m/1h) ${signal.confluencePct}%`,
+        valueUz: `${signal.confluencePct}%`,
+        stance: signal.confluencePct >= 55 ? "pro" : signal.confluencePct >= 40 ? "neutral" : "con",
+      });
+    }
+    if (signal.holdTimeUz) {
+      reasons.push({
+        labelUz: `Swing — ushlab turish ${signal.holdTimeUz}`,
+        valueUz: signal.holdTimeUz,
+        stance: action === "HOLD" ? "neutral" : "pro",
+      });
+    }
+  }
 
   // 1. Texnik trend
   if (technical) {
@@ -120,12 +175,18 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
     }
   }
 
-  // 5. Yangiliklar biasi
+  // 5. Yangiliklar biasi (swing uchun muhimroq)
   if (news) {
+    const strong = news.biasStrength >= (mode === "swing" ? 55 : 65);
     reasons.push({
       labelUz: `Yangilik: ${biasUz(news.overallBias)} ${news.biasStrength}%`,
       valueUz: `${news.biasStrength}%`,
-      stance: biasStance(news.overallBias, action),
+      stance:
+        strong && biasStance(news.overallBias, action) === "pro"
+          ? "pro"
+          : strong && biasStance(news.overallBias, action) === "con"
+            ? "con"
+            : biasStance(news.overallBias, action),
     });
 
     // 6. Bull/Bear yangiliklar nisbati
@@ -168,12 +229,12 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
     stance: prob >= 65 ? "pro" : prob >= 50 ? "neutral" : "con",
   });
 
-  // 10. Moslik (confluence)
-  if (signal.confluencePct != null) {
+  // 10. Moslik (confluence) — scalp uchun panel
+  if (signal.confluencePct != null && mode === "scalp") {
     reasons.push({
-      labelUz: `TF moslik ${signal.confluencePct}%`,
+      labelUz: `M1 kuch ${signal.confluencePct}%`,
       valueUz: `${signal.confluencePct}%`,
-      stance: signal.confluencePct >= 60 ? "pro" : signal.confluencePct >= 45 ? "neutral" : "con",
+      stance: signal.confluencePct >= 50 ? "pro" : signal.confluencePct >= 35 ? "neutral" : "con",
     });
   }
 
@@ -181,14 +242,15 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
   const conCount = reasons.filter((r) => r.stance === "con").length;
 
   let headlineUz: string;
+  const modeLabel = mode === "scalp" ? "TEZ SAVDO" : "1–2 SOAT";
   if (action === "HOLD") {
     headlineUz =
       conCount >= proCount
-        ? "Faktlar qarama-qarshi — aniq setup yo'q, shuning uchun KUTISH."
-        : "Signallar to'liq mos emas — tasdiq kutilmoqda, KUTISH.";
+        ? `${modeLabel}: faktlar qarama-qarshi — aniq setup yo'q, KUTISH.`
+        : `${modeLabel}: signallar to'liq mos emas — tasdiq kutilmoqda, KUTISH.`;
   } else {
     const dir = action === "BUY" ? "ko'tarilish (LONG)" : "tushish (SHORT)";
-    headlineUz = `${proCount} ta fakt ${dir} tomonda${
+    headlineUz = `${modeLabel}: ${proCount} ta fakt ${dir} tomonda${
       conCount ? `, ${conCount} ta qarshi` : ""
     } — shuning uchun ${action}.`;
   }
