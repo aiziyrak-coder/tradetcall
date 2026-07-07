@@ -1,8 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syncopate:wght@400;700&family=JetBrains+Mono:wght@500;600&display=swap");
 
 :root {
-  --empire-bg: #0a0908;
-  --empire-surface: #121110;
+  --empire-bg: #040403;
+  --empire-surface: #0c0b0a;
   --empire-gold: #d4a012;
   --empire-gold-mid: #e8b923;
   --empire-gold-light: #f0cc4a;
@@ -46,20 +46,17 @@
 }
 
 .empire-bg__warmth {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 45% 38% at 50% 44%, rgba(180, 130, 20, 0.07), transparent 70%);
+  display: none;
 }
 
 .empire-bg__grid {
   position: absolute;
   inset: 0;
-  opacity: 0.35;
+  opacity: 0.18;
   background-image:
-    linear-gradient(rgba(212, 160, 18, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212, 160, 18, 0.025) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 15%, transparent 80%);
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 .empire-bg__gradient,
@@ -105,6 +102,7 @@
 .empire-globe {
   position: absolute;
   inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   max-height: 100%;
@@ -348,7 +346,7 @@
 .empire-price-hero {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -370,11 +368,11 @@
   font-size: clamp(2.2rem, 4.5vw, 3.4rem);
   font-weight: 700;
   line-height: 1;
-  background: linear-gradient(180deg, #fffef5, var(--empire-gold-light) 40%, var(--empire-gold-mid) 75%, #c9a020);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 4px 16px rgba(255, 193, 7, 0.45));
+  color: var(--empire-gold-light);
+  text-shadow:
+    0 0 40px rgba(232, 185, 35, 0.55),
+    0 0 12px rgba(212, 160, 18, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.9);
 }
 
 .empire-price-hero__chg {
@@ -506,11 +504,6 @@
 
 .empire-conf-ring::before {
   background: var(--empire-surface);
-}
-
-.empire-price-hero__value {
-  background: linear-gradient(180deg, #faf6eb, var(--empire-gold-light) 45%, var(--empire-gold-mid) 80%, #a67c00);
-  filter: drop-shadow(0 2px 12px rgba(180, 130, 20, 0.35));
 }
 
 /* ── News ── */
