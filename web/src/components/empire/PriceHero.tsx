@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import type { PriceData } from "../../../../shared/types";
 import type { NewsMarketAnalysis } from "../../../../shared/types";
 import type { AiTradeSignal } from "../../../../shared/ai-trade-signal";
@@ -32,35 +31,24 @@ export function PriceHero({ gold, tickFlash, signal, analysis }: Props) {
   const macro = analysis?.overallBias;
   const bias =
     signal?.forecastBiasUz ??
-    (macro === "bullish" ? "↑ LONG" : macro === "bearish" ? "↓ SHORT" : signal?.action === "BUY" ? "↑ LONG" : signal?.action === "SELL" ? "↓ SHORT" : null);
-  const biasUp = bias?.includes("LONG") || bias?.includes("BUY");
+    (macro === "bullish" ? "↑ LONG" : macro === "bearish" ? "↓ SHORT" : null);
 
   return (
     <div className="empire-price-hero">
       <p className="empire-price-hero__label">XAUUSD · OLTIN</p>
-
       {gold ? (
-        <motion.div
-          key={`${gold.price}-${tickFlash}`}
-          className="empire-price-flash"
-          initial={{ scale: 0.96 }}
-          animate={{ scale: 1 }}
-        >
+        <div key={`${gold.price}-${tickFlash}`} className="empire-price-flash">
           <p className="empire-price-hero__value">${gold.price.toFixed(2)}</p>
           {ch && (
             <p className={`empire-price-hero__chg ${ch.up ? "up" : "down"}`}>
-              {ch.up ? "▲" : "▼"} {ch.main}{" "}
-              <span className="opacity-70">{ch.sub}</span>
+              {ch.up ? "▲" : "▼"} {ch.main} <span>{ch.sub}</span>
             </p>
           )}
-        </motion.div>
+        </div>
       ) : (
         <p className="empire-price-hero__value opacity-30">—</p>
       )}
-
-      {bias && (
-        <span className={`empire-bias-pill ${biasUp ? "long" : "short"}`}>{bias}</span>
-      )}
+      {bias && <span className="empire-bias-pill">{bias}</span>}
     </div>
   );
 }

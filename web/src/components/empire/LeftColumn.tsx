@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import type { AiPhase, AiTradeSignal } from "../../../../shared/ai-trade-signal";
 import type { NewsMarketAnalysis } from "../../../../shared/types";
 import { GlassCard } from "./GlassCard";
@@ -21,7 +20,7 @@ function shortHint(text: string, price: number): string {
     if (v > price * 1.15 || v < price * 0.85) return `$${price.toFixed(2)}`;
     return match.startsWith("$") ? match : `$${match}`;
   });
-  return clean.length > 130 ? `${clean.slice(0, 127)}…` : clean;
+  return clean.length > 110 ? `${clean.slice(0, 107)}…` : clean;
 }
 
 export function LeftColumn({
@@ -40,11 +39,11 @@ export function LeftColumn({
     macro === "bullish" ? "Bullish" : macro === "bearish" ? "Bearish" : "Neytral";
 
   return (
-    <div className="empire-col flex h-full min-h-0 flex-col gap-2">
-      <GlassCard className="empire-card empire-card--signal p-3" float>
+    <div className="empire-col">
+      <GlassCard className="empire-card p-3">
         {phase === "ready" && signal ? (
           <>
-            <div className="empire-signal-ring mx-auto mb-2">
+            <div className="empire-signal-ring">
               <div className="empire-signal-ring__outer" />
               <div className="empire-signal-ring__inner" />
               <div className="empire-signal-ring__core">
@@ -54,12 +53,10 @@ export function LeftColumn({
                 <span className="empire-signal-ring__sub">
                   {action === "BUY" ? "SOTIB OLISH" : action === "SELL" ? "SOTISH" : "KUTISH"}
                 </span>
-                <span className="empire-signal-ring__prob">~{prob}% ehtimol</span>
+                <span className="empire-signal-ring__prob">~{prob}%</span>
               </div>
             </div>
-            {signal.triggerUz && (
-              <p className="empire-hint">{shortHint(signal.triggerUz, price)}</p>
-            )}
+            {signal.triggerUz && <p className="empire-hint">{shortHint(signal.triggerUz, price)}</p>}
             {action !== "HOLD" && (
               <div className="empire-levels">
                 <div className="empire-levels__sl">
@@ -70,7 +67,7 @@ export function LeftColumn({
                   <span>KIRISH</span>
                   <strong>${signal.entry.toFixed(2)}</strong>
                 </div>
-                <div className="empire-levels__tp">
+                <div>
                   <span>MAQSAD</span>
                   <strong>${signal.takeProfit.toFixed(2)}</strong>
                 </div>
@@ -80,12 +77,10 @@ export function LeftColumn({
         ) : analyzing ? (
           <div className="empire-empty">
             <div className="empire-spinner" />
-            <p>8 treyder tahlili</p>
+            <p>Tahlil…</p>
           </div>
         ) : (
           <div className="empire-empty">
-            <p className="opacity-40">—</p>
-            <p>Prognoz uchun tugma</p>
             <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={onRequestForecast}>
               ▶ {UZ.monitorForecast}
             </button>
@@ -93,40 +88,20 @@ export function LeftColumn({
         )}
       </GlassCard>
 
-      <GlassCard className="empire-card p-3" float>
-        <p className="empire-card-title">SIGNAL KUCHI</p>
-        <p className="empire-strength-val">{prob}%</p>
-        <svg className="empire-strength-chart" viewBox="0 0 200 40" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="str-line" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#c9a020" />
-              <stop offset="100%" stopColor="#ffe88b" />
-            </linearGradient>
-            <filter id="str-glow">
-              <feGaussianBlur stdDeviation="1.5" />
-            </filter>
-          </defs>
-          <motion.path
-            d={`M0,32 Q40,${34 - prob * 0.2} 90,${28 - prob * 0.15} T200,${18 - prob * 0.12}`}
-            fill="none"
-            stroke="url(#str-line)"
-            strokeWidth="2.5"
-            filter="url(#str-glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1.2 }}
-          />
-        </svg>
-      </GlassCard>
-
-      <GlassCard className="empire-card empire-card--sentiment p-3" float>
-        <p className="empire-card-title">BOZOR HOLATI</p>
-        <div className={`empire-sentiment-icon empire-sentiment-icon--${macro ?? "neutral"}`}>
-          {macro === "bullish" ? "🐂" : macro === "bearish" ? "🐻" : "⚖"}
+      <GlassCard className="empire-card p-3">
+        <div className="empire-mini-row">
+          <div className="flex-1">
+            <p className="empire-card-title">SIGNAL KUCHI</p>
+            <p className="empire-strength-val">{prob}%</p>
+            <div className="empire-ind-bar">
+              <div className="empire-ind-bar__fill" style={{ width: `${prob}%` }} />
+            </div>
+          </div>
+          <div className="empire-sentiment-compact">
+            <p className="empire-card-title">BOZOR</p>
+            <p className="empire-sentiment-label">{macroLabel}</p>
+          </div>
         </div>
-        <p className={`empire-sentiment-label empire-sentiment-label--${macro ?? "neutral"}`}>
-          {macroLabel}
-        </p>
       </GlassCard>
     </div>
   );

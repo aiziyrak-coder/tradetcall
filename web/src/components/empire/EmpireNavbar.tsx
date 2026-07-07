@@ -40,7 +40,7 @@ export function EmpireNavbar({
   return (
     <motion.header
       className="relative z-30 flex shrink-0 items-center gap-4 border-b border-[rgba(255,213,74,0.12)] px-4 py-2.5 backdrop-blur-xl"
-      style={{ background: "rgba(0,0,0,0.65)" }}
+      style={{ background: "var(--empire-surface)" }}
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5 }}

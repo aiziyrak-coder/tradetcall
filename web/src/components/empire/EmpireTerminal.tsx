@@ -3,7 +3,6 @@ import type { AiPhase } from "../../../../shared/ai-trade-signal";
 import type { MonitorSessionInfo, MonitorSnapshot } from "../../../../shared/types";
 import { EmpireBackground } from "./EmpireBackground";
 import { EmpireNavbar } from "./EmpireNavbar";
-import { EmpireSidebar } from "./EmpireSidebar";
 import { LeftColumn } from "./LeftColumn";
 import { HolographicGlobe } from "./HolographicGlobe";
 import { PriceHero } from "./PriceHero";
@@ -79,8 +78,6 @@ export function EmpireTerminal({
       />
 
       <div className="empire-body">
-        <EmpireSidebar />
-
         <div className="empire-main">
           <div className="empire-cockpit">
             <motion.div
@@ -106,7 +103,6 @@ export function EmpireTerminal({
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.15, duration: 0.5 }}
             >
-              <div className="empire-center-beam" aria-hidden />
               <HolographicGlobe />
               <PriceHero
                 gold={gold}

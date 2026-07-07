@@ -38,18 +38,13 @@ export function AnalysisPanel({ data, signal }: Props) {
 
   return (
     <div className="empire-col flex h-full min-h-0 flex-col gap-2">
-      <GlassCard className="empire-card empire-card--analysis p-3" float>
-        <div className="flex gap-2">
-          <span className="text-xl">🚀</span>
-          <div className="min-w-0 flex-1">
-            <p className="empire-verdict-title">{biasLabel}</p>
-            {analysis?.tradeVerdictUz && (
-              <p className="empire-verdict-text">{analysis.tradeVerdictUz}</p>
-            )}
-          </div>
-        </div>
+      <GlassCard className="empire-card empire-card--analysis p-3">
+        <p className="empire-verdict-title">{biasLabel}</p>
+        {analysis?.tradeVerdictUz && (
+          <p className="empire-verdict-text">{analysis.tradeVerdictUz}</p>
+        )}
 
-        <div className="mt-3 flex gap-3">
+        <div className="mt-2 flex gap-3">
           <div className="min-w-0 flex-1">
             {tech && (
               <>
@@ -79,7 +74,7 @@ export function AnalysisPanel({ data, signal }: Props) {
         </div>
       </GlassCard>
 
-      <GlassCard className="empire-card empire-card--forecast flex-1 p-3" float>
+      <GlassCard className="empire-card empire-card--forecast p-3">
         <p className="empire-card-title mb-2">PROGNOZ</p>
         <ForecastChart signal={signal} price={data?.gold?.price ?? 0} />
       </GlassCard>
