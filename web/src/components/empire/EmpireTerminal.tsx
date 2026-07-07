@@ -21,7 +21,7 @@ interface Props {
   liveOk: boolean;
   tickFlash: number;
   translating: boolean;
-  onRequestForecast: () => void;
+  onRequestForecast: (mode?: "scalp" | "swing") => void;
   onOpenSettings?: () => void;
   onLogout: () => void;
   isAdmin?: boolean;

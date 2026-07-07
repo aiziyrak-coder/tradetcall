@@ -1,7 +1,6 @@
 import type { AiPhase, AiTradeSignal } from "../../../../shared/ai-trade-signal";
 import type { NewsMarketAnalysis } from "../../../../shared/types";
 import { GlassCard } from "./GlassCard";
-import { UZ } from "../../lib/uz";
 
 interface Props {
   signal: AiTradeSignal | null;
@@ -10,7 +9,7 @@ interface Props {
   sessionBusy: boolean;
   price: number;
   analysis: NewsMarketAnalysis | null;
-  onRequestForecast: () => void;
+  onRequestForecast: (mode?: "scalp" | "swing") => void;
 }
 
 function shortHint(text: string, price: number): string {
@@ -43,6 +42,14 @@ export function LeftColumn({
       <GlassCard className="empire-card p-3">
         {phase === "ready" && signal ? (
           <>
+            {signal.modeLabelUz && (
+              <div className="empire-mode-tag">
+                <span className={`empire-mode-tag__badge empire-mode-tag__badge--${signal.mode ?? "swing"}`}>
+                  {signal.mode === "scalp" ? "⚡" : "◷"} {signal.modeLabelUz}
+                </span>
+                {signal.holdTimeUz && <span className="empire-mode-tag__time">{signal.holdTimeUz}</span>}
+              </div>
+            )}
             <div className="empire-signal-ring">
               <div className="empire-signal-ring__outer" />
               <div className="empire-signal-ring__inner" />
@@ -81,8 +88,12 @@ export function LeftColumn({
           </div>
         ) : (
           <div className="empire-empty">
-            <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={onRequestForecast}>
-              {UZ.monitorForecast}
+            <p className="empire-empty__hint">Signal turini tanlang</p>
+            <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={() => onRequestForecast("scalp")}>
+              ⚡ TEZ SAVDO
+            </button>
+            <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={() => onRequestForecast("swing")}>
+              ◷ 1–2 SOAT
             </button>
           </div>
         )}

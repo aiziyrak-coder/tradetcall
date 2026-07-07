@@ -4,6 +4,9 @@ export type AiTradeAction = "BUY" | "SELL" | "HOLD";
 
 export type AiPhase = "idle" | "analyzing" | "ready" | "error";
 
+/** Signal rejimi: tez skalping yoki 1–2 soatlik swing */
+export type SignalMode = "scalp" | "swing";
+
 export interface AiTradeSignal {
   action: AiTradeAction;
   entry: number;
@@ -30,6 +33,12 @@ export interface AiTradeSignal {
   signalGrade?: string;
   /** Treyder paneli xulosasi */
   panelUz?: string;
+  /** Signal rejimi — scalp (tez) yoki swing (uzoq) */
+  mode?: SignalMode;
+  /** Rejim yorlig'i, masalan "TEZ SAVDO" yoki "1–2 SOAT" */
+  modeLabelUz?: string;
+  /** Taxminiy ushlab turish vaqti */
+  holdTimeUz?: string;
 }
 
 export function isAiTradeAction(v: string): v is AiTradeAction {

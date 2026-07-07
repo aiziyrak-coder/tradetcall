@@ -113,11 +113,11 @@ export function MonitorScreen({
     return () => clearInterval(poll);
   }, []);
 
-  const handleStartMonitor = async () => {
+  const handleStartMonitor = async (mode: "scalp" | "swing" = "swing") => {
     setSessionBusy(true);
     setError(null);
     try {
-      const session = await api.monitor.start();
+      const session = await api.monitor.start(mode);
       setMonitorSession(session);
       const s = await api.monitor.getSnapshot();
       setData(s);
@@ -155,7 +155,7 @@ export function MonitorScreen({
         liveOk={liveOk}
         tickFlash={tickFlash}
         translating={translating || analyzingNews}
-        onRequestForecast={() => void handleStartMonitor()}
+        onRequestForecast={(mode) => void handleStartMonitor(mode)}
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}
         isAdmin={isAdmin}

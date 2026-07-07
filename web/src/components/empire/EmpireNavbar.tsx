@@ -12,7 +12,7 @@ interface Props {
   phase: AiPhase;
   analyzing: boolean;
   sessionBusy: boolean;
-  onRequestForecast: () => void;
+  onRequestForecast: (mode?: "scalp" | "swing") => void;
   onOpenSettings?: () => void;
   onLogout: () => void;
   isAdmin?: boolean;
@@ -53,9 +53,26 @@ export function EmpireNavbar({
         {analyzing ? (
           <span className="empire-navbar__badge">TAHLIL…</span>
         ) : (
-          <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={onRequestForecast}>
-            {UZ.monitorForecast}
-          </button>
+          <div className="empire-navbar__actions">
+            <button
+              type="button"
+              className="empire-btn-gold empire-btn-gold--scalp"
+              disabled={sessionBusy}
+              onClick={() => onRequestForecast("scalp")}
+              title="Tez savdo — 5–20 daqiqalik skalping signali"
+            >
+              ⚡ TEZ SAVDO
+            </button>
+            <button
+              type="button"
+              className="empire-btn-gold empire-btn-gold--swing"
+              disabled={sessionBusy}
+              onClick={() => onRequestForecast("swing")}
+              title="Uzoq — 1–2 soatlik swing signali"
+            >
+              ◷ 1–2 SOAT
+            </button>
+          </div>
         )}
       </div>
 

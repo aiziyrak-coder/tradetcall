@@ -887,6 +887,61 @@
   cursor: not-allowed;
 }
 
+.empire-navbar__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.empire-btn-gold--scalp:hover:not(:disabled) {
+  border-color: var(--empire-gold-light);
+}
+
+.empire-btn-gold--swing {
+  color: var(--empire-gold);
+}
+
+/* ── Mode tag ── */
+.empire-mode-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.empire-mode-tag__badge {
+  padding: 3px 10px;
+  border: 1px solid var(--empire-border-gold);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  font-family: var(--empire-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--empire-gold-light);
+}
+
+.empire-mode-tag__badge--scalp { color: var(--empire-gold-light); }
+.empire-mode-tag__badge--swing { color: var(--empire-gold); }
+
+.empire-mode-tag__time {
+  font-family: var(--empire-mono);
+  font-size: 9px;
+  color: var(--empire-muted);
+}
+
+.empire-empty__hint {
+  margin: 0 0 4px;
+  font-family: var(--empire-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--empire-muted);
+}
+
+.empire-empty .empire-btn-gold {
+  width: 100%;
+}
+
 .empire-empty {
   display: flex;
   flex-direction: column;

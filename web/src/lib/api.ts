@@ -102,7 +102,11 @@ export const api = {
 
   monitor: {
     getSession: () => request<MonitorSessionInfo>("/api/monitor/session"),
-    start: () => request<MonitorSessionInfo>("/api/monitor/start", { method: "POST" }),
+    start: (mode: "scalp" | "swing" = "swing") =>
+      request<MonitorSessionInfo>("/api/monitor/start", {
+        method: "POST",
+        body: JSON.stringify({ mode }),
+      }),
     stop: () => request<MonitorSessionInfo>("/api/monitor/stop", { method: "POST" }),
     getSnapshot: () => request<MonitorSnapshot>("/api/monitor/snapshot"),
     forecast: () =>

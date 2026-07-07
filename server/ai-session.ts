@@ -1,13 +1,13 @@
-import type { AiPhase, AiTradeSignal } from "../shared/ai-trade-signal";
+import type { AiPhase, AiTradeSignal, SignalMode } from "../shared/ai-trade-signal";
 import type { MonitorSessionInfo } from "../shared/types";
 
 let phase: AiPhase = "idle";
 let messageUz = "YANGI PROGNOZ tugmasini bosing — bir martalik AI signal";
 let aiSignal: AiTradeSignal | null = null;
 let onSessionChange: ((status: MonitorSessionInfo) => void) | null = null;
-let analysisRunner: (() => Promise<void>) | null = null;
+let analysisRunner: ((mode: SignalMode) => Promise<void>) | null = null;
 
-export function setAiAnalysisRunner(fn: () => Promise<void>): void {
+export function setAiAnalysisRunner(fn: (mode: SignalMode) => Promise<void>): void {
   analysisRunner = fn;
 }
 
@@ -53,18 +53,20 @@ export function isAiAnalysisReady(): boolean {
 
 let analysisInFlight = false;
 
-export function startAiSession(): MonitorSessionInfo {
+export function startAiSession(mode: SignalMode = "swing"): MonitorSessionInfo {
   if (phase === "analyzing" || analysisInFlight) return getAiSessionStatus();
 
   analysisInFlight = true;
   phase = "analyzing";
   messageUz =
-    "AI tahlil qilmoqda — yangiliklar, indikatorlar, makro o'rganilmoqda…";
+    mode === "scalp"
+      ? "Tez savdo signali tahlil qilinmoqda — jonli momentum, M1…"
+      : "1–2 soatlik signal tahlil qilinmoqda — yangiliklar, indikatorlar…";
   aiSignal = null;
   notifyChange();
 
   if (analysisRunner) {
-    void analysisRunner()
+    void analysisRunner(mode)
       .catch((e) => {
         phase = "error";
         messageUz = e instanceof Error ? e.message : "AI tahlil xatosi";

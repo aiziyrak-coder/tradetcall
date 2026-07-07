@@ -403,8 +403,10 @@ app.get("/api/monitor/session", (_req, res) => {
   res.json(getAiSessionStatus());
 });
 
-app.post("/api/monitor/start", (_req, res) => {
-  const session = startAiSession();
+app.post("/api/monitor/start", (req, res) => {
+  const rawMode = (req.body as { mode?: string } | undefined)?.mode;
+  const mode = rawMode === "scalp" ? "scalp" : "swing";
+  const session = startAiSession(mode);
   const snap = getLastSnapshot();
   if (snap) emitMonitorEvent("monitor:update", snap);
   res.json(session);

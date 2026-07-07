@@ -3,7 +3,7 @@
  */
 
 import type { ChartInterval } from "./chart";
-import type { AiTradeSignal } from "./ai-trade-signal";
+import type { AiTradeSignal, SignalMode } from "./ai-trade-signal";
 import type { Candle, NewsMarketAnalysis } from "./types";
 import type { PriceImpulse } from "./price-impulse";
 import type { JournalStats } from "./platform-insight";
@@ -27,7 +27,45 @@ export interface ProAiSignalInput {
   news: NewsMarketAnalysis | null;
   impulse: PriceImpulse | null;
   journalStats?: JournalStats | null;
+  /** scalp = tez, swing = 1–2 soat. Default swing */
+  mode?: SignalMode;
 }
+
+interface ModeConfig {
+  label: string;
+  holdTimeUz: string;
+  /** Kuchli signal uchun kerakli margin */
+  strongMargin: number;
+  /** Bias yo'nalishi uchun minimal margin */
+  biasMargin: number;
+  /** Minimal longScore/shortScore */
+  minScore: number;
+  /** SL masofasi ($) */
+  slUsd: number;
+  /** Maqsad R:R */
+  targetRr: number;
+}
+
+const MODE_CONFIG: Record<SignalMode, ModeConfig> = {
+  scalp: {
+    label: "TEZ SAVDO",
+    holdTimeUz: "5–20 daqiqa",
+    strongMargin: 8,
+    biasMargin: 2,
+    minScore: 38,
+    slUsd: 2,
+    targetRr: 1.5,
+  },
+  swing: {
+    label: "1–2 SOAT",
+    holdTimeUz: "1–2 soat",
+    strongMargin: 18,
+    biasMargin: 4,
+    minScore: 44,
+    slUsd: 4,
+    targetRr: 1.8,
+  },
+};
 
 export interface ProAiSignalResult {
   signal: AiTradeSignal;
@@ -40,17 +78,21 @@ export interface ProAiSignalResult {
 
 function masterDrivenAction(
   master: ReturnType<typeof computeShortMasterSignal>,
-  verdictAction: AiTradeSignal["action"]
+  verdictAction: AiTradeSignal["action"],
+  cfg: ModeConfig
 ): AiTradeSignal["action"] {
   if (verdictAction === "BUY" || verdictAction === "SELL") return verdictAction;
 
   const margin = master.longScore - master.shortScore;
-  if (margin >= 18 && master.longScore >= 50) return "BUY";
-  if (margin <= -18 && master.shortScore >= 50) return "SELL";
-  if (master.bias === "long" && master.longScore >= 44 && margin >= 4) return "BUY";
-  if (master.bias === "short" && master.shortScore >= 44 && margin <= -4) return "SELL";
-  if (margin >= 8 && master.longScore >= 48) return "BUY";
-  if (margin <= -8 && master.shortScore >= 48) return "SELL";
+  const strong = cfg.strongMargin;
+  const half = Math.round(strong / 2);
+
+  if (margin >= strong && master.longScore >= cfg.minScore + 6) return "BUY";
+  if (margin <= -strong && master.shortScore >= cfg.minScore + 6) return "SELL";
+  if (master.bias === "long" && master.longScore >= cfg.minScore && margin >= cfg.biasMargin) return "BUY";
+  if (master.bias === "short" && master.shortScore >= cfg.minScore && margin <= -cfg.biasMargin) return "SELL";
+  if (margin >= half && master.longScore >= cfg.minScore + 4) return "BUY";
+  if (margin <= -half && master.shortScore >= cfg.minScore + 4) return "SELL";
   return "HOLD";
 }
 
@@ -114,6 +156,8 @@ function gradeUz(g: ProAiSignalResult["grade"]): string {
 /** Asosiy professional signal — short-strategy + master panel */
 export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
   const { price, multiCandles, drivers, news, impulse, journalStats } = input;
+  const mode: SignalMode = input.mode ?? "swing";
+  const cfg = MODE_CONFIG[mode];
 
   const regime = evaluateMarketRegime(drivers);
   const calendar = getCalendarStatus();
@@ -148,13 +192,24 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
 
   let action = masterDrivenAction(
     master,
-    verdict.action === "BUY" ? "BUY" : verdict.action === "SELL" ? "SELL" : "HOLD"
+    verdict.action === "BUY" ? "BUY" : verdict.action === "SELL" ? "SELL" : "HOLD",
+    cfg
   );
 
   if (action === "HOLD" && news) {
     const margin = master.longScore - master.shortScore;
-    if (news.overallBias === "bullish" && news.biasStrength >= 70 && margin >= 8) action = "BUY";
-    else if (news.overallBias === "bearish" && news.biasStrength >= 70 && margin <= -8) action = "SELL";
+    const newsMargin = mode === "scalp" ? 4 : 8;
+    const newsStrength = mode === "scalp" ? 60 : 70;
+    if (news.overallBias === "bullish" && news.biasStrength >= newsStrength && margin >= newsMargin) action = "BUY";
+    else if (news.overallBias === "bearish" && news.biasStrength >= newsStrength && margin <= -newsMargin) action = "SELL";
+  }
+
+  // Scalp: jonli impuls yo'nalishi bo'lsa, kichik margin bilan ham kirish
+  if (action === "HOLD" && mode === "scalp" && impulse && impulse.moveUsd >= 0.4) {
+    const margin = master.longScore - master.shortScore;
+    const dir = impulse.direction;
+    if (dir === "long" && margin >= 0 && master.longScore >= cfg.minScore - 4) action = "BUY";
+    else if (dir === "short" && margin <= 0 && master.shortScore >= cfg.minScore - 4) action = "SELL";
   }
 
   let confidence = Math.max(strategy.confidence, master.confidence);
@@ -171,7 +226,21 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     takeProfit = Math.min(takeProfit, price - 4);
   }
 
-  if (action !== "HOLD") {
+  if (action !== "HOLD" && mode === "scalp") {
+    // Tez skalping — tor SL/TP, jonli ATR asosida
+    const tech1 = analyzeTechnicalsFull(
+      (multiCandles["1m"] ?? c5).length
+        ? (multiCandles["1m"] ?? c5)
+        : [{ time: 0, open: price, high: price, low: price, close: price }]
+    );
+    const atr = Math.max(0.8, Math.min(3.5, tech1.atr || 1.5));
+    const slDist = Math.max(1.2, Math.min(cfg.slUsd, atr));
+    const tpDist = slDist * cfg.targetRr;
+    entry = round2(price);
+    stopLoss = action === "BUY" ? round2(price - slDist) : round2(price + slDist);
+    takeProfit = action === "BUY" ? round2(price + tpDist) : round2(price - tpDist);
+    riskReward = round2(cfg.targetRr);
+  } else if (action !== "HOLD") {
     const tech5 = analyzeTechnicalsFull(
       c5.length ? c5 : [{ time: 0, open: price, high: price, low: price, close: price }]
     );
@@ -282,6 +351,9 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     confluencePct: master.confluencePct,
     signalGrade: grade === "WAIT" ? undefined : grade,
     panelUz: master.panelUz,
+    mode,
+    modeLabelUz: cfg.label,
+    holdTimeUz: cfg.holdTimeUz,
   };
 
   return {

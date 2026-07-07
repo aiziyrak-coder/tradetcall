@@ -15,7 +15,7 @@ import { enforceSwingTargets } from "../shared/pip-targets";
 import { computeSetupQuality } from "../shared/setup-quality";
 import { shouldBlockAiForecast } from "../shared/profit-protection";
 import { buildProAiSignal } from "../shared/pro-ai-signal";
-import type { AiTradeSignal } from "../shared/ai-trade-signal";
+import type { AiTradeSignal, SignalMode } from "../shared/ai-trade-signal";
 import type { Candle } from "../shared/types";
 import { completeAiSession, failAiSession } from "./ai-session";
 import { getApiKey } from "./store";
@@ -31,7 +31,7 @@ import { clearPause } from "./shield-runtime";
 /** OpenAI faqat A/B darajali setupda chaqiriladi */
 const AI_ENRICH_MIN_WIN_PROB = 58;
 
-export async function runOneShotAiAnalysis(): Promise<void> {
+export async function runOneShotAiAnalysis(mode: SignalMode = "swing"): Promise<void> {
   const key = getApiKey();
   if (!key?.trim()) {
     failAiSession("API kalit yo'q — Sozlamalarda OpenAI kalitini kiriting");
@@ -99,6 +99,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
       news: ctx.newsAnalysis,
       impulse: ctx.impulse,
       journalStats: getJournalStats(),
+      mode,
     });
     completeAiSession({
       ...pro.signal,
@@ -118,11 +119,13 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     news: ctx.newsAnalysis,
     impulse: ctx.impulse,
     journalStats: getJournalStats(),
+    mode,
   });
 
   let signal = pro.signal;
   console.log(
     "[ai-signal] PRO:",
+    mode,
     signal.action,
     `win~${pro.winProbability}%`,
     pro.grade,
@@ -194,6 +197,7 @@ export async function runOneShotAiAnalysis(): Promise<void> {
     tech1: tech,
     m1Scalp: ctx.m1Scalp,
     tech5,
+    mode,
   });
 
   const extra = [capitalBlock.warningUz].filter(Boolean).join(" · ");
@@ -259,6 +263,7 @@ function applyFinalGuards(
     tech1: ReturnType<typeof analyzeTechnicalsFull>;
     m1Scalp: ReturnType<typeof getMonitorContextForAi>["m1Scalp"];
     tech5: ReturnType<typeof analyzeTechnicalsFull>;
+    mode: SignalMode;
   }
 ): AiTradeSignal {
   if (signal.action === "HOLD") return signal;
@@ -281,9 +286,26 @@ function applyFinalGuards(
     };
   }
 
+  // Scalp — tor targetlar saqlanadi, swing majburlash yo'q
+  if (ctx.mode === "scalp") {
+    return {
+      ...s,
+      mode: signal.mode,
+      modeLabelUz: signal.modeLabelUz,
+      holdTimeUz: signal.holdTimeUz,
+      winProbability: signal.winProbability,
+      confluencePct: signal.confluencePct,
+      signalGrade: signal.signalGrade,
+      panelUz: signal.panelUz,
+    };
+  }
+
   const swing = enforceSwingTargets(s, ctx.price, ctx.tech5);
   return {
     ...swing.signal,
+    mode: signal.mode,
+    modeLabelUz: signal.modeLabelUz,
+    holdTimeUz: signal.holdTimeUz,
     winProbability: signal.winProbability,
     confluencePct: signal.confluencePct,
     signalGrade: signal.signalGrade,
