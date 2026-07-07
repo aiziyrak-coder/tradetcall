@@ -28,7 +28,12 @@ export function useStrictShortMode(journal: JournalStats | null | undefined): bo
   return journal.last7WinRatePct < ADAPTIVE_WR_CUTOFF;
 }
 
-/** YANGI PROGNOZ — xavfli shartlarda BUY/SELL bloklanadi */
+/**
+ * YANGI PROGNOZ (AI signal) — HECH QACHON bloklanmaydi.
+ * Kapital himoyasi / ketma-ket zarar / kunlik limit faqat YANGI LOT ochishni
+ * cheklaydi (shouldBlockNewTrades), prognozni emas. Foydalanuvchi har doim
+ * aniq yo'nalishli signalni ko'rishi kerak — bu yerda faqat ogohlantirish beriladi.
+ */
 export function shouldBlockAiForecast(input: {
   capitalShield: CapitalShieldState;
   discipline: TradingDiscipline;
@@ -36,23 +41,12 @@ export function shouldBlockAiForecast(input: {
 }): { block: boolean; reasonUz: string; warningUz?: string } {
   const { capitalShield, discipline, marketQuality } = input;
 
-  if (!capitalShield.allowNewTrades || !capitalShield.allowed) {
-    const reason =
-      capitalShield.messagesUz[0] ?? "Kapital himoyasi — bugun savdo cheklangan";
-    return { block: true, reasonUz: reason, warningUz: reason };
-  }
-
-  if (!marketQuality.tradeable) {
-    const reason = `Bozor ${marketQuality.grade} (${marketQuality.score}) — savdo xavfli`;
-    return { block: true, reasonUz: reason, warningUz: reason };
-  }
-
   const hints: string[] = [];
-  if (capitalShield.level === "red") {
-    hints.push(capitalShield.messagesUz[0] ?? "Kapital himoyasi qizil");
-  }
   for (const m of capitalShield.messagesUz) {
-    if (!/shartlar normal|Kapital himoyasi: shartlar/i.test(m)) hints.push(m);
+    if (!/shartlar normal|Kapital himoyasi: shartlar|^Bugun:/i.test(m)) hints.push(m);
+  }
+  if (!marketQuality.tradeable) {
+    hints.push(`Bozor ${marketQuality.grade} (${marketQuality.score}) — ehtiyot`);
   }
   if (discipline.score < 50) {
     hints.push(`Qoidalar ${discipline.score}% — ehtiyot`);
@@ -146,13 +140,11 @@ export function applyProfitProtectionToSnapshot(
     marketQuality: MarketQuality;
   }
 ): MonitorSnapshot {
+  // Faqat prognoz bloki signalni HOLD ga tushiradi. Prognoz endi hech qachon
+  // bloklanmaydi, shuning uchun bu funksiya signalni o'zgartirmaydi (lot cheklovi
+  // alohida UI da ko'rsatiladi).
   const forecastBlock = shouldBlockAiForecast(input);
-  const tradeBlock = shouldBlockNewTrades(input);
-  const reasonUz = forecastBlock.block
-    ? forecastBlock.reasonUz
-    : tradeBlock.block
-      ? tradeBlock.reasonUz
-      : "";
+  const reasonUz = forecastBlock.block ? forecastBlock.reasonUz : "";
 
   if (!reasonUz) return snap;
 

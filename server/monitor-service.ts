@@ -49,6 +49,17 @@ const TRANSLATE_BATCH = 4;
 const PRICE_STALE_MS = 20_000;
 const MAX_PRICE_FAILS = 5;
 const MULTI_TF_REFRESH_MS = 8_000;
+// Har timeframe uchun alohida yangilash oralig'i — yuqori TF kam yangilanadi.
+// Bu Yahoo rate-limit (429) ni oldini oladi; jonli spot har tikda oxirgi shamga
+// patchMultiTf orqali qo'yiladi, shuning uchun narx baribir jonli qoladi.
+const TF_TTL_MS: Record<string, number> = {
+  "1m": 45_000,
+  "5m": 120_000,
+  "15m": 300_000,
+  "1h": 900_000,
+  "4h": 1_800_000,
+};
+const TF_ERROR_COOLDOWN_MS = 60_000;
 
 let priceInterval: ReturnType<typeof setInterval> | null = null;
 let strategyInterval: ReturnType<typeof setInterval> | null = null;
@@ -73,6 +84,8 @@ let lastNewsAnalysis: NewsMarketAnalysis | null = null;
 let analyzingNews = false;
 let multiTfCandles: Partial<Record<ChartInterval, Candle[]>> = {};
 let multiTfFetchedAt = 0;
+const tfFetchedAt: Partial<Record<ChartInterval, number>> = {};
+const tfCooldownUntil: Partial<Record<ChartInterval, number>> = {};
 let lastStrategyRebuildAt = 0;
 let bootstrapPromise: Promise<void> | null = null;
 let lastStrategyPrice = 0;
@@ -153,23 +166,41 @@ export function getMonitorContextForAi(): {
 setAiAnalysisRunner(runOneShotAiAnalysis);
 
 async function refreshMultiTimeframes(spot: number): Promise<void> {
-  if (
-    Date.now() - multiTfFetchedAt < MULTI_TF_REFRESH_MS &&
-    SHORT_STRATEGY_INTERVALS.every((tf) => (multiTfCandles[tf]?.length ?? 0) > 5)
-  ) {
-    patchMultiTf(spot);
-    return;
+  const now = Date.now();
+  // Faqat kerakli TF larni tortamiz — TTL o'tgan yoki ma'lumot yo'q bo'lganlar,
+  // va xato cooldown ichida bo'lmaganlar. Bu Yahoo 429 ni oldini oladi.
+  const toFetch = SHORT_STRATEGY_INTERVALS.filter((tf) => {
+    if (now < (tfCooldownUntil[tf] ?? 0)) return false;
+    const have = (multiTfCandles[tf]?.length ?? 0) > 5;
+    if (!have) return true;
+    const ttl = TF_TTL_MS[tf] ?? MULTI_TF_REFRESH_MS;
+    return now - (tfFetchedAt[tf] ?? 0) >= ttl;
+  });
+
+  if (toFetch.length > 0) {
+    const pairs = await Promise.all(
+      toFetch.map(async (tf) => {
+        try {
+          const candles = await fetchXAUUSDCandles(tf, spot);
+          return [tf, candles] as const;
+        } catch {
+          return [tf, [] as Candle[]] as const;
+        }
+      })
+    );
+    for (const [tf, candles] of pairs) {
+      if (candles.length > 0) {
+        multiTfCandles[tf] = patchLastCandle(candles, spot);
+        tfFetchedAt[tf] = now;
+        tfCooldownUntil[tf] = 0;
+      } else {
+        // 429 yoki bo'sh javob — bir muddat qayta urinmaymiz (oxirgi shamlar saqlanadi)
+        tfCooldownUntil[tf] = now + TF_ERROR_COOLDOWN_MS;
+      }
+    }
   }
-  const pairs = await Promise.all(
-    SHORT_STRATEGY_INTERVALS.map(async (tf) => {
-      const candles = await fetchXAUUSDCandles(tf, spot);
-      return [tf, candles] as const;
-    })
-  );
-  for (const [tf, candles] of pairs) {
-    if (candles.length > 0) multiTfCandles[tf] = patchLastCandle(candles, spot);
-  }
-  multiTfFetchedAt = Date.now();
+  multiTfFetchedAt = now;
+  patchMultiTf(spot);
 }
 
 function emptySnapshot(partial?: Partial<MonitorSnapshot>): MonitorSnapshot {
@@ -619,7 +650,10 @@ export async function ensureCandlesForAnalysis(): Promise<boolean> {
     (multiTfCandles["1m"]?.length ?? 0) >= 6 &&
     (multiTfCandles["1h"]?.length ?? 0) >= 6;
   for (let attempt = 0; attempt < 2 && !enough(); attempt++) {
-    multiTfFetchedAt = 0; // keshni bekor qilib majburan yangilash
+    // Bo'sh TF larning xato-cooldown ini tozalab majburan qayta urinamiz
+    for (const tf of SHORT_STRATEGY_INTERVALS) {
+      if ((multiTfCandles[tf]?.length ?? 0) < 6) tfCooldownUntil[tf] = 0;
+    }
     try {
       await refreshMultiTimeframes(gold.price);
     } catch {
