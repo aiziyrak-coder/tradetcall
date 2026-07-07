@@ -4,6 +4,7 @@ import type { MonitorSessionInfo, MonitorSnapshot } from "../../../../shared/typ
 import { EmpireBackground } from "./EmpireBackground";
 import { EmpireNavbar } from "./EmpireNavbar";
 import { LeftColumn } from "./LeftColumn";
+import { SignalReasoning } from "./SignalReasoning";
 import { HolographicGlobe } from "./HolographicGlobe";
 import { PriceHero } from "./PriceHero";
 import { AnalysisPanel } from "./AnalysisPanel";
@@ -95,6 +96,7 @@ export function EmpireTerminal({
                 analysis={analysis}
                 onRequestForecast={onRequestForecast}
               />
+              {phase === "ready" && <SignalReasoning data={data} signal={signal} />}
             </motion.div>
 
             <motion.div

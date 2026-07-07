@@ -160,8 +160,27 @@
 }
 
 .empire-cockpit__side {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
+  gap: 8px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.empire-cockpit__side::-webkit-scrollbar {
+  width: 4px;
+}
+
+.empire-cockpit__side::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.empire-col--left {
+  flex-shrink: 0;
+  height: auto;
 }
 
 .empire-card--grow {
@@ -380,6 +399,80 @@
 .empire-sentiment-label--bullish { color: var(--empire-gold-light); }
 .empire-sentiment-label--bearish { color: var(--empire-red); }
 .empire-sentiment-label--neutral { color: var(--empire-muted); }
+
+/* ── Signal asosi (why) ── */
+.empire-reason {
+  flex-shrink: 0;
+}
+
+.empire-reason__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.empire-reason__action {
+  font-family: var(--empire-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.empire-reason__action--buy { color: var(--empire-gold-light); }
+.empire-reason__action--sell { color: var(--empire-red); }
+.empire-reason__action--hold { color: var(--empire-muted); }
+
+.empire-reason__headline {
+  margin: 4px 0 8px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--empire-text);
+}
+
+.empire-reason__tally {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-family: var(--empire-mono);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.empire-reason__tally-pro { color: var(--empire-gold-light); }
+.empire-reason__tally-con { color: var(--empire-red); }
+
+.empire-reason__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.empire-reason__item {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--empire-text);
+}
+
+.empire-reason__icon {
+  flex-shrink: 0;
+  width: 12px;
+  font-family: var(--empire-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.empire-reason__item--pro .empire-reason__icon { color: var(--empire-gold-light); }
+.empire-reason__item--con .empire-reason__icon { color: var(--empire-red); }
+.empire-reason__item--neutral .empire-reason__icon { color: var(--empire-muted); }
+
+.empire-reason__item--neutral .empire-reason__label { color: var(--empire-muted); }
 
 /* ── Center price ── */
 .empire-price-hero {

@@ -39,8 +39,8 @@ export function LeftColumn({
     macro === "bullish" ? "Bullish" : macro === "bearish" ? "Bearish" : "Neytral";
 
   return (
-    <div className="empire-col">
-      <GlassCard className="empire-card empire-card--grow p-3">
+    <div className="empire-col empire-col--left">
+      <GlassCard className="empire-card p-3">
         {phase === "ready" && signal ? (
           <>
             <div className="empire-signal-ring">
