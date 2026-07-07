@@ -68,9 +68,9 @@ export function EmpireNavbar({
               className="empire-btn-gold empire-btn-gold--swing"
               disabled={sessionBusy}
               onClick={() => onRequestForecast("swing")}
-              title="Uzoq — 1–2 soatlik swing signali"
+              title="Uzoq muddat — 15m/1h/4h/1d MTF confluence (4–24 soat)"
             >
-              ◷ 1–2 SOAT
+              ◷ UZOQ MUDDAT
             </button>
           </div>
         )}

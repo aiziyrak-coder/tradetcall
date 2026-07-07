@@ -39,6 +39,8 @@ export interface AiTradeSignal {
   modeLabelUz?: string;
   /** Taxminiy ushlab turish vaqti */
   holdTimeUz?: string;
+  /** Signal asosini tashkil qilgan eng kuchli indikatorlar (confluence) */
+  indicatorsUz?: string[];
 }
 
 export function isAiTradeAction(v: string): v is AiTradeAction {

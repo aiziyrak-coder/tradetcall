@@ -93,7 +93,7 @@ export function LeftColumn({
               ⚡ TEZ SAVDO
             </button>
             <button type="button" className="empire-btn-gold" disabled={sessionBusy} onClick={() => onRequestForecast("swing")}>
-              ◷ 1–2 SOAT
+              ◷ UZOQ MUDDAT
             </button>
           </div>
         )}

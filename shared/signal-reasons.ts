@@ -101,7 +101,7 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
     if (signal.panelUz) {
       reasons.push({
         labelUz: `Swing panel: ${signal.panelUz}`,
-        valueUz: signal.modeLabelUz ?? "1–2 SOAT",
+        valueUz: signal.modeLabelUz ?? "UZOQ MUDDAT",
         stance: action === "HOLD" ? "neutral" : "pro",
       });
     }
@@ -116,6 +116,17 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
       reasons.push({
         labelUz: `Swing — ushlab turish ${signal.holdTimeUz}`,
         valueUz: signal.holdTimeUz,
+        stance: action === "HOLD" ? "neutral" : "pro",
+      });
+    }
+  }
+
+  // Confluence — eng kuchli indikatorlar (10 tadan tanlab olingan)
+  if (signal.indicatorsUz?.length) {
+    for (const ind of signal.indicatorsUz.slice(0, 6)) {
+      reasons.push({
+        labelUz: ind,
+        valueUz: "confluence",
         stance: action === "HOLD" ? "neutral" : "pro",
       });
     }
@@ -242,7 +253,7 @@ export function buildSignalReasoning(input: Input): SignalReasoning | null {
   const conCount = reasons.filter((r) => r.stance === "con").length;
 
   let headlineUz: string;
-  const modeLabel = mode === "scalp" ? "TEZ SAVDO" : "1–2 SOAT";
+  const modeLabel = mode === "scalp" ? "TEZ SAVDO" : "UZOQ MUDDAT";
   if (action === "HOLD") {
     headlineUz =
       conCount >= proCount

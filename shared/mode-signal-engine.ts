@@ -11,12 +11,16 @@ import type { PriceImpulse } from "./price-impulse";
 import type { JournalStats } from "./platform-insight";
 import { analyzeM1ScalpLead } from "./m1-scalp";
 import { analyzeTechnicalsFull } from "./enhanced-technical";
-import { analyzeTechnicals } from "./technical";
 import { analyzeMarketStructure } from "./market-structure";
 import { computeShortTermStrategy } from "./short-strategy";
-import { enforceSwingTargets } from "./pip-targets";
 import { getLiveMomentum } from "./scalp-signal-guard";
 import { getMarketSession } from "./market-session";
+import {
+  computeConfluence,
+  computeMtfConfluence,
+  aggregateCandles,
+  type IndicatorVote,
+} from "./indicator-confluence";
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
@@ -51,6 +55,8 @@ interface ModeBuildResult {
   forecastBiasUz?: string;
   modeLabelUz: string;
   holdTimeUz: string;
+  /** Signal asosini tashkil qilgan eng kuchli indikatorlar */
+  topVotes?: IndicatorVote[];
 }
 
 const SCALP_META = {
@@ -59,105 +65,112 @@ const SCALP_META = {
 };
 
 const SWING_META = {
-  label: "1–2 SOAT",
-  holdTimeUz: "1–2 soat",
+  label: "UZOQ MUDDAT",
+  holdTimeUz: "4–24 soat",
 };
 
-/** ── SCALP: M1 + jonli momentum ── */
+/** ── SCALP: 1m+5m confluence (10 indikator) + M1 + jonli momentum ── */
 function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
   const { price, multiCandles, impulse } = input;
-  const c1 = multiCandles["1m"] ?? multiCandles["5m"] ?? [];
-  const c5 = multiCandles["5m"] ?? [];
   const fallback: Candle[] = [{ time: 0, open: price, high: price, low: price, close: price }];
-  const candles1m = c1.length ? c1 : fallback;
+  const c1 = (multiCandles["1m"]?.length ? multiCandles["1m"] : multiCandles["5m"]) ?? fallback;
+  const c5 = multiCandles["5m"]?.length ? multiCandles["5m"] : c1;
 
-  const m1 = analyzeM1ScalpLead(candles1m, c5, price, impulse);
-  const live = getLiveMomentum(candles1m, price);
-  const tech1 = analyzeTechnicals(candles1m);
+  const m1 = analyzeM1ScalpLead(c1, c5, price, impulse);
+  const live = getLiveMomentum(c1, price);
+
+  // Tez confluence — 1m ustun, 5m tasdiq
+  const conf1 = computeConfluence(c1.length >= 6 ? c1 : fallback);
+  const conf5 = computeConfluence(c5.length >= 6 ? c5 : fallback);
+  const w1 = 1.7;
+  const w5 = 1.1;
+  const longScore = Math.round((conf1.longScore * w1 + conf5.longScore * w5) / (w1 + w5));
+  const shortScore = Math.round((conf1.shortScore * w1 + conf5.shortScore * w5) / (w1 + w5));
+  const score = longScore - shortScore;
+  const aligned =
+    (conf1.bias === "long" ? 1 : 0) +
+    (conf5.bias === "long" ? 1 : 0) -
+    (conf1.bias === "short" ? 1 : 0) -
+    (conf5.bias === "short" ? 1 : 0);
 
   let action: AiTradeSignal["action"] = "HOLD";
-  let confidence = m1.strength;
+  let confidence = Math.max(m1.strength, Math.abs(score));
 
-  // 1) M1 yo'nalish — asosiy manba (exhausted ham kuchli bo'lsa)
-  if (m1.direction === "long") {
-    if (m1.phase !== "exhausted" || m1.strength >= 35) {
-      action = "BUY";
-      confidence = Math.max(confidence, m1.phase === "exhausted" ? 48 : 55);
-    }
-  } else if (m1.direction === "short") {
-    if (m1.phase !== "exhausted" || m1.strength >= 35) {
-      action = "SELL";
-      confidence = Math.max(confidence, m1.phase === "exhausted" ? 48 : 55);
-    }
-  }
-
-  // 2) Reversal — burilishda tez kirish
-  if (action === "HOLD" && m1.phase === "reversal") {
-    action = m1.direction === "long" ? "BUY" : m1.direction === "short" ? "SELL" : "HOLD";
-    if (action !== "HOLD") confidence = Math.max(confidence, 52);
-  }
-
-  // 3) Jonli momentum (past threshold)
-  if (action === "HOLD" && live.direction === "up" && live.changeUsd >= 0.12) {
+  // 1) Confluence — asosiy manba
+  if (score >= 8) {
     action = "BUY";
-    confidence = Math.max(46, m1.strength);
-  } else if (action === "HOLD" && live.direction === "down" && live.changeUsd <= -0.12) {
+    confidence = Math.max(confidence, 55 + Math.min(score, 30) * 0.5);
+  } else if (score <= -8) {
     action = "SELL";
-    confidence = Math.max(46, m1.strength);
+    confidence = Math.max(confidence, 55 + Math.min(-score, 30) * 0.5);
   }
 
-  // 4) Impuls
+  // 2) M1 skalp lead — tez yo'nalish
+  if (action === "HOLD" && m1.direction === "long" && m1.phase !== "exhausted") {
+    action = "BUY";
+    confidence = Math.max(confidence, 52);
+  } else if (action === "HOLD" && m1.direction === "short" && m1.phase !== "exhausted") {
+    action = "SELL";
+    confidence = Math.max(confidence, 52);
+  }
+
+  // 3) Reversal / jonli momentum / impuls
+  if (action === "HOLD" && m1.phase === "reversal" && m1.direction !== "neutral") {
+    action = m1.direction === "long" ? "BUY" : "SELL";
+    confidence = Math.max(confidence, 50);
+  }
+  if (action === "HOLD" && live.direction === "up" && live.changeUsd >= 0.12) action = "BUY";
+  else if (action === "HOLD" && live.direction === "down" && live.changeUsd <= -0.12) action = "SELL";
   if (action === "HOLD" && impulse && impulse.moveUsd >= 0.18) {
     action = impulse.direction === "long" ? "BUY" : "SELL";
-    confidence = Math.max(44, m1.strength);
   }
 
-  // 5) Forming / range — zaif lean
-  if (action === "HOLD" && m1.strength >= 15) {
-    if (m1.direction === "long" && (m1.phase === "forming" || m1.phase === "range")) action = "BUY";
-    else if (m1.direction === "short" && (m1.phase === "forming" || m1.phase === "range")) action = "SELL";
-    if (action !== "HOLD") confidence = Math.max(confidence, 44);
+  // 4) Oxirgi lean — confluence yo'nalishi (kichik bo'lsa ham)
+  if (action === "HOLD" && Math.abs(score) >= 3) {
+    action = score > 0 ? "BUY" : "SELL";
+    confidence = Math.max(confidence, 44);
+  }
+  if (action === "HOLD" && m1.direction !== "neutral") {
+    action = m1.direction === "long" ? "BUY" : "SELL";
+    confidence = Math.max(confidence, 42);
   }
 
-  // 6) EMA cross lean
-  if (action === "HOLD" && tech1.trend === "bullish") {
-    action = "BUY";
-    confidence = Math.max(42, m1.strength);
-  } else if (action === "HOLD" && tech1.trend === "bearish") {
-    action = "SELL";
-    confidence = Math.max(42, m1.strength);
-  }
-
-  // Targetlar — M1 scalp hintlari (tor)
-  let entry = round2(m1.entryHint || price);
-  let stopLoss = round2(m1.stopHint);
-  let takeProfit = round2(m1.tpHint);
-  const risk = Math.abs(entry - stopLoss) || 2;
-  const reward = Math.abs(takeProfit - entry) || 3;
-  let riskReward = round2(reward / risk);
+  // Targetlar — M1 hintlari, tor SL/TP (ATR mos)
+  const atr1 = Math.max(0.8, Math.min(4, conf1.atr || 1.5));
+  let entry = round2(price);
+  let stopLoss = round2(price - atr1 * 1.1);
+  let takeProfit = round2(price + atr1 * 2);
 
   if (action === "BUY") {
     entry = round2(price);
-    stopLoss = round2(m1.stopHint < price ? m1.stopHint : price - 1.8);
-    takeProfit = round2(m1.tpHint > price ? m1.tpHint : price + 2.8);
+    stopLoss = round2(m1.stopHint < price && price - m1.stopHint < 4 ? m1.stopHint : price - atr1 * 1.1);
+    takeProfit = round2(m1.tpHint > price && m1.tpHint - price < 8 ? m1.tpHint : price + atr1 * 2);
   } else if (action === "SELL") {
     entry = round2(price);
-    stopLoss = round2(m1.stopHint > price ? m1.stopHint : price + 1.8);
-    takeProfit = round2(m1.tpHint < price ? m1.tpHint : price - 2.8);
+    stopLoss = round2(m1.stopHint > price && m1.stopHint - price < 4 ? m1.stopHint : price + atr1 * 1.1);
+    takeProfit = round2(m1.tpHint < price && price - m1.tpHint < 8 ? m1.tpHint : price - atr1 * 2);
   }
 
-  riskReward = round2(Math.abs(takeProfit - entry) / Math.max(0.5, Math.abs(entry - stopLoss)));
+  const riskReward = round2(Math.abs(takeProfit - entry) / Math.max(0.5, Math.abs(entry - stopLoss)));
 
-  let wp = Math.min(82, Math.max(42, Math.round(confidence * 0.85 + (action !== "HOLD" ? 8 : 0))));
-  // Choppy/range bozorda ishonch haqqoniy pasaytiriladi (HOLD ga majburlamasdan)
-  if (m1.phase === "range") wp = Math.min(wp, 62);
-  if (live.direction === "flat" && m1.phase !== "reversal") wp = Math.min(wp, 66);
-  const grade = wp >= 68 ? "A" : wp >= 58 ? "B" : wp >= 48 ? "C" : "D";
+  const confluencePct = Math.max(conf1.strength, Math.round((conf1.strength + conf5.strength) / 2));
+  let wp = Math.min(
+    84,
+    Math.max(42, Math.round(48 + Math.abs(score) * 0.7 + Math.max(0, aligned) * 4 + m1.strength * 0.12))
+  );
+  if (conf1.bias === "neutral" && m1.phase === "range") wp = Math.min(wp, 60);
+  if (live.direction === "flat" && Math.abs(score) < 6) wp = Math.min(wp, 64);
+  const grade = wp >= 70 ? "A+" : wp >= 62 ? "A" : wp >= 52 ? "B" : wp >= 46 ? "C" : "D";
+
+  const topVotes = conf1.votes
+    .filter((v) => v.signal === (action === "BUY" ? "long" : action === "SELL" ? "short" : v.signal))
+    .sort((a, b) => b.strength * b.weight - a.strength * a.weight)
+    .slice(0, 5);
 
   const triggerUz =
     action === "HOLD"
-      ? `M1 kutish — ${m1.phase === "range" ? "breakout" : m1.structureUz}`
-      : `${m1.emaCrossUz} · ${live.summaryUz}`;
+      ? `Kutish — 1m confluence neytral (L${longScore}/S${shortScore})`
+      : `${conf1.summaryUz} · ${live.summaryUz}`;
 
   const invalidationUz =
     action === "BUY"
@@ -171,17 +184,18 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
     entry,
     stopLoss,
     takeProfit,
-    confidence,
+    confidence: Math.round(confidence),
     riskReward,
     winProbability: wp,
-    confluencePct: Math.min(95, m1.strength),
+    confluencePct,
     signalGrade: action === "HOLD" ? undefined : grade,
     analysisUz: [
-      `⚡ TEZ SAVDO (M1 skalp)`,
+      `⚡ TEZ SAVDO — 1m+5m 10 indikator confluence`,
+      `1m: ${conf1.summaryUz}`,
+      `5m: ${conf5.summaryUz}`,
       m1.summaryUz,
       live.summaryUz,
       impulse ? `Impuls: ${impulse.direction} $${impulse.moveUsd}` : "",
-      `RSI ${tech1.rsi} · ADX ${tech1.adx} · ATR $${tech1.atr}`,
     ]
       .filter(Boolean)
       .join("\n")
@@ -190,243 +204,162 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
     invalidationUz,
     summaryUz:
       action === "HOLD"
-        ? `KUTING · M1 ${m1.direction} · ${m1.phase}`
-        : `${action} · ~${wp}% · ${grade} · R:R ${riskReward} · M1 ${m1.strength}%`,
-    panelUz: `M1 ${m1.direction.toUpperCase()} ${m1.strength}% · ${m1.phase}`,
-    forecastHigh: takeProfit > price ? takeProfit : price + 3,
-    forecastLow: takeProfit < price ? takeProfit : price - 3,
+        ? `KUTING · confluence L${longScore}/S${shortScore}`
+        : `${action} · ~${wp}% · ${grade} · R:R ${riskReward} · ${Math.max(conf1.agree, 0)}/10 mos`,
+    panelUz: `1m L${conf1.longScore}/S${conf1.shortScore} · 5m ${conf5.bias} · M1 ${m1.direction}`,
+    forecastHigh: takeProfit > price ? takeProfit : price + atr1 * 2,
+    forecastLow: takeProfit < price ? takeProfit : price - atr1 * 2,
     forecastBiasUz: action === "BUY" ? "↑ LONG" : action === "SELL" ? "↓ SHORT" : "—",
     modeLabelUz: SCALP_META.label,
     holdTimeUz: SCALP_META.holdTimeUz,
+    topVotes,
   };
 }
 
-/** TF ovoz — swing uchun 1m hisobga olinmaydi */
-function swingTfScores(multiCandles: Partial<Record<ChartInterval, Candle[]>>, price: number) {
-  const weights: Record<string, number> = { "5m": 2.2, "15m": 3.5, "1h": 2.8 };
-  let longPts = 0;
-  let shortPts = 0;
-  let aligned = 0;
-  let total = 0;
-
-  for (const tf of ["5m", "15m", "1h"] as ChartInterval[]) {
-    const candles = multiCandles[tf];
-    if (!candles?.length) continue;
-    const tech = analyzeTechnicals(candles);
-    const w = weights[tf] ?? 1;
-    total += w;
-    if (tech.trend === "bullish" || tech.rsi > 52) {
-      longPts += w * 20;
-      if (tech.trend === "bullish") aligned++;
-    }
-    if (tech.trend === "bearish" || tech.rsi < 48) {
-      shortPts += w * 20;
-      if (tech.trend === "bearish") aligned++;
-    }
-    if (price > tech.sma20 && tech.sma20 > tech.sma50) longPts += w * 8;
-    if (price < tech.sma20 && tech.sma20 < tech.sma50) shortPts += w * 8;
-  }
-
-  return { longPts, shortPts, aligned, total: Math.max(1, total) };
-}
-
-/** ── SWING: 5m/15m/1h + yangilik + struktura ── */
+/** ── UZOQ MUDDAT: 15m/1h/4h/1d MTF confluence (haqiqiy uzoq strategiya) ── */
 function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
   const { price, multiCandles, drivers, news, impulse, journalStats } = input;
-  const c5 = multiCandles["5m"] ?? multiCandles["15m"] ?? [];
-  const c15 = multiCandles["15m"] ?? c5;
   const fallback: Candle[] = [{ time: 0, open: price, high: price, low: price, close: price }];
+  const c15 = multiCandles["15m"] ?? multiCandles["5m"] ?? [];
+  const c1h = multiCandles["1h"] ?? c15;
+  const c4h = c1h.length >= 8 ? aggregateCandles(c1h, 4) : c1h;
+  const c1d = c1h.length >= 24 ? aggregateCandles(c1h, 24) : c4h;
 
-  // Swing 1m ni hisobga olmaydi — strategiya 5m/15m/1h asosida
+  // MTF confluence — yuqori TF ustun (uzoq muddat)
+  const mtf = computeMtfConfluence([
+    { tf: "15m", weight: 1.0, candles: c15 },
+    { tf: "1h", weight: 2.0, candles: c1h },
+    { tf: "4h", weight: 3.0, candles: c4h },
+    { tf: "1d", weight: 2.5, candles: c1d },
+  ]);
+
+  // Swing 1m ni hisobga olmaydi — narrativ uchun strategiya
   const swingCandles: Partial<Record<ChartInterval, Candle[]>> = { ...multiCandles };
   delete swingCandles["1m"];
-
-  const strategy = computeShortTermStrategy(
-    price,
-    swingCandles,
-    drivers,
-    [],
-    news,
-    impulse,
-    journalStats
-  );
-  const verdict = strategy.verdict;
-  const tf = swingTfScores(multiCandles, price);
-  const structure = c15.length >= 8 ? analyzeMarketStructure(c15, price) : null;
-  const tech5 = analyzeTechnicalsFull(c5.length ? c5 : fallback);
+  const strategy = computeShortTermStrategy(price, swingCandles, drivers, [], news, impulse, journalStats);
+  const structure = c1h.length >= 8 ? analyzeMarketStructure(c1h, price) : c15.length >= 8 ? analyzeMarketStructure(c15, price) : null;
+  const tech1h = analyzeTechnicalsFull(c1h.length ? c1h : fallback);
   const session = getMarketSession();
 
-  const margin = tf.longPts - tf.shortPts;
+  const score = mtf.score;
   let action: AiTradeSignal["action"] = "HOLD";
 
-  // 1) Strategiya verdict
-  if (verdict.action === "BUY" || verdict.action === "SELL") {
-    action = verdict.action;
-  }
+  // 1) MTF confluence — asosiy manba
+  if (score >= 8) action = "BUY";
+  else if (score <= -8) action = "SELL";
 
-  // 2) TF moslik (15m/1h ustun)
-  if (action === "HOLD") {
-    if (margin >= 25 && tf.aligned >= 1) action = "BUY";
-    else if (margin <= -25 && tf.aligned >= 1) action = "SELL";
-  }
-
-  // 3) Yangiliklar (swing uchun muhim)
+  // 2) Yangilik (uzoq muddat uchun muhim)
   if (action === "HOLD" && news) {
-    if (news.overallBias === "bullish" && news.biasStrength >= 58 && margin >= 5) action = "BUY";
-    else if (news.overallBias === "bearish" && news.biasStrength >= 58 && margin <= -5) action = "SELL";
+    if (news.overallBias === "bullish" && news.biasStrength >= 56 && score >= 0) action = "BUY";
+    else if (news.overallBias === "bearish" && news.biasStrength >= 56 && score <= 0) action = "SELL";
   }
 
-  // 4) Struktura darajalari
+  // 3) Struktura trendi
   if (action === "HOLD" && structure) {
-    if (structure.trend === "bullish" && margin >= 0) action = "BUY";
-    else if (structure.trend === "bearish" && margin <= 0) action = "SELL";
+    if (structure.trend === "bullish" && score >= -2) action = "BUY";
+    else if (structure.trend === "bearish" && score <= 2) action = "SELL";
   }
 
-  // 5) Yumshoq lean (swing uchun past threshold)
-  if (action === "HOLD" && Math.abs(margin) >= 8) {
-    action = margin > 0 ? "BUY" : "SELL";
-  }
+  // 4) Yumshoq lean — confluence yo'nalishi
+  if (action === "HOLD" && Math.abs(score) >= 4) action = score > 0 ? "BUY" : "SELL";
+  if (action === "HOLD" && mtf.bias !== "neutral") action = mtf.bias === "long" ? "BUY" : "SELL";
 
-  let confidence = Math.max(strategy.confidence, Math.min(88, 50 + Math.abs(margin)));
-  let entry = round2(verdict.entry ?? price);
-  let stopLoss = round2(verdict.stopLoss ?? (action === "SELL" ? price + 5 : price - 5));
-  let takeProfit = round2(verdict.takeProfit ?? (action === "SELL" ? price - 9 : price + 9));
-  let riskReward = verdict.riskReward ?? 1.8;
+  // Targetlar — 1h ATR + struktura, uzoq muddat uchun keng
+  const atr = Math.max(4, Math.min(22, tech1h.atr || 8));
+  const slDist = Math.max(6, atr * 1.2);
+  const tpDist = Math.max(14, slDist * 2.2);
+  const MAX_SL = 28;
+  const MAX_TP = 75;
+  const MIN_SL = 6;
+  const MIN_TP = 14;
+
+  let entry = round2(price);
+  let stopLoss = round2(price - slDist);
+  let takeProfit = round2(price + tpDist);
+  let confidence = Math.max(strategy.confidence, Math.min(90, 50 + Math.abs(score)));
 
   if (action !== "HOLD") {
-    const atr = Math.max(3, Math.min(10, tech5.atr || 5));
-    const slDist = Math.max(4, atr * 1.1);
-    const tpDist = Math.max(8, slDist * 2);
-    // Swing uchun haqiqiy masofa chegaralari (oltin) — absurd stop/target oldini oladi
-    const MAX_SL = 18;
-    const MAX_TP = 40;
-    const MIN_SL = 4;
-    const MIN_TP = 8;
-
     entry = round2(price);
     if (action === "BUY") {
-      // Stop narxdan past, TP narxdan yuqori bo'lishi shart
       const rawSl = structure?.s1;
-      const sl = rawSl != null && rawSl < price - 1 ? rawSl : price - slDist;
+      const sl = rawSl != null && rawSl < price - 2 ? rawSl : price - slDist;
       const slD = Math.min(MAX_SL, Math.max(MIN_SL, price - sl));
       stopLoss = round2(price - slD);
       const rawTp = structure?.r1;
-      const tp = rawTp != null && rawTp > price + 1 ? rawTp : price + tpDist;
+      const tp = rawTp != null && rawTp > price + 2 ? rawTp : price + tpDist;
       const tpD = Math.min(MAX_TP, Math.max(MIN_TP, tp - price));
-      takeProfit = round2(price + tpD);
+      takeProfit = round2(price + Math.max(tpD, slD * 1.6));
     } else {
       const rawSl = structure?.r1;
-      const sl = rawSl != null && rawSl > price + 1 ? rawSl : price + slDist;
+      const sl = rawSl != null && rawSl > price + 2 ? rawSl : price + slDist;
       const slD = Math.min(MAX_SL, Math.max(MIN_SL, sl - price));
       stopLoss = round2(price + slD);
       const rawTp = structure?.s1;
-      const tp = rawTp != null && rawTp < price - 1 ? rawTp : price - tpDist;
+      const tp = rawTp != null && rawTp < price - 2 ? rawTp : price - tpDist;
       const tpD = Math.min(MAX_TP, Math.max(MIN_TP, price - tp));
-      takeProfit = round2(price - tpD);
-    }
-
-    const enforced = enforceSwingTargets(
-      {
-        action,
-        entry,
-        stopLoss,
-        takeProfit,
-        confidence,
-        riskReward: 2,
-        currentPrice: price,
-        analysisUz: "",
-        triggerUz: "",
-        invalidationUz: "",
-        summaryUz: "",
-        createdAt: new Date().toISOString(),
-      },
-      price,
-      tech5
-    );
-
-    const s = enforced.signal;
-    action = s.action;
-    entry = s.entry;
-    stopLoss = s.stopLoss;
-    takeProfit = s.takeProfit;
-    riskReward = s.riskReward;
-    confidence = s.confidence;
-
-    // Rad etilsa ham — keng target bilan savdo
-    if (enforced.rejected && margin !== 0) {
-      action = margin > 0 ? "BUY" : "SELL";
-      entry = round2(price);
-      stopLoss = action === "BUY" ? round2(price - 4) : round2(price + 4);
-      takeProfit = action === "BUY" ? round2(price + 10) : round2(price - 10);
-      riskReward = 2.5;
-      confidence = Math.max(confidence, 58);
+      takeProfit = round2(price - Math.max(tpD, slD * 1.6));
     }
   }
 
-  const confluence = Math.min(
-    95,
-    Math.round((tf.aligned / 3) * 40 + Math.abs(margin) * 0.5 + (news?.biasStrength ?? 50) * 0.2)
-  );
+  const riskReward = round2(Math.abs(takeProfit - entry) / Math.max(1, Math.abs(entry - stopLoss)));
 
   let wp = Math.min(
-    88,
-    Math.max(
-      44,
-      Math.round(
-        confluence * 0.35 +
-          confidence * 0.25 +
-          (verdict.gateAllowed ? 12 : 4) +
-          (action !== "HOLD" ? 10 : 0)
-      )
-    )
+    90,
+    Math.max(44, Math.round(46 + mtf.strength * 0.3 + mtf.alignedTf * 6 + Math.abs(score) * 0.4))
   );
-  // TF moslik yo'q bo'lsa (aligned 0) ishonch haqqoniy pasaytiriladi
-  if (tf.aligned === 0) wp = Math.min(wp, 60);
-  else if (tf.aligned === 1 && Math.abs(margin) < 15) wp = Math.min(wp, 70);
+  if (mtf.alignedTf <= 1 && Math.abs(score) < 8) wp = Math.min(wp, 62);
+  if (mtf.bias === "neutral") wp = Math.min(wp, 58);
+  const grade = action === "HOLD" ? undefined : wp >= 74 ? "A+" : wp >= 66 ? "A" : wp >= 56 ? "B" : "C";
 
-  const grade =
-    action === "HOLD" ? undefined : wp >= 72 ? "A+" : wp >= 64 ? "A" : wp >= 54 ? "B" : "C";
+  const perTfLine = mtf.perTf
+    .map((p) => `${p.tf} ${p.result.bias === "long" ? "↑" : p.result.bias === "short" ? "↓" : "·"}${Math.abs(p.result.score)}`)
+    .join("  ");
 
   const triggerUz =
     action === "HOLD"
-      ? strategy.entry.whenUz
-      : `${strategy.entry.whenUz} · TF moslik ${tf.aligned}/3`;
+      ? `Kutish — TF mos emas (${mtf.alignedTf}/${mtf.totalTf})`
+      : `${mtf.summaryUz} · ${strategy.entry.whenUz}`;
 
   return {
     action,
     entry,
     stopLoss,
     takeProfit,
-    confidence,
-    riskReward: round2(riskReward),
+    confidence: Math.round(confidence),
+    riskReward,
     winProbability: wp,
-    confluencePct: confluence,
+    confluencePct: mtf.strength,
     signalGrade: grade,
     analysisUz: [
-      `◷ SWING (1–2 soat)`,
-      strategy.playbookUz || strategy.situationUz,
+      `◷ UZOQ MUDDAT — 15m/1h/4h/1d MTF confluence`,
+      mtf.summaryUz,
+      `TF: ${perTfLine}`,
       structure?.summaryUz ?? "",
-      verdict.analysisUz,
+      strategy.playbookUz || strategy.situationUz,
       news ? `Yangilik: ${news.overallBias} ${news.biasStrength}%` : "",
-      `TF L${Math.round(tf.longPts)} / S${Math.round(tf.shortPts)} · moslik ${tf.aligned}/3`,
       `Sessiya: ${session.nameUz}`,
     ]
       .filter(Boolean)
       .join("\n")
       .slice(0, 900),
     triggerUz,
-    invalidationUz: strategy.invalidationUz,
+    invalidationUz:
+      action === "BUY"
+        ? `$${stopLoss} ostida kunlik yopilsa — trend buzildi`
+        : action === "SELL"
+          ? `$${stopLoss} ustida kunlik yopilsa — trend buzildi`
+          : strategy.invalidationUz,
     summaryUz:
       action === "HOLD"
-        ? `KUTING · TF L${Math.round(tf.longPts)} · S${Math.round(tf.shortPts)}`
-        : `${action} · ~${wp}% · ${grade} · R:R ${round2(riskReward)} · TF ${tf.aligned}/3`,
-    panelUz: `SWING L${Math.round(tf.longPts)} / S${Math.round(tf.shortPts)} · ${news?.overallBias ?? "—"}`,
-    forecastHigh: structure?.r1 ?? takeProfit,
-    forecastLow: structure?.s1 ?? stopLoss,
-    forecastBiasUz:
-      margin > 5 ? "↑ LONG" : margin < -5 ? "↓ SHORT" : news?.overallBias === "bullish" ? "↑ LONG" : "↓ SHORT",
+        ? `KUTING · MTF L${mtf.longScore}/S${mtf.shortScore}`
+        : `${action} · ~${wp}% · ${grade} · R:R ${riskReward} · ${mtf.alignedTf}/${mtf.totalTf} TF mos`,
+    panelUz: `MTF L${mtf.longScore}/S${mtf.shortScore} · ${mtf.alignedTf}/${mtf.totalTf} TF · ${news?.overallBias ?? "—"}`,
+    forecastHigh: action === "SELL" ? entry : Math.max(takeProfit, structure?.r1 ?? takeProfit),
+    forecastLow: action === "BUY" ? entry : Math.min(takeProfit, structure?.s1 ?? takeProfit),
+    forecastBiasUz: score > 4 ? "↑ LONG" : score < -4 ? "↓ SHORT" : mtf.bias === "long" ? "↑ LONG" : mtf.bias === "short" ? "↓ SHORT" : "—",
     modeLabelUz: SWING_META.label,
     holdTimeUz: SWING_META.holdTimeUz,
+    topVotes: mtf.topVotes,
   };
 }
 

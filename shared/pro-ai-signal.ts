@@ -113,6 +113,7 @@ export function buildProAiSignal(input: ProAiSignalInput): ProAiSignalResult {
     mode,
     modeLabelUz: built.modeLabelUz,
     holdTimeUz: built.holdTimeUz,
+    indicatorsUz: built.topVotes?.map((v) => `${v.labelUz} · ${v.strength}%`),
   };
 
   return {

@@ -80,7 +80,7 @@ export function ForecastChart({ signal, price }: Props) {
     <div className="empire-forecast-wrap">
       {signal.mode && (
         <p className="empire-forecast-mode">
-          {signal.mode === "scalp" ? "⚡ Tor target (5–20 daq)" : "◷ Keng target (1–2 soat)"}
+          {signal.mode === "scalp" ? "⚡ Tor target (5–20 daq)" : "◷ Keng target (4–24 soat)"}
         </p>
       )}
       <div className="empire-forecast-chart">

@@ -60,8 +60,8 @@ export function startAiSession(mode: SignalMode = "swing"): MonitorSessionInfo {
   phase = "analyzing";
   messageUz =
     mode === "scalp"
-      ? "Tez savdo signali tahlil qilinmoqda — jonli momentum, M1…"
-      : "1–2 soatlik signal tahlil qilinmoqda — yangiliklar, indikatorlar…";
+      ? "Tez savdo signali tahlil qilinmoqda — 1m+5m 10 indikator confluence…"
+      : "Uzoq muddat signali tahlil qilinmoqda — 15m/1h/4h/1d MTF confluence…";
   aiSignal = null;
   notifyChange();
 
