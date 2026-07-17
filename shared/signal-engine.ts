@@ -193,13 +193,14 @@ export function computeEngineSignal(candles: Candle[]): EngineSignal {
   raw = clamp(raw, -1, 1);
 
   let action: EngineSignal["action"] = "HOLD";
-  // Past ADX — HOLD (range)
-  if (adx >= 16) {
-    const confirmsOk = (side: "buy" | "sell") =>
-      factors.filter((f) => f.side === side).length >= 2 &&
-      factors.filter((f) => f.side !== "neutral" && f.side !== side).length <= 1;
-    if (raw >= 0.28 && confirmsOk("buy")) action = "BUY";
-    else if (raw <= -0.28 && confirmsOk("sell")) action = "SELL";
+  const confirmsBuy = factors.filter((f) => f.side === "buy").length;
+  const confirmsSell = factors.filter((f) => f.side === "sell").length;
+  // ADX past bo'lsa ham yo'nalish beriladi (ishonch pastroq)
+  const thr = adx >= 16 ? 0.2 : 0.28;
+  if (raw >= thr && confirmsBuy >= confirmsSell) action = "BUY";
+  else if (raw <= -thr && confirmsSell >= confirmsBuy) action = "SELL";
+  else if (Math.abs(raw) >= 0.15 && adx >= 12) {
+    action = raw > 0 ? "BUY" : "SELL";
   }
 
   const dominantSide = action === "BUY" ? "buy" : action === "SELL" ? "sell" : null;

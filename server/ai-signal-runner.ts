@@ -291,19 +291,19 @@ function applyFinalGuards(
     return {
       ...s,
       winProbability: Math.min(s.winProbability ?? 50, 42),
-      summaryUz: `HOLD — ${guarded.reasonUz ?? "jonli momentum teskari"}`,
+      summaryUz: s.summaryUz?.startsWith("HOLD")
+        ? s.summaryUz
+        : `HOLD — ${guarded.reasonUz ?? "jonli momentum teskari"}`,
     };
   }
 
-  // Past ADX — yakuniy himoya (engine o'tkazib yuborgan bo'lsa ham)
+  // Past ADX — HOLD emas, faqat foiz cheklovi (balans)
   if ((ctx.tech1.adx || 0) > 0 && (ctx.tech1.adx || 0) < 15) {
-    return {
+    s = {
       ...s,
-      action: "HOLD",
-      confidence: Math.min(s.confidence, 42),
-      winProbability: Math.min(s.winProbability ?? 50, 40),
-      summaryUz: `HOLD — ADX ${ctx.tech1.adx} past (range) — savdo ochilmaydi`,
-      triggerUz: "Range bozor — breakout kuting",
+      confidence: Math.min(s.confidence, 56),
+      winProbability: Math.min(s.winProbability ?? 60, 56),
+      signalGrade: s.signalGrade === "A+" || s.signalGrade === "A" ? "B" : s.signalGrade,
     };
   }
 
