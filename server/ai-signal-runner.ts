@@ -44,11 +44,15 @@ export async function runOneShotAiAnalysis(mode: SignalMode = "swing"): Promise<
   clearPause();
 
   await refreshNewsDeepAnalysis();
-  // Shamlar to'liq bo'lishini kafolatlash — aks holda confluence neytral chiqadi
-  await ensureCandlesForAnalysis();
+  const candlesOk = await ensureCandlesForAnalysis();
   const ctx = getMonitorContextForAi();
   if (!ctx.gold) {
     failAiSession("Narx mavjud emas — internet yoki serverni tekshiring");
+    broadcastUpdate();
+    return;
+  }
+  if (!candlesOk) {
+    failAiSession("Shamlar yuklanmadi — birozdan keyin qayta urinib ko'ring");
     broadcastUpdate();
     return;
   }
@@ -233,28 +237,24 @@ function mergeProWithAi(
   }
 
   if (ai.action === "HOLD") {
+    // Zaif PRO ni HOLD ga tushirish
+    if ((ctx.winProbability ?? 50) < 62) {
+      return {
+        ...pro,
+        action: "HOLD",
+        confidence: Math.min(pro.confidence, 44),
+        winProbability: Math.min(pro.winProbability ?? 50, 42),
+        summaryUz: `HOLD — OpenAI ehtiyot: ${ai.summaryUz?.slice(0, 80) ?? "setup zaif"}`,
+        analysisUz: `${pro.analysisUz}\n[OpenAI HOLD] ${ai.summaryUz}`.slice(0, 900),
+      };
+    }
     return {
       ...pro,
       analysisUz: `${pro.analysisUz}\n[OpenAI ehtiyot] ${ai.summaryUz}`.slice(0, 900),
     };
   }
 
-  if (ai.confidence > pro.confidence + 15 && ctx.winProbability < 60) {
-    return {
-      ...ai,
-      winProbability: Math.max(40, pro.winProbability! - 8),
-      confluencePct: pro.confluencePct,
-      signalGrade: "C",
-      panelUz: pro.panelUz,
-      mode: pro.mode,
-      modeLabelUz: pro.modeLabelUz,
-      holdTimeUz: pro.holdTimeUz,
-      forecastHigh: pro.forecastHigh,
-      forecastLow: pro.forecastLow,
-      analysisUz: `${pro.analysisUz}\n[AI zid] ${ai.analysisUz}`.slice(0, 900),
-    };
-  }
-
+  // Zid yo'nalish — HECH QACHON AI ga o'tkazilmaydi (PRO ustun)
   return {
     ...pro,
     analysisUz: `${pro.analysisUz}\n[AI zid ${ai.action} rad etildi — panel ${pro.action}]`.slice(0, 900),
@@ -292,6 +292,18 @@ function applyFinalGuards(
       ...s,
       winProbability: Math.min(s.winProbability ?? 50, 42),
       summaryUz: `HOLD — ${guarded.reasonUz ?? "jonli momentum teskari"}`,
+    };
+  }
+
+  // Past ADX — yakuniy himoya (engine o'tkazib yuborgan bo'lsa ham)
+  if ((ctx.tech1.adx || 0) > 0 && (ctx.tech1.adx || 0) < 15) {
+    return {
+      ...s,
+      action: "HOLD",
+      confidence: Math.min(s.confidence, 42),
+      winProbability: Math.min(s.winProbability ?? 50, 40),
+      summaryUz: `HOLD — ADX ${ctx.tech1.adx} past (range) — savdo ochilmaydi`,
+      triggerUz: "Range bozor — breakout kuting",
     };
   }
 

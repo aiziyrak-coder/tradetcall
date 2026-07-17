@@ -87,6 +87,7 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
 
   const m1 = analyzeM1ScalpLead(c1, c5, price, impulse);
   const live = getLiveMomentum(c1, price);
+  const tech1 = analyzeTechnicalsFull(c1.length >= 6 ? c1 : fallback);
 
   // Tez SCALP confluence — intraday indikatorlar (1m ustun, 5m tasdiq)
   const conf1 = computeScalpConfluence(c1.length >= 6 ? c1 : fallback);
@@ -105,50 +106,67 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
   let action: AiTradeSignal["action"] = "HOLD";
   let confidence = Math.max(m1.strength, Math.abs(score));
 
-  // 1) Confluence — asosiy manba
-  if (score >= 8) {
-    action = "BUY";
-    confidence = Math.max(confidence, 55 + Math.min(score, 30) * 0.5);
-  } else if (score <= -8) {
-    action = "SELL";
-    confidence = Math.max(confidence, 55 + Math.min(-score, 30) * 0.5);
-  }
+  // Kam sham / past ADX — savdo ochilmasin (range = HOLD)
+  const adx1 = tech1.adx || 0;
+  const enoughBars = c1.length >= 25 && c5.length >= 20;
+  if (!enoughBars) {
+    action = "HOLD";
+    confidence = 35;
+  } else if (adx1 > 0 && adx1 < 16) {
+    // Range — savdo YO'Q (oldingi 72% SELL xatosi shu yerda edi)
+    action = "HOLD";
+    confidence = Math.min(confidence, 40);
+  } else {
+    // 1) Asosiy: kuchli confluence + 5m tasdiq
+    if (score >= 12 && (conf5.bias === "long" || conf5.bias === "neutral") && conf1.bias !== "short") {
+      action = "BUY";
+      confidence = Math.max(confidence, 55 + Math.min(score, 30) * 0.4);
+    } else if (score <= -12 && (conf5.bias === "short" || conf5.bias === "neutral") && conf1.bias !== "long") {
+      action = "SELL";
+      confidence = Math.max(confidence, 55 + Math.min(-score, 30) * 0.4);
+    }
 
-  // 2) M1 skalp lead — tez yo'nalish
-  if (action === "HOLD" && m1.direction === "long" && m1.phase !== "exhausted") {
-    action = "BUY";
-    confidence = Math.max(confidence, 52);
-  } else if (action === "HOLD" && m1.direction === "short" && m1.phase !== "exhausted") {
-    action = "SELL";
-    confidence = Math.max(confidence, 52);
-  }
+    // 2) M1 lead — faqat confluence bilan bir tomonda va kuchli
+    if (
+      action === "HOLD" &&
+      m1.direction === "long" &&
+      m1.phase !== "exhausted" &&
+      m1.strength >= 58 &&
+      score >= 6 &&
+      conf5.bias !== "short"
+    ) {
+      action = "BUY";
+      confidence = Math.max(confidence, 54);
+    } else if (
+      action === "HOLD" &&
+      m1.direction === "short" &&
+      m1.phase !== "exhausted" &&
+      m1.strength >= 58 &&
+      score <= -6 &&
+      conf5.bias !== "long"
+    ) {
+      action = "SELL";
+      confidence = Math.max(confidence, 54);
+    }
 
-  // 3) Reversal / jonli momentum / impuls
-  if (action === "HOLD" && m1.phase === "reversal" && m1.direction !== "neutral") {
-    action = m1.direction === "long" ? "BUY" : "SELL";
-    confidence = Math.max(confidence, 50);
+    // 3) Kuchli impuls — faqat confluence qarshi bo'lmasa
+    if (action === "HOLD" && impulse && impulse.moveUsd >= 0.55) {
+      if (impulse.direction === "long" && score >= 0 && conf5.bias !== "short") {
+        action = "BUY";
+        confidence = Math.max(confidence, 52);
+      } else if (impulse.direction === "short" && score <= 0 && conf5.bias !== "long") {
+        action = "SELL";
+        confidence = Math.max(confidence, 52);
+      }
+    }
   }
-  if (action === "HOLD" && live.direction === "up" && live.changeUsd >= 0.12) action = "BUY";
-  else if (action === "HOLD" && live.direction === "down" && live.changeUsd <= -0.12) action = "SELL";
-  if (action === "HOLD" && impulse && impulse.moveUsd >= 0.18) {
-    action = impulse.direction === "long" ? "BUY" : "SELL";
-  }
-
-  // 4) Oxirgi lean — confluence yo'nalishi (kichik bo'lsa ham)
-  if (action === "HOLD" && Math.abs(score) >= 3) {
-    action = score > 0 ? "BUY" : "SELL";
-    confidence = Math.max(confidence, 44);
-  }
-  if (action === "HOLD" && m1.direction !== "neutral") {
-    action = m1.direction === "long" ? "BUY" : "SELL";
-    confidence = Math.max(confidence, 42);
-  }
+  // Eski yumshoq leanlar OLIB TASHLANDI (score±3 / M1 any / $0.12) — asosiy xato manbai
 
   // Targetlar — M1 hintlari, tor SL/TP (ATR mos)
   const atr1 = Math.max(0.8, Math.min(4, conf1.atr || 1.5));
   let entry = round2(price);
-  let stopLoss = round2(price - atr1 * 1.1);
-  let takeProfit = round2(price + atr1 * 2);
+  let stopLoss = round2(price);
+  let takeProfit = round2(price);
 
   if (action === "BUY") {
     entry = round2(price);
@@ -169,14 +187,17 @@ function buildScalpSignal(input: ModeEngineInput): ModeBuildResult {
     action === "HOLD"
       ? 0
       : conf1.votes.filter((v) => v.signal !== "neutral" && v.signal !== biasSig).length;
-  let wp = 50 + Math.abs(score) * 0.5 + Math.max(0, aligned) * 3 + m1.strength * 0.1 - conVotes1 * 2.2;
-  // Jonli narx signalga qarshi bo'lsa jazolash
-  if (action === "BUY" && live.direction === "down") wp -= 6;
-  if (action === "SELL" && live.direction === "up") wp -= 6;
-  if (conf1.bias === "neutral" && m1.phase === "range") wp -= 7;
-  if (live.direction === "flat" && Math.abs(score) < 6) wp -= 4;
-  wp = Math.round(Math.min(86, Math.max(40, wp)));
-  const grade = wp >= 76 ? "A+" : wp >= 68 ? "A" : wp >= 58 ? "B" : wp >= 50 ? "C" : "D";
+  let wp = 50 + Math.abs(score) * 0.45 + Math.max(0, aligned) * 2.5 + m1.strength * 0.08 - conVotes1 * 2.5;
+  if (action === "BUY" && live.direction === "down") wp -= 8;
+  if (action === "SELL" && live.direction === "up") wp -= 8;
+  if (conf1.bias === "neutral" && m1.phase === "range") wp -= 8;
+  if (live.direction === "flat" && Math.abs(score) < 8) wp -= 5;
+  // Past ADX = range — yuqori foiz YOLG'ON ishonch
+  if (adx1 > 0 && adx1 < 18) wp = Math.min(wp, 52);
+  if (adx1 > 0 && adx1 < 14) wp = Math.min(wp, 45);
+  if (action === "HOLD") wp = Math.min(wp, 42);
+  wp = Math.round(Math.min(82, Math.max(38, wp)));
+  const grade = wp >= 74 ? "A+" : wp >= 66 ? "A" : wp >= 56 ? "B" : wp >= 48 ? "C" : "D";
 
   const topVotes = conf1.votes
     .filter((v) => v.signal === (action === "BUY" ? "long" : action === "SELL" ? "short" : v.signal))
@@ -260,26 +281,42 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
 
   const score = mtf.score;
   let action: AiTradeSignal["action"] = "HOLD";
+  let confidence = Math.max(strategy.confidence, Math.min(88, 48 + Math.abs(score)));
 
-  // 1) MTF confluence — asosiy manba
-  if (score >= 8) action = "BUY";
-  else if (score <= -8) action = "SELL";
+  // Past ADX (1h) — range: HOLD (yoki faqat juda kuchli MTF)
+  const adx1h = tech1h.adx || 0;
+  const strongMtf = Math.abs(score) >= 14 && mtf.alignedTf >= 3;
 
-  // 2) Yangilik (uzoq muddat uchun muhim)
-  if (action === "HOLD" && news) {
-    if (news.overallBias === "bullish" && news.biasStrength >= 56 && score >= 0) action = "BUY";
-    else if (news.overallBias === "bearish" && news.biasStrength >= 56 && score <= 0) action = "SELL";
+  if (adx1h > 0 && adx1h < 16 && !strongMtf) {
+    action = "HOLD";
+    confidence = Math.min(confidence, 42);
+  } else {
+    // 1) MTF — asosiy (yuqori chegara)
+    if (score >= 12 && mtf.alignedTf >= 2) action = "BUY";
+    else if (score <= -12 && mtf.alignedTf >= 2) action = "SELL";
+
+    // 2) Yangilik — faqat MTF bilan bir tomonda va score yetarli
+    if (action === "HOLD" && news && mtf.alignedTf >= 2) {
+      if (news.overallBias === "bullish" && news.biasStrength >= 60 && score >= 8) action = "BUY";
+      else if (news.overallBias === "bearish" && news.biasStrength >= 60 && score <= -8) action = "SELL";
+    }
+
+    // 3) Struktura — faqat score mos
+    if (action === "HOLD" && structure && mtf.alignedTf >= 2) {
+      if (structure.trend === "bullish" && score >= 8) action = "BUY";
+      else if (structure.trend === "bearish" && score <= -8) action = "SELL";
+    }
   }
 
-  // 3) Struktura trendi
-  if (action === "HOLD" && structure) {
-    if (structure.trend === "bullish" && score >= -2) action = "BUY";
-    else if (structure.trend === "bearish" && score <= 2) action = "SELL";
+  // Yangilik bilan zid — HOLD (masalan panel short, yangilik bullish)
+  if (action !== "HOLD" && news && news.biasStrength >= 55) {
+    const newsDir = news.overallBias === "bullish" ? "BUY" : news.overallBias === "bearish" ? "SELL" : null;
+    if (newsDir && newsDir !== action) {
+      action = "HOLD";
+      confidence = Math.min(confidence, 44);
+    }
   }
-
-  // 4) Yumshoq lean — confluence yo'nalishi
-  if (action === "HOLD" && Math.abs(score) >= 4) action = score > 0 ? "BUY" : "SELL";
-  if (action === "HOLD" && mtf.bias !== "neutral") action = mtf.bias === "long" ? "BUY" : "SELL";
+  // Yumshoq leanlar OLIB TASHLANDI
 
   // Targetlar — 1h ATR + struktura, uzoq muddat uchun keng
   const atr = Math.max(4, Math.min(22, tech1h.atr || 8));
@@ -291,9 +328,8 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
   const MIN_TP = 14;
 
   let entry = round2(price);
-  let stopLoss = round2(price - slDist);
-  let takeProfit = round2(price + tpDist);
-  let confidence = Math.max(strategy.confidence, Math.min(90, 50 + Math.abs(score)));
+  let stopLoss = round2(price);
+  let takeProfit = round2(price);
 
   if (action !== "HOLD") {
     entry = round2(price);
@@ -326,21 +362,22 @@ function buildSwingSignal(input: ModeEngineInput): ModeBuildResult {
     action === "HOLD"
       ? 0
       : mtf.perTf.filter((p) => p.result.bias !== "neutral" && p.result.bias !== swingBias).length;
-  // Uzluksiz score asosiy omil — to'yinish kamayadi, qiymatlar tabiiy o'zgaradi
-  let wp = 46 + Math.abs(score) * 0.45 + mtf.alignedTf * 2.5 + mtf.strength * 0.08 - disTf * 6;
-  // 1h RSI ekstremum — trend davomiga qarshi xavf
+  let wp = 46 + Math.abs(score) * 0.4 + mtf.alignedTf * 2.2 + mtf.strength * 0.07 - disTf * 7;
   const rsi1h = tech1h.rsi;
-  if (action === "BUY" && rsi1h >= 72) wp -= 5;
-  if (action === "SELL" && rsi1h <= 28) wp -= 5;
+  if (action === "BUY" && rsi1h >= 72) wp -= 6;
+  if (action === "SELL" && rsi1h <= 28) wp -= 6;
   if (news && action !== "HOLD") {
     const newsDir = news.overallBias === "bullish" ? "long" : news.overallBias === "bearish" ? "short" : "neutral";
     if (newsDir === swingBias && news.biasStrength >= 55) wp += 3;
-    else if (newsDir !== "neutral" && newsDir !== swingBias) wp -= 3;
+    else if (newsDir !== "neutral" && newsDir !== swingBias) wp -= 8;
   }
-  if (mtf.alignedTf <= 1 && Math.abs(score) < 8) wp -= 6;
-  if (mtf.bias === "neutral") wp -= 8;
-  wp = Math.round(Math.min(87, Math.max(42, wp)));
-  const grade = action === "HOLD" ? undefined : wp >= 78 ? "A+" : wp >= 70 ? "A" : wp >= 60 ? "B" : wp >= 52 ? "C" : "D";
+  if (mtf.alignedTf <= 1 && Math.abs(score) < 10) wp -= 8;
+  if (mtf.bias === "neutral") wp -= 10;
+  if (adx1h > 0 && adx1h < 18) wp = Math.min(wp, 50);
+  if (adx1h > 0 && adx1h < 14) wp = Math.min(wp, 44);
+  if (action === "HOLD") wp = Math.min(wp, 42);
+  wp = Math.round(Math.min(84, Math.max(38, wp)));
+  const grade = action === "HOLD" ? undefined : wp >= 76 ? "A+" : wp >= 68 ? "A" : wp >= 58 ? "B" : wp >= 50 ? "C" : "D";
 
   const perTfLine = mtf.perTf
     .map((p) => `${p.tf} ${p.result.bias === "long" ? "↑" : p.result.bias === "short" ? "↓" : "·"}${Math.abs(p.result.score)}`)

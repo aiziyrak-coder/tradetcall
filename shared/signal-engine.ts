@@ -62,12 +62,21 @@ function lastOf(arr: number[], fallback = 0): number {
   return arr.length ? arr[arr.length - 1]! : fallback;
 }
 
-/** RSI: oversold → +1 (BUY), overbought → −1 (SELL) */
-function scoreRsi(rsi: number): number {
-  if (rsi <= 30) return clamp((30 - rsi) / 30, 0, 1);
-  if (rsi >= 70) return -clamp((rsi - 70) / 30, 0, 1);
-  if (rsi > 55) return clamp((rsi - 50) / 40, 0, 0.55);
-  if (rsi < 45) return -clamp((50 - rsi) / 40, 0, 0.55);
+/** RSI: trendda momentum, rangeda ehtiyotkor reversion (ADX bilan) */
+function scoreRsi(rsi: number, adx: number, plusDi: number, minusDi: number): number {
+  const trending = adx >= 20;
+  const upTrend = plusDi > minusDi;
+  if (trending) {
+    // Trendda oversold ≠ avtomatik BUY
+    if (rsi <= 30) return upTrend ? 0.15 : -0.35;
+    if (rsi >= 70) return upTrend ? 0.35 : -0.15;
+    if (rsi > 55) return clamp((rsi - 50) / 40, 0, 0.55);
+    if (rsi < 45) return -clamp((50 - rsi) / 40, 0, 0.55);
+    return 0;
+  }
+  // Range: ekstremumda yumshoq reversion, o'rtada neytral
+  if (rsi <= 28) return clamp((28 - rsi) / 28, 0, 0.55);
+  if (rsi >= 72) return -clamp((rsi - 72) / 28, 0, 0.55);
   return 0;
 }
 
@@ -147,7 +156,7 @@ export function computeEngineSignal(candles: Candle[]): EngineSignal {
     {
       id: "rsi",
       labelUz: "RSI(14)",
-      score: scoreRsi(rsi),
+      score: scoreRsi(rsi, adx, plusDi, minusDi),
       weight: WEIGHTS.rsi,
       valueUz: String(rsi),
       side: "neutral",
@@ -184,8 +193,14 @@ export function computeEngineSignal(candles: Candle[]): EngineSignal {
   raw = clamp(raw, -1, 1);
 
   let action: EngineSignal["action"] = "HOLD";
-  if (raw >= 0.18) action = "BUY";
-  else if (raw <= -0.18) action = "SELL";
+  // Past ADX — HOLD (range)
+  if (adx >= 16) {
+    const confirmsOk = (side: "buy" | "sell") =>
+      factors.filter((f) => f.side === side).length >= 2 &&
+      factors.filter((f) => f.side !== "neutral" && f.side !== side).length <= 1;
+    if (raw >= 0.28 && confirmsOk("buy")) action = "BUY";
+    else if (raw <= -0.28 && confirmsOk("sell")) action = "SELL";
+  }
 
   const dominantSide = action === "BUY" ? "buy" : action === "SELL" ? "sell" : null;
   const confirmations = dominantSide
