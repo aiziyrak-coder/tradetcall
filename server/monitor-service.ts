@@ -2,6 +2,8 @@ import { emitMonitorEvent } from "./events";
 import type { ChartInterval } from "../shared/chart";
 import { fetchXAUUSDCandles, patchLastCandle } from "../shared/chart";
 import { fetchGoldNews, allGoldNewsItems } from "../shared/feeds";
+import { fetchCachedApiNews, mergeNewsBundles } from "../shared/news-api";
+import { computeEngineSignal } from "../shared/signal-engine";
 import { getGoldDrivers } from "../shared/markets";
 import { detectPriceImpulse, detectScalpImpulse, type PriceImpulse } from "../shared/price-impulse";
 import { analyzeM1ScalpLead } from "../shared/m1-scalp";
@@ -13,6 +15,7 @@ import {
   pullLiveGoldPrice,
   peekCachedGoldPrice,
 } from "./price-stream";
+import { startFinnhubPrice, stopFinnhubPrice, isFinnhubConfigured } from "./finnhub-price";
 import {
   startTradingViewPriceStream,
   stopTradingViewPriceStream,
@@ -42,7 +45,7 @@ const STRATEGY_TICK_MS = 2000;
 const HEARTBEAT_MS = 1500;
 const INTERNET_CHECK_MS = 25_000;
 const DRIVERS_TICK_MS = 20_000;
-const NEWS_TICK_MS = 120_000;
+const NEWS_TICK_MS = 12 * 60_000; // 12 daqiqa — API limitni tejash
 const NEWS_ANALYSIS_MS = 45_000;
 const TRANSLATE_TICK_MS = 30_000;
 const TRANSLATE_BATCH = 4;
@@ -229,6 +232,16 @@ function computeMarketTechnical(spot: number) {
   return analyzeTechnicalsFull(candles);
 }
 
+function computeEngineForSpot(spot: number) {
+  const candles = patchLastCandle(getPrimaryCandles(), spot);
+  if (candles.length < 30) return null;
+  try {
+    return computeEngineSignal(candles);
+  } catch {
+    return null;
+  }
+}
+
 function computeSetupQualitySnapshot(): import("../shared/setup-quality").SetupQuality | null {
   const gold = lastSnapshot?.gold;
   if (!gold) return null;
@@ -401,6 +414,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
   lastStrategyPrice = gold.price;
 
   const marketTechnical = computeMarketTechnical(gold.price);
+  const engineSignal = computeEngineForSpot(gold.price);
   const c1 = multiTfCandles["1m"] ?? [];
   const c5 = multiTfCandles["5m"] ?? [];
   const m1Scalp =
@@ -414,6 +428,7 @@ function publishGoldTick(gold: import("../shared/types").PriceData, opts?: { for
     tickSeq,
     priceUpdatedAt: gold.timestamp,
     ...(marketTechnical ? { marketTechnical } : {}),
+    ...(engineSignal ? { engineSignal } : {}),
     m1Scalp,
     liveMomentum,
     setupQuality: computeSetupQualitySnapshot(),
@@ -509,7 +524,9 @@ async function refreshDrivers() {
 async function refreshNews() {
   try {
     if (!(await checkInternet())) return;
-    rawNews = await fetchGoldNews();
+    const rss = await fetchGoldNews();
+    const apiNews = await fetchCachedApiNews().catch(() => null);
+    rawNews = mergeNewsBundles(rss, apiNews);
     pruneTranslationCache();
     void runNewsTranslation();
     refreshNewsAnalysisLocal();
@@ -545,8 +562,12 @@ async function bootstrapSnapshot(): Promise<void> {
     const gold = await pullLiveGoldPrice(null);
     markPriceOk();
 
-    const [news, drivers] = await Promise.all([fetchGoldNews(), getGoldDrivers(gold)]);
-    rawNews = news;
+    const [rss, drivers, apiNews] = await Promise.all([
+      fetchGoldNews(),
+      getGoldDrivers(gold),
+      fetchCachedApiNews().catch(() => null),
+    ]);
+    rawNews = mergeNewsBundles(rss, apiNews);
     pruneTranslationCache();
     await refreshMultiTimeframes(gold.price);
     const candles = getPrimaryCandles();
@@ -613,10 +634,11 @@ function startIntervals() {
 export function startMonitorService(): void {
   if (priceInterval) return;
   startCalendarService();
+  if (isFinnhubConfigured()) startFinnhubPrice();
   initPriceStreamHooks(() => {
     if (priceBusy) return;
     const gold = peekCachedGoldPrice();
-    if (gold?.feed === "tradingview") publishGoldTick(gold);
+    if (gold?.feed === "tradingview" || gold?.feed === "finnhub") publishGoldTick(gold);
   });
   if (!lastSnapshot) lastSnapshot = emptySnapshot();
 
@@ -670,6 +692,7 @@ export function runNewsDeepAnalysis(): Promise<NewsMarketAnalysis | null> {
 export function stopMonitorService(): void {
   stopCalendarService();
   disposePriceStreamHooks();
+  stopFinnhubPrice();
   void stopTradingViewPriceStream();
   if (priceInterval) clearInterval(priceInterval);
   if (strategyInterval) clearInterval(strategyInterval);

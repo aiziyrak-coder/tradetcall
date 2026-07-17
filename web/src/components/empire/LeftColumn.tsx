@@ -1,9 +1,11 @@
 import type { AiPhase, AiTradeSignal } from "../../../../shared/ai-trade-signal";
+import type { EngineSignal } from "../../../../shared/signal-engine";
 import type { NewsMarketAnalysis } from "../../../../shared/types";
 import { GlassCard } from "./GlassCard";
 
 interface Props {
   signal: AiTradeSignal | null;
+  engine: EngineSignal | null;
   phase: AiPhase;
   analyzing: boolean;
   sessionBusy: boolean;
@@ -24,6 +26,7 @@ function shortHint(text: string, price: number): string {
 
 export function LeftColumn({
   signal,
+  engine,
   phase,
   analyzing,
   sessionBusy,
@@ -31,11 +34,13 @@ export function LeftColumn({
   analysis,
   onRequestForecast,
 }: Props) {
-  const prob = signal?.winProbability ?? signal?.confidence ?? 0;
-  const action = signal?.action;
+  const prob = signal?.winProbability ?? signal?.confidence ?? engine?.percent ?? 0;
+  const action = signal?.action ?? engine?.action;
   const macro = analysis?.overallBias;
   const macroLabel =
     macro === "bullish" ? "Bullish" : macro === "bearish" ? "Bearish" : "Neytral";
+  const conf = engine?.confirmations ?? 0;
+  const against = engine?.against ?? 0;
 
   return (
     <div className="empire-col empire-col--left">
@@ -63,6 +68,11 @@ export function LeftColumn({
                 <span className="empire-signal-ring__prob">~{prob}%</span>
               </div>
             </div>
+            {engine && (
+              <p className="empire-hint">
+                Engine: {engine.confirmations} tasdiq / {engine.against} qarshi · ADX {engine.adx}
+              </p>
+            )}
             {signal.triggerUz && <p className="empire-hint">{shortHint(signal.triggerUz, price)}</p>}
             {action !== "HOLD" && (
               <div className="empire-levels">
@@ -80,6 +90,31 @@ export function LeftColumn({
                 </div>
               </div>
             )}
+          </>
+        ) : engine && engine.action !== "HOLD" ? (
+          <>
+            <div className="empire-signal-ring">
+              <div className="empire-signal-ring__outer" />
+              <div className="empire-signal-ring__inner" />
+              <div className="empire-signal-ring__core">
+                <span className={`empire-signal-ring__action empire-signal-ring__action--${engine.action.toLowerCase()}`}>
+                  {engine.action}
+                </span>
+                <span className="empire-signal-ring__sub">JONLI ENGINE</span>
+                <span className="empire-signal-ring__prob">~{engine.percent}%</span>
+              </div>
+            </div>
+            <p className="empire-hint">
+              {conf} tasdiq / {against} qarshi · {engine.summaryUz}
+            </p>
+            <button
+              type="button"
+              className="empire-btn-gold mt-2"
+              disabled={sessionBusy}
+              onClick={() => onRequestForecast("scalp")}
+            >
+              AI tahlilni ochish
+            </button>
           </>
         ) : analyzing ? (
           <div className="empire-empty">

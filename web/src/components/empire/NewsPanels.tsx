@@ -1,3 +1,4 @@
+import { openUrl } from "../../lib/openUrl";
 import type { GoldNewsBundle, NewsItem } from "../../../../shared/types";
 import { GlassCard } from "./GlassCard";
 
@@ -12,16 +13,27 @@ function NewsCol({ title, items }: { title: string; items: NewsItem[] }) {
       <div className="empire-news-scroll">
         {items.length ? (
           items.slice(0, 15).map((n) => (
-            <div key={n.id} className="empire-news-row">
+            <button
+              key={n.id}
+              type="button"
+              className="empire-news-row empire-news-row--link"
+              onClick={() => {
+                if (n.link && n.link !== "#") openUrl(n.link);
+              }}
+              title={n.source}
+            >
               <span className="empire-news-row__dot" />
-              <div className="min-w-0">
-                {n.timeAgo && <span className="empire-news-row__time">{n.timeAgo}</span>}
+              <div className="min-w-0 text-left">
+                <span className="empire-news-row__meta">
+                  {n.source}
+                  {n.timeAgo ? ` · ${n.timeAgo}` : ""}
+                </span>
                 <p className="empire-news-row__text">{n.titleUz || n.title}</p>
               </div>
-            </div>
+            </button>
           ))
         ) : (
-          <p className="text-[10px] italic opacity-40">Yuklanmoqda…</p>
+          <p className="text-[10px] italic opacity-40">Ma'lumot vaqtincha mavjud emas</p>
         )}
       </div>
     </GlassCard>

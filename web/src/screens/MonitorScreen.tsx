@@ -1,21 +1,11 @@
-import { useEffect, useState } from "react";
-import type { MonitorSessionInfo, MonitorSnapshot } from "../../../shared/types";
+import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { EmpireTerminal } from "../components/empire/EmpireTerminal";
 import { MonitorLoading } from "../components/monitor/MonitorLoading";
 import { api, connectMonitor } from "../lib/api";
 import { useSignalNotifications } from "../hooks/useSignalNotifications";
 import { requestNotificationPermission } from "../lib/notifications";
-
-function formatLiveTime(s: MonitorSnapshot): string {
-  const t = s.priceUpdatedAt ?? s.timestamp;
-  const d = new Date(t);
-  const clock = d.toLocaleTimeString("uz-UZ", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  return s.tickSeq ? `${clock} · #${s.tickSeq}` : clock;
-}
+import { useMonitorStore } from "../store/monitor-store";
 
 interface Props {
   username: string;
@@ -32,86 +22,112 @@ export function MonitorScreen({
   onOpenSettings,
   onLogout,
 }: Props) {
-  const [data, setData] = useState<MonitorSnapshot | null>(null);
-  const [ready, setReady] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState("—");
-  const [tickFlash, setTickFlash] = useState(0);
-  const [translating, setTranslating] = useState(false);
-  const [analyzingNews, setAnalyzingNews] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [online, setOnline] = useState(true);
-  const [wsLive, setWsLive] = useState(false);
-  const [monitorSession, setMonitorSession] = useState<MonitorSessionInfo | null>(null);
-  const [sessionBusy, setSessionBusy] = useState(false);
+  const {
+    snapshot,
+    ready,
+    lastUpdate,
+    tickFlash,
+    translating,
+    analyzingNews,
+    error,
+    online,
+    wsLive,
+    connStatus,
+    monitorSession,
+    sessionBusy,
+    applySnapshot,
+    setReady,
+    setError,
+    setWsLive,
+    setConnStatus,
+    setTranslating,
+    setAnalyzingNews,
+    setMonitorSession,
+    setSessionBusy,
+  } = useMonitorStore(
+    useShallow((s) => ({
+      snapshot: s.snapshot,
+      ready: s.ready,
+      lastUpdate: s.lastUpdate,
+      tickFlash: s.tickFlash,
+      translating: s.translating,
+      analyzingNews: s.analyzingNews,
+      error: s.error,
+      online: s.online,
+      wsLive: s.wsLive,
+      connStatus: s.connStatus,
+      monitorSession: s.monitorSession,
+      sessionBusy: s.sessionBusy,
+      applySnapshot: s.applySnapshot,
+      setReady: s.setReady,
+      setError: s.setError,
+      setWsLive: s.setWsLive,
+      setConnStatus: s.setConnStatus,
+      setTranslating: s.setTranslating,
+      setAnalyzingNews: s.setAnalyzingNews,
+      setMonitorSession: s.setMonitorSession,
+      setSessionBusy: s.setSessionBusy,
+    }))
+  );
 
-  useSignalNotifications(data);
+  useSignalNotifications(snapshot);
 
   useEffect(() => {
     void api.monitor.getSession().then(setMonitorSession).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     void requestNotificationPermission();
-  }, []);
+  }, [setMonitorSession]);
 
   useEffect(() => {
     void api.monitor
       .getSnapshot()
       .then((s) => {
-        setData(s);
-        const sess = s.aiSession ?? s.monitorSession;
-        if (sess) setMonitorSession(sess);
-        setLastUpdate(formatLiveTime(s));
-        setOnline(s.online);
-        setReady(true);
+        applySnapshot(s);
+        setConnStatus("online");
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "Yuklash xatosi");
         setReady(true);
+        setConnStatus("offline");
       });
 
     const disconnect = connectMonitor({
       onUpdate: (s) => {
-        setData(s);
-        const sess = s.aiSession ?? s.monitorSession;
-        if (sess) setMonitorSession(sess);
-        setLastUpdate(formatLiveTime(s));
-        setOnline(s.online);
+        applySnapshot(s);
         setWsLive(true);
-        setTickFlash((n) => n + 1);
-        setTranslating(!!s.translating);
-        setAnalyzingNews(!!s.analyzingNews);
-        setError(null);
-        setReady(true);
+        setConnStatus("online");
       },
       onError: (e) => setError(e.message),
       onTranslating: setTranslating,
       onAnalyzingNews: setAnalyzingNews,
-      onConnection: setWsLive,
+      onConnection: (live) => {
+        setWsLive(live);
+        setConnStatus(live ? "online" : "reconnecting");
+      },
       onPing: () => {},
     });
 
     return disconnect;
-  }, []);
+  }, [
+    applySnapshot,
+    setReady,
+    setError,
+    setWsLive,
+    setConnStatus,
+    setTranslating,
+    setAnalyzingNews,
+  ]);
 
+  // WS uzilganda zaxira poll (sekinroq — asosiy kanal WS)
   useEffect(() => {
     const poll = setInterval(() => {
+      if (wsLive) return;
       void api.monitor
         .getSnapshot()
-        .then((s) => {
-          setData(s);
-          const sess = s.aiSession ?? s.monitorSession;
-          if (sess) setMonitorSession(sess);
-          setLastUpdate(formatLiveTime(s));
-          setOnline(s.online);
-          setTickFlash((n) => n + 1);
-          setTranslating(!!s.translating);
-          setAnalyzingNews(!!s.analyzingNews);
-        })
+        .then((s) => applySnapshot(s))
         .catch(() => {});
-    }, 1500);
+    }, 4000);
     return () => clearInterval(poll);
-  }, []);
+  }, [wsLive, applySnapshot]);
 
   const handleStartMonitor = async (mode: "scalp" | "swing" = "swing") => {
     setSessionBusy(true);
@@ -120,9 +136,7 @@ export function MonitorScreen({
       const session = await api.monitor.start(mode);
       setMonitorSession(session);
       const s = await api.monitor.getSnapshot();
-      setData(s);
-      setOnline(s.online);
-      setLastUpdate(formatLiveTime(s));
+      applySnapshot(s);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Start xatosi");
     } finally {
@@ -130,8 +144,8 @@ export function MonitorScreen({
     }
   };
 
-  const aiPhase = data?.aiPhase ?? monitorSession?.phase ?? "idle";
-  const liveOk = online && wsLive && !data?.priceStale && !data?.feedError;
+  const aiPhase = snapshot?.aiPhase ?? monitorSession?.phase ?? "idle";
+  const liveOk = online && wsLive && !snapshot?.priceStale && !snapshot?.feedError;
 
   if (!ready) return <MonitorLoading />;
 
@@ -147,12 +161,13 @@ export function MonitorScreen({
       )}
       <EmpireTerminal
         username={username}
-        data={data}
+        data={snapshot}
         aiPhase={aiPhase}
-        session={monitorSession ?? data?.aiSession ?? data?.monitorSession ?? null}
+        session={monitorSession ?? snapshot?.aiSession ?? snapshot?.monitorSession ?? null}
         sessionBusy={sessionBusy}
         lastUpdate={lastUpdate}
         liveOk={liveOk}
+        connStatus={connStatus}
         tickFlash={tickFlash}
         translating={translating || analyzingNews}
         onRequestForecast={(mode) => void handleStartMonitor(mode)}

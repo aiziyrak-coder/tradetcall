@@ -17,7 +17,7 @@ function IndBar({ label, value, width }: { label: string; value: string; width: 
         <span>{value}</span>
       </div>
       <div className="empire-ind-bar">
-        <div className="empire-ind-bar__fill" style={{ width: `${width}%` }} />
+        <div className="empire-ind-bar__fill" style={{ width: `${Math.max(0, Math.min(100, width))}%` }} />
       </div>
     </div>
   );
@@ -25,8 +25,9 @@ function IndBar({ label, value, width }: { label: string; value: string; width: 
 
 export function AnalysisPanel({ data, signal }: Props) {
   const tech = data?.marketTechnical;
+  const engine = data?.engineSignal;
   const analysis = data?.newsAnalysis;
-  const prob = signal?.winProbability ?? signal?.confidence ?? 0;
+  const prob = signal?.winProbability ?? signal?.confidence ?? engine?.confidence ?? 0;
   const bias = analysis?.overallBias;
   const biasLabel =
     bias === "bullish"
@@ -55,10 +56,17 @@ export function AnalysisPanel({ data, signal }: Props) {
                 />
                 <IndBar label="ADX KUCH" value={String(tech.adx)} width={Math.min(100, tech.adx)} />
                 <IndBar label="RSI" value={String(tech.rsi)} width={tech.rsi} />
+                <IndBar label="SMA20" value={String(tech.sma20)} width={50} />
               </>
             )}
             {data?.setupQuality && (
               <IndBar label="SETUP" value={`${data.setupQuality.score}/100`} width={data.setupQuality.score} />
+            )}
+            {engine && (
+              <p className="mt-1 text-[9px] leading-snug opacity-55">
+                Engine {engine.action} {engine.percent}% · {engine.confirmations} tasdiq / {engine.against} qarshi
+                {engine.adx < 18 ? " · ADX past → ishonch pasaytirildi" : ""}
+              </p>
             )}
           </div>
 

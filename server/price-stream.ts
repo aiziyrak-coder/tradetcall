@@ -5,6 +5,11 @@ import {
   isTradingViewPriceFresh,
   onTradingViewTick,
 } from "./tradingview-price";
+import {
+  getFinnhubPrice,
+  isFinnhubPriceFresh,
+  onFinnhubTick,
+} from "./finnhub-price";
 
 const FETCH_MS = 900;
 
@@ -13,6 +18,7 @@ let lastFetchAt = 0;
 let sessionOpen = 0;
 let lastTickPrice = 0;
 let tvUnsub: (() => void) | null = null;
+let fhUnsub: (() => void) | null = null;
 
 function withSessionChange(pd: PriceData): PriceData {
   if (sessionOpen <= 0) sessionOpen = pd.price;
@@ -20,10 +26,9 @@ function withSessionChange(pd: PriceData): PriceData {
     lastTickPrice > 0 ? Math.round((pd.price - lastTickPrice) * 100) / 100 : 0;
   lastTickPrice = pd.price;
 
-  // TradingView ch/chp ko'pincha 0 — sessiya ochilishidan o'zgarishni hisoblaymiz
   let change = pd.change;
   let changePercent = pd.changePercent;
-  if (pd.feed === "tradingview" || Math.abs(change) < 0.001) {
+  if (pd.feed === "tradingview" || pd.feed === "finnhub" || Math.abs(change) < 0.001) {
     change = Math.round((pd.price - sessionOpen) * 100) / 100;
     changePercent =
       sessionOpen !== 0 ? Math.round((change / sessionOpen) * 10000) / 100 : 0;
@@ -37,9 +42,11 @@ function withSessionChange(pd: PriceData): PriceData {
   };
 }
 
-export function initPriceStreamHooks(onTvTick: () => void): void {
+export function initPriceStreamHooks(onTick: () => void): void {
   if (tvUnsub) tvUnsub();
-  tvUnsub = onTradingViewTick(onTvTick);
+  if (fhUnsub) fhUnsub();
+  tvUnsub = onTradingViewTick(onTick);
+  fhUnsub = onFinnhubTick(onTick);
 }
 
 export function disposePriceStreamHooks(): void {
@@ -47,13 +54,26 @@ export function disposePriceStreamHooks(): void {
     tvUnsub();
     tvUnsub = null;
   }
+  if (fhUnsub) {
+    fhUnsub();
+    fhUnsub = null;
+  }
 }
 
-/** TradingView (FOREX.com default) — chart sell/buy o'rtasi */
+/**
+ * Prioritet: TradingView → Finnhub (ixtiyoriy) → spot/Yahoo REST.
+ * Klient faqat tayyor PriceData oladi.
+ */
 export async function pullLiveGoldPrice(_prev: PriceData | null): Promise<PriceData> {
   const tv = getTradingViewPrice();
   if (tv) {
     cached = withSessionChange(tv);
+    return cached;
+  }
+
+  const fh = getFinnhubPrice();
+  if (fh && isFinnhubPriceFresh()) {
+    cached = withSessionChange(fh);
     return cached;
   }
 
@@ -62,7 +82,12 @@ export async function pullLiveGoldPrice(_prev: PriceData | null): Promise<PriceD
     cached = null;
     sessionOpen = 0;
   }
-  if (cached && cached.feed !== "tradingview" && now - lastFetchAt < FETCH_MS) {
+  if (
+    cached &&
+    cached.feed !== "tradingview" &&
+    cached.feed !== "finnhub" &&
+    now - lastFetchAt < FETCH_MS
+  ) {
     return cached;
   }
 
@@ -79,10 +104,10 @@ export function peekCachedGoldPrice(): PriceData | null {
     cached = withSessionChange(tv);
     return cached;
   }
+  const fh = getFinnhubPrice();
+  if (fh && isFinnhubPriceFresh()) {
+    cached = withSessionChange(fh);
+    return cached;
+  }
   return cached;
-}
-
-export function resetPriceStreamSession(): void {
-  sessionOpen = 0;
-  lastTickPrice = 0;
 }

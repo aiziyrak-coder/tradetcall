@@ -193,8 +193,12 @@ export function connectMonitor(handlers: {
     socket.onclose = () => {
       handlers.onConnection?.(false);
       if (closed) return;
-      const delay = Math.min(15000, 800 + retry * 1200);
+      // Exponential backoff: 0.8s → 1.6s → … → 20s
+      const delay = Math.min(20_000, Math.round(800 * 2 ** Math.min(retry, 4)));
       retry += 1;
+      handlers.onError({
+        message: `● OFFLINE — qayta ulanmoqda… (${Math.round(delay / 1000)}s)`,
+      });
       retryTimer = setTimeout(connect, delay);
     };
   };

@@ -1,29 +1,37 @@
 import type { Candle, TechnicalAnalysis } from "./types";
+import * as ti from "technicalindicators";
 
-function sma(values: number[], period: number): number {
-  if (values.length < period) return values[values.length - 1] ?? 0;
-  const slice = values.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / slice.length;
+const RSI = ti.RSI;
+const SMA = ti.SMA;
+const ADX = ti.ADX;
+
+function lastOf(arr: number[], fallback = 0): number {
+  return arr.length ? arr[arr.length - 1]! : fallback;
 }
 
-/** Wilder RSI */
+function round1(n: number) {
+  return Math.round(n * 10) / 10;
+}
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/** RSI(14) — technicalindicators (Wilder) */
 export function rsi(closes: number[], period = 14): number {
   if (closes.length < period + 2) return 50;
-  let avgGain = 0;
-  let avgLoss = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff >= 0) avgGain += diff;
-    else avgLoss -= diff;
-  }
-  avgGain /= period;
-  avgLoss /= period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return Math.round((100 - 100 / (1 + rs)) * 10) / 10;
+  const arr = RSI.calculate({ period, values: closes });
+  return round1(lastOf(arr, 50));
 }
 
-/** Wilder ATR */
+/** SMA — technicalindicators */
+export function sma(values: number[], period: number): number {
+  if (values.length < period) return values[values.length - 1] ?? 0;
+  const arr = SMA.calculate({ period, values });
+  return lastOf(arr, values[values.length - 1] ?? 0);
+}
+
+/** Wilder ATR — qo'lda (kutubxonada ATR alohida, lekin mavjud) */
 export function wilderAtr(candles: Candle[], period = 14): number {
   if (candles.length < 2) return 0;
   const trs: number[] = [];
@@ -39,45 +47,24 @@ export function wilderAtr(candles: Candle[], period = 14): number {
   for (let i = period; i < trs.length; i++) {
     atrVal = (atrVal * (period - 1) + trs[i]) / period;
   }
-  return Math.round(atrVal * 100) / 100;
+  return round2(atrVal);
 }
 
-function wilderAdx(candles: Candle[], period = 14): number {
+function libAdx(candles: Candle[], period = 14): number {
   if (candles.length < period + 2) return 0;
-  const plusDm: number[] = [];
-  const minusDm: number[] = [];
-  const tr: number[] = [];
-  for (let i = 1; i < candles.length; i++) {
-    const up = candles[i].high - candles[i - 1].high;
-    const down = candles[i - 1].low - candles[i].low;
-    plusDm.push(up > down && up > 0 ? up : 0);
-    minusDm.push(down > up && down > 0 ? down : 0);
-    const c = candles[i];
-    const prev = candles[i - 1];
-    tr.push(Math.max(c.high - c.low, Math.abs(c.high - prev.close), Math.abs(c.low - prev.close)));
-  }
-  const smooth = (arr: number[]) => {
-    let v = arr.slice(0, period).reduce((a, b) => a + b, 0);
-    const out = [v];
-    for (let i = period; i < arr.length; i++) {
-      v = v - v / period + arr[i];
-      out.push(v);
-    }
-    return out;
-  };
-  const trS = smooth(tr);
-  const plusS = smooth(plusDm);
-  const minusS = smooth(minusDm);
-  const dx: number[] = [];
-  for (let i = 0; i < trS.length; i++) {
-    if (trS[i] === 0) continue;
-    const pdi = (100 * plusS[i]) / trS[i];
-    const mdi = (100 * minusS[i]) / trS[i];
-    const sum = pdi + mdi;
-    if (sum > 0) dx.push((100 * Math.abs(pdi - mdi)) / sum);
-  }
-  if (!dx.length) return 0;
-  return Math.round(dx[dx.length - 1] * 10) / 10;
+  const arr = ADX.calculate({
+    period,
+    high: candles.map((c) => c.high),
+    low: candles.map((c) => c.low),
+    close: candles.map((c) => c.close),
+  });
+  const last = arr[arr.length - 1] as { adx?: number } | undefined;
+  return round1(last?.adx ?? 0);
+}
+
+/** ADX — technicalindicators (audit + tashqi API uchun wilderAdx nomi saqlanadi) */
+export function wilderAdx(candles: Candle[], period = 14): number {
+  return libAdx(candles, period);
 }
 
 /** Fractal swing highs/lows */
@@ -120,10 +107,6 @@ function priorDayLevels(candles: Candle[]): { high: number; low: number } | null
   };
 }
 
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}
-
 export function analyzeTechnicals(candles: Candle[]): TechnicalAnalysis {
   const closes = candles.map((c) => c.close);
   const current = closes[closes.length - 1] ?? 0;
@@ -131,7 +114,7 @@ export function analyzeTechnicals(candles: Candle[]): TechnicalAnalysis {
   const sma50 = sma(closes, Math.min(50, closes.length));
   const rsiVal = rsi(closes);
   const atrVal = wilderAtr(candles) || current * 0.001;
-  const adxVal = wilderAdx(candles);
+  const adxVal = libAdx(candles);
   const { support, resistance } = swingLevels(candles);
   const prior = priorDayLevels(candles);
 

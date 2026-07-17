@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import type { AiPhase } from "../../../../shared/ai-trade-signal";
 import type { MonitorSessionInfo, MonitorSnapshot } from "../../../../shared/types";
+import type { ConnStatus } from "../../store/monitor-store";
 import { EmpireBackground } from "./EmpireBackground";
 import { EmpireNavbar } from "./EmpireNavbar";
 import { LeftColumn } from "./LeftColumn";
@@ -19,6 +20,7 @@ interface Props {
   sessionBusy: boolean;
   lastUpdate: string;
   liveOk: boolean;
+  connStatus: ConnStatus;
   tickFlash: number;
   translating: boolean;
   onRequestForecast: (mode?: "scalp" | "swing") => void;
@@ -36,6 +38,7 @@ export function EmpireTerminal({
   sessionBusy,
   lastUpdate,
   liveOk,
+  connStatus,
   tickFlash,
   translating,
   onRequestForecast,
@@ -45,6 +48,7 @@ export function EmpireTerminal({
   onOpenAdmin,
 }: Props) {
   const signal = data?.aiSignal ?? null;
+  const engine = data?.engineSignal ?? null;
   const gold = data?.gold ?? null;
   const news = data?.news ?? { direct: [], macro: [], geopolitics: [] };
   const analysis = data?.newsAnalysis ?? null;
@@ -89,6 +93,7 @@ export function EmpireTerminal({
             >
               <LeftColumn
                 signal={signal}
+                engine={engine}
                 phase={phase}
                 analyzing={analyzing}
                 sessionBusy={sessionBusy}
@@ -128,7 +133,13 @@ export function EmpireTerminal({
         </div>
       </div>
 
-      <EmpireFooter gold={gold} lastUpdate={lastUpdate} liveOk={liveOk} tickerText={tickerText} />
+      <EmpireFooter
+        gold={gold}
+        lastUpdate={lastUpdate}
+        liveOk={liveOk}
+        connStatus={connStatus}
+        tickerText={tickerText}
+      />
 
       {translating && <div className="empire-translating">TARJIMA…</div>}
     </div>

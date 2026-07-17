@@ -36,7 +36,7 @@ export interface PriceData {
   bid?: number;
   ask?: number;
   spread?: number;
-  feed?: "tradingview" | "yahoo" | "spot";
+  feed?: "tradingview" | "yahoo" | "spot" | "finnhub";
   /** Oxirgi tick delta ($) */
   tickDelta?: number;
 }
@@ -244,6 +244,8 @@ export interface MonitorSnapshot {
   calendar?: CalendarStatus;
   /** Jonli texnik (RSI, ADX, qo'llab-quvvatlash) — strategiyasiz */
   marketTechnical?: TechnicalAnalysis | null;
+  /** Shaffof vaznli signal engine (RSI/SMA/ADX/momentum) */
+  engineSignal?: import("./signal-engine").EngineSignal | null;
   /** M1 skalp trend oldindan */
   m1Scalp?: import("./m1-scalp").M1ScalpLead | null;
   liveMomentum?: import("./scalp-signal-guard").LiveMomentum | null;
